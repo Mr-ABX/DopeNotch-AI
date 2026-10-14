@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
-  CheckCircle2,
   AlertCircle,
   Mic,
-  Play,
-  Sparkles,
   Zap,
   ShieldAlert,
+  Copy,
+  Check,
+  Search,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -35,6 +35,7 @@ export const WelcomeView: React.FC = () => {
     microphone_status: 'authorized',
   });
   const [isRequestingPerms, setIsRequestingPerms] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const fetchPermissions = async () => {
     try {
@@ -74,264 +75,205 @@ export const WelcomeView: React.FC = () => {
     }
   };
 
+  const handleCopyTranscript = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   const needsPermissions = !permissions.microphone || !permissions.accessibility;
 
   return (
-    <div className="flex-1 h-full overflow-y-auto p-8 space-y-6 bg-[#000000] text-[#ededed]">
-      {/* Hero Welcome Banner */}
-      <div className="space-y-2">
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span className="text-[11px] font-semibold tracking-wide uppercase">DopeNotch • Top-Notch Dictation</span>
+    <div className="flex-1 h-full overflow-y-auto p-6 space-y-6 bg-[#000000] text-[#ededed]">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-[#ededed] tracking-tight">Overview</h1>
+          <p className="text-xs text-zinc-400 mt-0.5">Instant voice dictation & top-notch clipboard shelf</p>
         </div>
-        <h1 className="text-2xl font-bold text-[#ededed] tracking-tight">Talk anywhere. DopeNotch types for you.</h1>
-        <p className="text-xs text-zinc-400 max-w-xl leading-relaxed">
-          Ultra-fast, on-device Whisper voice dictation with 1:1 Apple-style top notch, live clipboard synchronization shelf, and Raycast fast search.
-        </p>
+
+        <div className="flex items-center gap-2">
+          {needsPermissions ? (
+            <button
+              onClick={handleRequestPermissions}
+              disabled={isRequestingPerms}
+              className="px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>{isRequestingPerms ? 'Requesting...' : 'Grant Permissions'}</span>
+            </button>
+          ) : (
+            <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-xs font-medium flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              System Ready
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Permissions Alert Banner (if needed) */}
+      {/* Permissions Banner if Missing */}
       {needsPermissions && (
-        <div className="p-4 rounded-2xl bg-amber-950/20 border border-amber-500/30 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-amber-300">macOS System Permissions Needed</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                {!permissions.microphone && !permissions.accessibility
-                  ? 'Microphone and Accessibility are required to record speech and auto-type text.'
-                  : !permissions.microphone
-                  ? 'Microphone permission is required to capture speech.'
-                  : 'Accessibility permission is required for 1-click text insertion.'}
-              </p>
-            </div>
+        <div className="p-3.5 rounded-xl bg-[#141418] border border-amber-500/30 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-zinc-300">
+              {!permissions.microphone && !permissions.accessibility
+                ? 'Microphone and Accessibility permissions required.'
+                : !permissions.microphone
+                ? 'Microphone permission required.'
+                : 'Accessibility permission required for auto-typing.'}
+            </span>
           </div>
           <button
             onClick={handleRequestPermissions}
-            disabled={isRequestingPerms}
-            className="px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black text-xs font-semibold transition-all shrink-0 cursor-pointer"
+            className="text-amber-400 hover:underline font-semibold cursor-pointer shrink-0"
           >
-            {isRequestingPerms ? 'Requesting...' : 'Grant Permissions'}
+            Open Settings
           </button>
         </div>
       )}
 
-      {/* Quick Status Cards Grid */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-amber-400" />
-          <h2 className="text-xs font-semibold text-zinc-300 tracking-wide uppercase">System Status & Engine</h2>
+      {/* Quick Status & Shortcuts Strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* Active Engine */}
+        <button
+          onClick={() => setActiveTab('voiceEngine')}
+          className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] hover:border-zinc-700 transition-colors text-left flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
+              <Zap className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <p className="text-[11px] text-zinc-400">Speech Engine</p>
+              <p className="text-xs font-medium text-white">{activeModel.name}</p>
+            </div>
+          </div>
+          <span className="text-[10px] text-zinc-400 group-hover:text-white transition-colors">Change →</span>
+        </button>
+
+        {/* Dictation Shortcut */}
+        <div className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
+              <Mic className="w-3.5 h-3.5" />
+            </div>
+            <div>
+              <p className="text-[11px] text-zinc-400">Dictation Shortcut</p>
+              <p className="text-xs font-medium text-white">Press or Hold</p>
+            </div>
+          </div>
+          <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-zinc-200 border border-[#2a2a32] font-mono text-xs">
+            {hotkey || '⌥Space'}
+          </kbd>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {/* Card 1: Voice Model Ready */}
-          <div
-            onClick={() => setActiveTab('voiceEngine')}
-            className="p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] flex items-center justify-between hover:border-[#2a2a32] transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
-                <Zap className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-[#ededed]">Whisper Engine Active</p>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
-                  {activeModel.name} (On-Device)
-                </p>
-              </div>
+        {/* Search HUD */}
+        <div className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
+              <Search className="w-3.5 h-3.5" />
             </div>
-            <span className="text-[10px] font-mono font-medium text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">
-              Ready
-            </span>
-          </div>
-
-          {/* Card 2: Top Notch / SuPaste Active */}
-          <div className="p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] flex items-center justify-between hover:border-[#2a2a32] transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center border border-orange-500/20">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-[#ededed]">SuperNotch & SuPaste</p>
-                <p className="text-[11px] text-zinc-400 mt-0.5">Live OS Clipboard Sync</p>
-              </div>
+            <div>
+              <p className="text-[11px] text-zinc-400">SuperNotch HUD</p>
+              <p className="text-xs font-medium text-white">Search & Clipboard</p>
             </div>
-            <span className="text-[10px] font-mono font-medium text-orange-400 bg-orange-500/10 px-2.5 py-1 rounded-full border border-orange-500/20">
-              Enabled
-            </span>
           </div>
-
-          {/* Card 3: Microphone Permission */}
-          <div className="p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] flex items-center justify-between hover:border-[#2a2a32] transition-colors">
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
-                permissions.microphone
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  : 'bg-red-500/10 text-red-400 border-red-500/20'
-              }`}>
-                {permissions.microphone ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-[#ededed]">Microphone Access</p>
-                <p className="text-[11px] text-zinc-400 mt-0.5">CoreAudio Studio Input</p>
-              </div>
-            </div>
-            <span className={`text-[10px] font-mono font-medium px-2.5 py-1 rounded-full border ${
-              permissions.microphone
-                ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                : 'text-red-400 bg-red-500/10 border-red-500/20 cursor-pointer'
-            }`}
-            onClick={!permissions.microphone ? handleRequestPermissions : undefined}
-            >
-              {permissions.microphone ? 'Granted' : 'Grant Now'}
-            </span>
-          </div>
-
-          {/* Card 4: Accessibility */}
-          <div className="p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] flex items-center justify-between hover:border-[#2a2a32] transition-colors">
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
-                permissions.accessibility
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  : 'bg-red-500/10 text-red-400 border-red-500/20'
-              }`}>
-                {permissions.accessibility ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-[#ededed]">Accessibility Typing</p>
-                <p className="text-[11px] text-zinc-400 mt-0.5">Direct 1-Click Paste</p>
-              </div>
-            </div>
-            <span className={`text-[10px] font-mono font-medium px-2.5 py-1 rounded-full border ${
-              permissions.accessibility
-                ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
-                : 'text-red-400 bg-red-500/10 border-red-500/20 cursor-pointer'
-            }`}
-            onClick={!permissions.accessibility ? handleRequestPermissions : undefined}
-            >
-              {permissions.accessibility ? 'Granted' : 'Grant Now'}
-            </span>
-          </div>
+          <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-zinc-200 border border-[#2a2a32] font-mono text-xs">
+            ⌥V
+          </kbd>
         </div>
       </div>
 
-      {/* How to Use Section */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Play className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-          <h2 className="text-xs font-semibold text-zinc-300 tracking-wide uppercase">Workflow Shortcuts</h2>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-[#18181c] border border-[#2a2a32] text-amber-400 text-xs font-bold flex items-center justify-center shrink-0">
-              1
-            </div>
-            <div>
-              <p className="text-xs font-medium text-[#ededed]">Voice Dictation Hotkey</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Press global shortcut <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-amber-400 border border-[#2a2a32] font-mono text-[10px]">{hotkey || '⌥Space'}</kbd> or click the top notch to start/stop speaking.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-[#18181c] border border-[#2a2a32] text-amber-400 text-xs font-bold flex items-center justify-center shrink-0">
-              2
-            </div>
-            <div>
-              <p className="text-xs font-medium text-[#ededed]">Raycast Fast Search & HUD Hotkey</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Press global shortcut <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-amber-400 border border-[#2a2a32] font-mono text-[10px]">⌥V</kbd> or <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-amber-400 border border-[#2a2a32] font-mono text-[10px]">⇧⌘V</kbd> to open search & tools HUD in the notch. Type <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-amber-400 font-mono text-[10px]">/color</kbd> for screen loupe eyedropper.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 rounded-full bg-[#18181c] border border-[#2a2a32] text-amber-400 text-xs font-bold flex items-center justify-center shrink-0">
-              3
-            </div>
-            <div>
-              <p className="text-xs font-medium text-[#ededed]">SuPaste Card Shelf & Vault</p>
-              <p className="text-[11px] text-zinc-400 mt-0.5">
-                Swipe left on trackpad or press <kbd className="px-1.5 py-0.5 rounded bg-[#18181c] text-amber-400 font-mono text-[10px]">Tab</kbd> in the notch to browse your horizontal clipboard history cards.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Interactive Tryout Sandbox */}
-      <div className="p-5 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-3">
+      {/* Mic Test Sandbox */}
+      <div className="p-5 rounded-2xl bg-[#111114] border border-[#1e1e24] space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xs font-semibold text-[#ededed]">Interactive Mic & Dictation Sandbox</h2>
-            <p className="text-[11px] text-zinc-400 mt-0.5">
-              Test your microphone and voice latency right inside this card.
-            </p>
+            <h2 className="text-xs font-semibold text-white tracking-wide uppercase">Microphone & Transcription Test</h2>
+            <p className="text-[11px] text-zinc-400 mt-0.5">Speak to verify microphone levels and Whisper speech-to-text.</p>
           </div>
+
+          <button
+            onClick={handleToggleLocalTest}
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+              isRecording
+                ? 'bg-rose-500 text-white hover:bg-rose-600 animate-pulse'
+                : 'bg-amber-500 text-black hover:bg-amber-400'
+            }`}
+          >
+            <Mic className="w-3.5 h-3.5" />
+            <span>{isRecording ? 'Stop & Transcribe' : 'Test Mic'}</span>
+          </button>
         </div>
 
-        <div className="rounded-xl bg-[#09090b] border border-[#1e1e24] p-4 min-h-[110px] flex flex-col justify-between">
-          <div className="text-xs text-zinc-300 leading-relaxed font-sans">
-            {isRecording ? (
-              <div className="space-y-2.5">
-                <div className="flex items-center gap-2 text-amber-400 font-medium">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
-                  <span>Recording voice input... (Speak into your mic)</span>
+        {/* Live Audio or Result Box */}
+        <div className="rounded-xl bg-[#09090b] border border-[#1e1e24] p-4 min-h-[90px] flex flex-col justify-center">
+          {isRecording ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-rose-400 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <span>Listening... Speak into microphone</span>
                 </div>
-                {/* 60 FPS Visualizer bar */}
-                <div className="w-full h-2 bg-zinc-900 rounded-full overflow-hidden p-0.5 border border-zinc-800">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 rounded-full transition-all duration-75"
-                    style={{ width: `${Math.min(100, Math.max(8, audioLevel * 100 * 2.5))}%` }}
-                  />
-                </div>
-                {streamingText && (
-                  <p className="text-zinc-200 font-mono text-xs bg-zinc-900/60 p-2 rounded-md border border-zinc-800">
-                    {streamingText}
-                  </p>
-                )}
+                <span className="text-[11px] text-zinc-500 font-mono">
+                  {Math.round(audioLevel * 100)}%
+                </span>
               </div>
-            ) : (
-              <div>
-                {latestTranscript ? (
-                  <div className="space-y-1">
-                    <span className="text-[10px] uppercase font-mono text-amber-400 font-semibold">Latest On-Device Transcription:</span>
-                    <p className="text-zinc-100 font-medium text-xs bg-zinc-900/50 p-2.5 rounded-lg border border-zinc-800/80">
-                      "{latestTranscript}"
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-zinc-400">
-                    Press <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-amber-400 border border-zinc-700 font-mono text-[10px]">{hotkey || '⌥Space'}</kbd> or click "Test Speech Input" below to start speaking.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
 
-          <div className="flex items-center justify-between pt-3 border-t border-[#1a1a1c] mt-3">
-            <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-mono">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span>Active: {activeModel.name}</span>
+              {/* Minimal Waveform Bar */}
+              <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
+                <div
+                  className="h-full bg-rose-500 rounded-full transition-all duration-75"
+                  style={{ width: `${Math.min(100, Math.max(6, audioLevel * 100 * 2.5))}%` }}
+                />
+              </div>
+
+              {streamingText && (
+                <p className="text-xs text-zinc-200 font-mono bg-zinc-900/60 p-2 rounded-lg border border-zinc-800">
+                  {streamingText}
+                </p>
+              )}
             </div>
-
-            <button
-              onClick={handleToggleLocalTest}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md ${
-                isRecording
-                  ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-                  : 'bg-white text-black hover:bg-zinc-200'
-              }`}
-            >
-              <Mic className="w-3.5 h-3.5" />
-              <span>{isRecording ? 'Stop & Transcribe' : 'Test Speech Input'}</span>
-            </button>
-          </div>
+          ) : latestTranscript ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-mono text-zinc-400">Latest Transcription:</span>
+                <button
+                  onClick={() => handleCopyTranscript(latestTranscript)}
+                  className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
+                >
+                  {copied ? <Check className="w-3 h-3 text-amber-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                </button>
+              </div>
+              <p className="text-xs text-zinc-200 leading-relaxed font-sans bg-zinc-900/50 p-2.5 rounded-lg border border-zinc-800/80">
+                "{latestTranscript}"
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-400 text-center py-2">
+              Click <span className="text-zinc-200 font-medium">"Test Mic"</span> or press <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 font-mono text-[10px]">{hotkey || '⌥Space'}</kbd> to test voice dictation.
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Quick Navigation Footer Row */}
+      <div className="flex items-center justify-between pt-2 text-[11px] text-zinc-400">
+        <div className="flex items-center gap-4">
+          <span>Engine: <strong className="text-zinc-300 font-medium">{activeModel.name}</strong></span>
+          <span>•</span>
+          <span>Latency: <strong className="text-zinc-300 font-medium">Real-Time (~120ms)</strong></span>
+          <span>•</span>
+          <span>Storage: <strong className="text-zinc-300 font-medium">100% Offline</strong></span>
+        </div>
+
+        <button
+          onClick={() => setActiveTab('preferences')}
+          className="text-zinc-400 hover:text-white transition-colors"
+        >
+          Preferences →
+        </button>
       </div>
     </div>
   );

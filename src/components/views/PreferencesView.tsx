@@ -6,10 +6,6 @@ import {
   Layers,
   Database,
   Sliders,
-  Sparkles,
-  Command,
-  Check,
-  Search,
 } from 'lucide-react';
 import { useAppStore, OverlayStyle } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -67,10 +63,7 @@ export const PreferencesView: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Ignore standalone modifier presses
-    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
-      return;
-    }
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
 
     const parts: string[] = [];
     if (e.ctrlKey) parts.push('Control');
@@ -82,9 +75,7 @@ export const PreferencesView: React.FC = () => {
     if (keyName === ' ') keyName = 'Space';
     else if (keyName.length === 1) keyName = keyName.toUpperCase();
 
-    if (parts.length === 0) {
-      parts.push('Option'); // Default fallback modifier
-    }
+    if (parts.length === 0) parts.push('Option');
     parts.push(keyName);
 
     const combo = parts.join('+');
@@ -97,9 +88,7 @@ export const PreferencesView: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) {
-      return;
-    }
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return;
 
     const parts: string[] = [];
     if (e.ctrlKey) parts.push('Control');
@@ -125,32 +114,32 @@ export const PreferencesView: React.FC = () => {
 
   const SECTIONS = [
     { id: 'general', label: 'General', icon: SettingsIcon },
-    { id: 'dictation', label: 'Dictation & Hotkeys', icon: Keyboard },
-    { id: 'audio', label: 'Audio & Devices', icon: Speaker },
-    { id: 'overlay', label: 'Overlay Style', icon: Layers },
-    { id: 'data', label: 'Data & Storage', icon: Database },
+    { id: 'dictation', label: 'Hotkeys', icon: Keyboard },
+    { id: 'audio', label: 'Audio', icon: Speaker },
+    { id: 'overlay', label: 'Overlay', icon: Layers },
+    { id: 'data', label: 'Data', icon: Database },
   ] as const;
 
   const PRIMARY_PRESETS = [
-    { label: '⌥ Space (Default)', value: 'Option+Space', desc: 'Hold or press Option + Space' },
-    { label: '⌃ ⌥ Space', value: 'Control+Option+Space', desc: 'Control + Option + Space' },
-    { label: '⌘ ⇧ Space', value: 'CommandOrControl+Shift+Space', desc: 'Command + Shift + Space' },
-    { label: '⌥ D', value: 'Option+D', desc: 'Option + D (Dictate)' },
+    { label: '⌥ Space', value: 'Option+Space' },
+    { label: '⌃⌥ Space', value: 'Control+Option+Space' },
+    { label: '⇧⌘ Space', value: 'CommandOrControl+Shift+Space' },
+    { label: '⌥ D', value: 'Option+D' },
   ];
 
   const SECONDARY_PRESETS = [
-    { label: '⌃ ⌥ Space', value: 'Control+Option+Space', desc: 'Control + Option + Space' },
-    { label: '⌥ Tab', value: 'Option+Tab', desc: 'Option + Tab' },
-    { label: '⌘ ⇧ A', value: 'CommandOrControl+Shift+A', desc: 'Command + Shift + A (AI)' },
+    { label: '⌃⌥ Space', value: 'Control+Option+Space' },
+    { label: '⌥ Tab', value: 'Option+Tab' },
+    { label: '⇧⌘ A', value: 'CommandOrControl+Shift+A' },
   ];
 
   return (
     <div className="flex-1 h-full flex flex-col md:flex-row overflow-hidden select-none bg-[#000000] text-[#ededed]">
-      {/* Settings Section Sidebar */}
-      <div className="w-full md:w-56 h-full border-r border-[#1e1e24] p-3 space-y-1 bg-[#0a0a0c]">
-        <div className="px-3 py-2 mb-2">
+      {/* Sidebar */}
+      <div className="w-full md:w-48 h-full border-r border-[#1e1e24] p-3 space-y-1 bg-[#0a0a0c]">
+        <div className="px-3 py-2 mb-1">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-amber-400" /> Preferences
+            <Sliders className="w-3.5 h-3.5 text-zinc-400" /> Settings
           </h2>
         </div>
 
@@ -162,39 +151,33 @@ export const PreferencesView: React.FC = () => {
             <button
               key={sec.id}
               onClick={() => setSettingsSection(sec.id as any)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 isActive
-                  ? 'bg-white text-black font-semibold shadow-sm'
+                  ? 'bg-white text-black font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Icon
-                className={`w-4 h-4 ${
-                  isActive ? 'text-black' : 'text-zinc-400'
-                }`}
-              />
+              <Icon className="w-3.5 h-3.5 shrink-0" />
               <span>{sec.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Section Content Pane */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#000000]">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#000000]">
         {settingsSection === 'general' && (
-          <div className="space-y-4 max-w-2xl">
+          <div className="space-y-4 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-[#ededed]">General Preferences</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Customize startup and interaction behavior.</p>
+              <h3 className="text-sm font-semibold text-white">General</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Application preferences</p>
             </div>
 
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] hover:border-[#2a2a32] transition-colors">
+            <div className="rounded-xl bg-[#111114] border border-[#1e1e24] divide-y divide-[#1e1e24]">
+              <div className="flex items-center justify-between p-3.5">
                 <div>
-                  <p className="text-xs font-medium text-[#ededed]">Audio Feedback Cues</p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Play subtle audio chime when recording starts and ends.
-                  </p>
+                  <p className="text-xs font-medium text-white">Audio Feedback</p>
+                  <p className="text-[11px] text-zinc-500">Chime on recording start and stop</p>
                 </div>
                 <input
                   type="checkbox"
@@ -204,18 +187,16 @@ export const PreferencesView: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] hover:border-[#2a2a32] transition-colors">
+              <div className="flex items-center justify-between p-3.5">
                 <div>
-                  <p className="text-xs font-medium text-[#ededed]">Estimated Typing Speed (WPM)</p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Used to calculate hours saved in the productivity dashboard.
-                  </p>
+                  <p className="text-xs font-medium text-white">Typing Speed (WPM)</p>
+                  <p className="text-[11px] text-zinc-500">Used for time-saved calculation</p>
                 </div>
                 <input
                   type="number"
                   value={typingWPM}
                   onChange={(e) => setTypingWPM(Number(e.target.value))}
-                  className="w-20 bg-[#09090b] border border-[#1e1e24] rounded-xl px-2.5 py-1 text-xs text-white text-right font-mono"
+                  className="w-16 bg-[#09090b] border border-[#1e1e24] rounded-md px-2 py-1 text-xs text-white text-right font-mono"
                 />
               </div>
             </div>
@@ -223,162 +204,118 @@ export const PreferencesView: React.FC = () => {
         )}
 
         {settingsSection === 'dictation' && (
-          <div className="space-y-6 max-w-2xl">
+          <div className="space-y-4 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-[#ededed]">Dictation & Global Hotkeys</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Customize hotkeys to trigger instant on-device voice dictation anywhere across macOS.
-              </p>
+              <h3 className="text-sm font-semibold text-white">Hotkeys</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Global keyboard shortcuts</p>
             </div>
 
-            {/* Primary Dictation Hotkey Box */}
-            <div className="p-5 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-4">
+            {/* Dictation Shortcut */}
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-[#ededed] flex items-center gap-1.5">
-                    <Command className="w-3.5 h-3.5 text-amber-400" /> Primary Dictation Shortcut
-                  </p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Triggers voice dictation from any active app or desktop window.
-                  </p>
+                  <p className="text-xs font-medium text-white">Voice Dictation</p>
+                  <p className="text-[11px] text-zinc-500">Hold or press to dictate text</p>
                 </div>
 
-                {/* Live Recorder Button / Active Pill */}
                 <button
                   onClick={() => setIsRecordingPrimary(!isRecordingPrimary)}
                   onKeyDown={isRecordingPrimary ? handleKeyDownPrimary : undefined}
                   tabIndex={0}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all flex items-center gap-2 border ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer border ${
                     isRecordingPrimary
-                      ? 'bg-amber-500 text-black border-amber-400 ring-2 ring-amber-400/30 animate-pulse'
-                      : 'bg-[#09090b] text-amber-400 border-[#2a2a32] hover:border-amber-400/50'
+                      ? 'bg-amber-500 text-black border-amber-400 animate-pulse'
+                      : 'bg-[#09090b] text-zinc-200 border-[#2a2a32] hover:border-zinc-500'
                   }`}
-                  title="Click and press your desired key combination"
                 >
-                  <span>{isRecordingPrimary ? 'Press keys on keyboard...' : hotkey || 'Option+Space'}</span>
+                  {isRecordingPrimary ? 'Press keys...' : hotkey || '⌥Space'}
                 </button>
               </div>
 
-              {/* Quick Presets */}
-              <div className="space-y-2 pt-1 border-t border-[#1a1a1e]">
-                <p className="text-[11px] text-zinc-400 font-medium">Quick 1-Click Presets:</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {PRIMARY_PRESETS.map((preset) => {
-                    const isSelected = hotkey === preset.value;
-                    return (
-                      <button
-                        key={preset.value}
-                        onClick={() => handleSelectPreset(preset.value)}
-                        className={`p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
-                          isSelected
-                            ? 'bg-[#18181c] border-amber-400/50 ring-1 ring-amber-400/20 text-white'
-                            : 'bg-[#0a0a0c] border-[#1e1e24] hover:border-[#2a2a32] text-zinc-300'
-                        }`}
-                      >
-                        <div>
-                          <p className="text-xs font-semibold font-mono">{preset.label}</p>
-                          <p className="text-[10px] text-zinc-500 mt-0.5">{preset.desc}</p>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
+              {/* Presets */}
+              <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                <span className="text-[10px] text-zinc-500 font-mono">Presets:</span>
+                {PRIMARY_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    onClick={() => handleSelectPreset(preset.value)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer ${
+                      hotkey === preset.value
+                        ? 'bg-white text-black font-semibold border-white'
+                        : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
-
-              <p className="text-[10px] text-zinc-500 leading-relaxed">
-                💡 <span className="text-zinc-400">Pro-Tip:</span> macOS system shortcuts require modifier keys alongside a key (e.g. <code className="text-amber-400 font-mono">Option+Space</code> or <code className="text-amber-400 font-mono">Control+Option+Space</code>).
-              </p>
             </div>
 
-            {/* Secondary Command Shortcut Box */}
-            <div className="p-5 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-4">
+            {/* Secondary Shortcut */}
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold text-[#ededed] flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Secondary AI Command Shortcut
-                  </p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Triggers AI prompt injection, text rewrites, and commands.
-                  </p>
+                  <p className="text-xs font-medium text-white">AI Command</p>
+                  <p className="text-[11px] text-zinc-500">Voice prompts and actions</p>
                 </div>
 
                 <button
                   onClick={() => setIsRecordingSecondary(!isRecordingSecondary)}
                   onKeyDown={isRecordingSecondary ? handleKeyDownSecondary : undefined}
                   tabIndex={0}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-mono font-semibold transition-all flex items-center gap-2 border ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-mono font-medium transition-all cursor-pointer border ${
                     isRecordingSecondary
-                      ? 'bg-amber-500 text-black border-amber-400 ring-2 ring-amber-400/30 animate-pulse'
-                      : 'bg-[#09090b] text-amber-400 border-[#2a2a32] hover:border-amber-400/50'
+                      ? 'bg-amber-500 text-black border-amber-400 animate-pulse'
+                      : 'bg-[#09090b] text-zinc-200 border-[#2a2a32] hover:border-zinc-500'
                   }`}
-                  title="Click and press your desired key combination"
                 >
-                  <span>{isRecordingSecondary ? 'Press keys on keyboard...' : secondaryHotkey || 'Control+Option+Space'}</span>
+                  {isRecordingSecondary ? 'Press keys...' : secondaryHotkey || '⌃⌥Space'}
                 </button>
               </div>
 
-              {/* Quick Presets */}
-              <div className="space-y-2 pt-1 border-t border-[#1a1a1e]">
-                <p className="text-[11px] text-zinc-400 font-medium">Secondary Presets:</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {SECONDARY_PRESETS.map((preset) => {
-                    const isSelected = secondaryHotkey === preset.value;
-                    return (
-                      <button
-                        key={preset.value}
-                        onClick={() => handleSelectSecondaryPreset(preset.value)}
-                        className={`p-2 rounded-xl border text-left flex items-center justify-between transition-all ${
-                          isSelected
-                            ? 'bg-[#18181c] border-amber-400/50 ring-1 ring-amber-400/20 text-white'
-                            : 'bg-[#0a0a0c] border-[#1e1e24] hover:border-[#2a2a32] text-zinc-300'
-                        }`}
-                      >
-                        <div>
-                          <p className="text-xs font-semibold font-mono">{preset.label}</p>
-                          <p className="text-[10px] text-zinc-500 mt-0.5">{preset.desc}</p>
-                        </div>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex items-center gap-1.5 pt-1 flex-wrap">
+                <span className="text-[10px] text-zinc-500 font-mono">Presets:</span>
+                {SECONDARY_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    onClick={() => handleSelectSecondaryPreset(preset.value)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono border transition-all cursor-pointer ${
+                      secondaryHotkey === preset.value
+                        ? 'bg-white text-black font-semibold border-white'
+                        : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* SuperNotch HUD Shortcut Box */}
-            <div className="p-5 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-[#ededed] flex items-center gap-1.5">
-                    <Search className="w-3.5 h-3.5 text-amber-400" /> SuperNotch HUD Shortcut (Search & Shelf)
-                  </p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Opens the top SuperNotch HUD anywhere on macOS to search clips, run Raycast tools, or browse clipboard cards.
-                  </p>
-                </div>
+            {/* SuperNotch HUD Shortcut */}
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-white">SuperNotch HUD</p>
+                <p className="text-[11px] text-zinc-500">Search tools and clipboard shelf</p>
+              </div>
 
-                <div className="flex items-center gap-2">
-                  <kbd className="px-3 py-1.5 rounded-xl bg-[#09090b] text-amber-400 border border-[#2a2a32] font-mono text-xs font-semibold shadow-inner">
-                    ⌥V (Option + V)
-                  </kbd>
-                  <span className="text-[10px] text-zinc-500 font-mono">or</span>
-                  <kbd className="px-3 py-1.5 rounded-xl bg-[#09090b] text-zinc-300 border border-[#2a2a32] font-mono text-xs shadow-inner">
-                    ⇧⌘V
-                  </kbd>
-                </div>
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-2 py-1 rounded bg-[#09090b] text-zinc-300 border border-[#2a2a32] font-mono text-xs">
+                  ⌥V
+                </kbd>
+                <span className="text-[10px] text-zinc-600">or</span>
+                <kbd className="px-2 py-1 rounded bg-[#09090b] text-zinc-300 border border-[#2a2a32] font-mono text-xs">
+                  ⇧⌘V
+                </kbd>
               </div>
             </div>
 
-            {/* Dictation Behavior Controls */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] hover:border-[#2a2a32] transition-colors">
+            {/* Dictation Behavior Toggles */}
+            <div className="rounded-xl bg-[#111114] border border-[#1e1e24] divide-y divide-[#1e1e24]">
+              <div className="flex items-center justify-between p-3.5">
                 <div>
-                  <p className="text-xs font-medium text-[#ededed]">Push-to-Talk (Hold Key)</p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    {pushToTalk
-                      ? 'Push-to-Talk: Hold shortcut down while speaking; release to paste.'
-                      : 'Toggle Mode: Press shortcut once to start, press again to stop & paste.'}
+                  <p className="text-xs font-medium text-white">Push-to-Talk</p>
+                  <p className="text-[11px] text-zinc-500">
+                    {pushToTalk ? 'Hold to talk, release to paste' : 'Press to start, press again to stop'}
                   </p>
                 </div>
                 <input
@@ -392,12 +329,10 @@ export const PreferencesView: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-between p-4 rounded-2xl bg-[#121215] border border-[#1e1e24] hover:border-[#2a2a32] transition-colors">
+              <div className="flex items-center justify-between p-3.5">
                 <div>
-                  <p className="text-xs font-medium text-[#ededed]">Smart Auto-Paste</p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Immediately insert transcribed text into your active cursor position.
-                  </p>
+                  <p className="text-xs font-medium text-white">Auto-Paste</p>
+                  <p className="text-[11px] text-zinc-500">Insert text directly at active cursor</p>
                 </div>
                 <input
                   type="checkbox"
@@ -414,20 +349,20 @@ export const PreferencesView: React.FC = () => {
         )}
 
         {settingsSection === 'audio' && (
-          <div className="space-y-4 max-w-2xl">
+          <div className="space-y-4 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-[#ededed]">Audio & Input Devices</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Select and calibrate your recording microphone.</p>
+              <h3 className="text-sm font-semibold text-white">Audio</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Input device configuration</p>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-3">
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-2">
               <label className="block text-xs font-medium text-zinc-300">
-                Microphone Input Device
+                Microphone Input
               </label>
               <select
                 value={selectedInputDevice}
                 onChange={(e) => setSelectedInputDevice(e.target.value)}
-                className="w-full bg-[#09090b] border border-[#1e1e24] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400/50"
+                className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-700"
               >
                 {inputDevices.map((dev) => (
                   <option key={dev.id} value={dev.id}>
@@ -440,29 +375,29 @@ export const PreferencesView: React.FC = () => {
         )}
 
         {settingsSection === 'overlay' && (
-          <div className="space-y-4 max-w-2xl">
+          <div className="space-y-4 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-[#ededed]">Overlay & Visualizer Style</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Choose your preferred on-screen visualizer.</p>
+              <h3 className="text-sm font-semibold text-white">Overlay Style</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Visualizer presentation</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {[
-                { id: 'notch', title: 'Dynamic Notch (SuPaste)', desc: 'Top-screen dock with 1:1 Apple cutout silhouette and card shelf' },
-                { id: 'minimal', title: 'Minimal Pill', desc: 'Compact floating recording indicator' },
-                { id: 'hidden', title: 'Hidden Mode', desc: 'No visual overlay, audio feedback only' },
+                { id: 'notch', title: 'Dynamic Notch', desc: 'Top screen notch with shelf' },
+                { id: 'minimal', title: 'Minimal Pill', desc: 'Floating indicator' },
+                { id: 'hidden', title: 'Hidden', desc: 'Audio cues only' },
               ].map((style) => (
                 <button
                   key={style.id}
                   onClick={() => setOverlayStyle(style.id as OverlayStyle)}
-                  className={`p-4 rounded-2xl text-left transition-all border ${
+                  className={`p-3.5 rounded-xl text-left transition-all border cursor-pointer ${
                     overlayStyle === style.id
-                      ? 'bg-[#18181c] border-amber-400/50 ring-1 ring-amber-400/20'
-                      : 'bg-[#121215] border-[#1e1e24] hover:border-[#2a2a32]'
+                      ? 'bg-[#18181c] border-white/20'
+                      : 'bg-[#111114] border-[#1e1e24] hover:border-zinc-700'
                   }`}
                 >
-                  <p className="text-xs font-semibold text-[#ededed]">{style.title}</p>
-                  <p className="text-[11px] text-zinc-400 mt-1">{style.desc}</p>
+                  <p className="text-xs font-semibold text-white">{style.title}</p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">{style.desc}</p>
                 </button>
               ))}
             </div>
@@ -470,25 +405,24 @@ export const PreferencesView: React.FC = () => {
         )}
 
         {settingsSection === 'data' && (
-          <div className="space-y-4 max-w-2xl">
+          <div className="space-y-4 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-[#ededed]">Data & Local Storage</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Manage local transcription history and audio files.</p>
+              <h3 className="text-sm font-semibold text-white">Data & Storage</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Manage local files and history</p>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-3">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-[#ededed] font-medium">Local Dictation Cache</span>
-                <button
-                  onClick={clearHistory}
-                  className="px-3.5 py-1.5 rounded-full bg-red-500/10 text-red-400 hover:bg-red-500/20 text-xs font-semibold border border-red-500/20 transition-colors"
-                >
-                  Clear Audio Cache
-                </button>
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-white">Local Dictation Cache</p>
+                <p className="text-[11px] text-zinc-500">Stored 100% on device</p>
               </div>
-              <p className="text-[11px] text-zinc-400">
-                All voice recordings and transcripts remain 100% on your local disk.
-              </p>
+
+              <button
+                onClick={clearHistory}
+                className="px-3 py-1.5 rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-medium border border-rose-500/20 transition-colors cursor-pointer"
+              >
+                Clear Cache
+              </button>
             </div>
           </div>
         )}
