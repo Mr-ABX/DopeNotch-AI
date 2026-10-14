@@ -1,4 +1,4 @@
-// Murmur - Main Tauri Entry Point (Tauri 2.x)
+// DopeNotch - Main Tauri Entry Point (Tauri 2.x)
 // Initializes the app, system tray, global hotkeys, and all plugins.
 
 mod audio;

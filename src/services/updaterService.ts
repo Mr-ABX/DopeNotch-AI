@@ -1,8 +1,8 @@
 import { open } from "@tauri-apps/plugin-shell";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 
-export const APP_VERSION = "0.3.2";
-const GITHUB_REPO = "Mr-ABX/MurMur";
+export const APP_VERSION = "0.4.0";
+const GITHUB_REPO = "Mr-ABX/DopeNotch";
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -54,7 +54,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
       hasUpdate,
       currentVersion: APP_VERSION,
       latestVersion: latestVersion.replace(/^v/, ""),
-      releaseName: data.name || `Murmur ${latestVersion}`,
+      releaseName: data.name || `DopeNotch ${latestVersion}`,
       releaseNotes: data.body || "Performance and stability updates.",
       releaseUrl: data.html_url || `https://github.com/${GITHUB_REPO}/releases/latest`,
       publishedAt: data.published_at || new Date().toISOString(),
@@ -65,7 +65,7 @@ export async function checkForAppUpdates(): Promise<UpdateInfo> {
       hasUpdate: false,
       currentVersion: APP_VERSION,
       latestVersion: APP_VERSION,
-      releaseName: `Murmur v${APP_VERSION}`,
+      releaseName: `DopeNotch v${APP_VERSION}`,
       releaseNotes: "",
       releaseUrl: `https://github.com/${GITHUB_REPO}/releases/latest`,
       publishedAt: new Date().toISOString(),
@@ -90,8 +90,8 @@ export async function notifyUpdateAvailable(info: UpdateInfo) {
     }
     if (hasPermission) {
       sendNotification({
-        title: "Murmur Update Available 🚀",
-        body: `A new version of Murmur (v${info.latestVersion}) is ready to download!`,
+        title: "DopeNotch Update Available 🚀",
+        body: `A new version of DopeNotch (v${info.latestVersion}) is ready to download!`,
       });
     }
   } catch (err) {

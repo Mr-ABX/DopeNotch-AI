@@ -31,7 +31,7 @@ export const VoiceEngineView: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [providerFilter, setProviderFilter] = useState<'all' | 'Local Whisper' | 'Cloud' | 'Apple'>('all');
-  const [modelDirStatus] = useState<string>('~/Library/Application Support/Murmur/models');
+  const [modelDirStatus] = useState<string>('~/Library/Application Support/DopeNotch/models');
 
   useEffect(() => {
     // Check downloaded models from backend

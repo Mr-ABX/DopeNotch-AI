@@ -183,7 +183,7 @@ pub fn hide_visualizers(app: &AppHandle, settings: &AppSettings) {
     }
 }
 
-/// Set macOS Dock application icon at runtime so raw binaries and dev builds show the Murmur bird icon instead of the terminal 'exec' icon
+/// Set macOS Dock application icon at runtime so raw binaries and dev builds show the DopeNotch icon instead of the terminal 'exec' icon
 pub fn set_dock_icon() {
     #[cfg(target_os = "macos")]
     {

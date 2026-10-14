@@ -238,7 +238,7 @@ impl Default for AppSettings {
             experimental_wake_word: false,
             operating_mode: OperatingMode::Dictation,
             assistant_hotkey: "Control+Option+Space".to_string(),
-            wake_word: "hey murmur".to_string(),
+            wake_word: "hey dopenotch".to_string(),
             widget_notch_enabled: true,
             widget_pet_enabled: false,
             gemma_model: None,
