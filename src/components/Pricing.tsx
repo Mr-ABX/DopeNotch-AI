@@ -6,9 +6,24 @@ export const Pricing: React.FC = () => {
   const [devices, setDevices] = useState<1 | 2 | 3>(1);
 
   const priceMap = {
-    1: { price: '$15', oldPrice: '$29', license: '1 device license' },
-    2: { price: '$24', oldPrice: '$49', license: '2 devices license' },
-    3: { price: '$29', oldPrice: '$59', license: '3 devices license' },
+    1: {
+      price: '$15',
+      oldPrice: '$29',
+      license: '1 device license',
+      checkoutUrl: 'https://buy.polar.sh/polar_cl_fby6JW0hZacNedJuyHKQoi5m834UHFEwb9jUk1yBbMp',
+    },
+    2: {
+      price: '$24',
+      oldPrice: '$49',
+      license: '2 devices license',
+      checkoutUrl: 'https://buy.polar.sh/polar_cl_Vo7H00kWSn6lc0gMQLS3RETsL2sva2tE3kwhP1SRGR0',
+    },
+    3: {
+      price: '$29',
+      oldPrice: '$59',
+      license: '3 devices license',
+      checkoutUrl: 'https://buy.polar.sh/polar_cl_soQ0nPqahzBwvw9vdsyUEqbVPiMPj5hYPUgtX0CTdjG',
+    },
   };
 
   const current = priceMap[devices];
@@ -219,11 +234,13 @@ export const Pricing: React.FC = () => {
 
           {/* CTA Download Pro for macOS Button */}
           <a 
-            href="#"
+            href={current.checkoutUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-black text-white hover:bg-zinc-800 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] shadow-lg flex items-center justify-center gap-2.5 mt-4"
           >
             <AppleLogo className="w-4 h-4 text-white" />
-            <span>Download Pro for macOS</span>
+            <span>Get DopeNotch Pro ({current.price})</span>
           </a>
 
         </div>
