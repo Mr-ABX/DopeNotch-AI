@@ -136,11 +136,12 @@ export const Pricing: React.FC = () => {
 
           {/* Download Community Button */}
           <a 
-            href="#download"
+            href="/DopeNotch.dmg"
+            download="DopeNotch.dmg"
             className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-black/5 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-4"
           >
             <AppleLogo className="w-4 h-4 text-zinc-900" />
-            <span>Download Community Free</span>
+            <span>Download Community Free (.dmg)</span>
           </a>
 
         </div>
