@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Murmur requires access to your microphone to transcribe speech to text.</string>
+    <string>DopeNotch requires access to your microphone to transcribe speech to text.</string>
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Murmur Screen Assistant requires access to capture screen context when requested.</string>
+    <string>DopeNotch requires screen access to sample screen colors with pixel loupe when requested.</string>
     <key>LSUIElement</key>
     <true/>
 </dict>

@@ -96,13 +96,22 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'cmd-color',
       command: '/color',
-      title: 'Color Loupe & Swatch',
-      subtitle: 'Pick screen color or copy brand amber #F69E0B',
+      title: 'Screen Color Eyedropper',
+      subtitle: 'Native macOS pixel loupe • copies hex to clipboard',
       icon: Pipette,
       action: async () => {
-        await navigator.clipboard.writeText('#F69E0B');
-        showStatus('Copied #F69E0B to clipboard');
-        setTimeout(() => setSuperNotchMode('idle'), 600);
+        try {
+          showStatus('Click any pixel on screen...');
+          const hex = await invoke<string>('pick_screen_color');
+          if (hex && hex.trim()) {
+            showStatus(`Sampled ${hex} to clipboard!`);
+          } else {
+            showStatus('Color sampling cancelled');
+          }
+        } catch (err) {
+          console.error(err);
+          showStatus('Color sampling cancelled');
+        }
       },
     },
     {

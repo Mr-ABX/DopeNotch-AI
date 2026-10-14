@@ -158,6 +158,9 @@ pub fn run() {
             commands::preview_notch,
             commands::paste_text_direct,
             commands::toggle_hud,
+            commands::pick_screen_color,
+            commands::check_system_permissions,
+            commands::request_system_permissions,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

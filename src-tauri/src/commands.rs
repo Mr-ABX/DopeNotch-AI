@@ -694,3 +694,165 @@ pub fn toggle_hud(app: tauri::AppHandle) {
     }
     let _ = app.emit("murmur://toggle-hud", ());
 }
+
+// ============================================================
+// macOS Native Tools & Permissions Commands
+// ============================================================
+
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn sample_screen_color(
+        callback: extern "C" fn(*const std::os::raw::c_char, *mut std::os::raw::c_void),
+        context: *mut std::os::raw::c_void,
+    );
+    fn check_mic_permission_status() -> std::os::raw::c_int;
+    fn request_mic_permission(
+        callback: extern "C" fn(bool, *mut std::os::raw::c_void),
+        context: *mut std::os::raw::c_void,
+    );
+}
+
+#[tauri::command]
+pub async fn pick_screen_color(app: AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CStr;
+        use std::os::raw::{c_char, c_void};
+        use tauri_plugin_clipboard_manager::ClipboardExt;
+        use tokio::sync::oneshot;
+
+        let (tx, rx) = oneshot::channel::<String>();
+        let boxed_tx = Box::into_raw(Box::new(tx));
+
+        extern "C" fn on_color_picked(hex_ptr: *const c_char, ctx: *mut c_void) {
+            let tx = unsafe { Box::from_raw(ctx as *mut oneshot::Sender<String>) };
+            let hex = if hex_ptr.is_null() {
+                String::new()
+            } else {
+                unsafe { CStr::from_ptr(hex_ptr) }
+                    .to_str()
+                    .unwrap_or("")
+                    .to_string()
+            };
+            let _ = tx.send(hex);
+        }
+
+        unsafe {
+            sample_screen_color(on_color_picked, boxed_tx as *mut c_void);
+        }
+
+        let hex = rx.await.map_err(|e| e.to_string())?;
+        if !hex.is_empty() {
+            let _ = app.clipboard().write_text(hex.clone());
+
+            let clip_item = crate::clipboard_listener::ClipboardItemPayload {
+                id: format!("clip-{}", chrono::Utc::now().timestamp_millis()),
+                content: hex.clone(),
+                category: "color".to_string(),
+                timestamp: "Just now".to_string(),
+                timestamp_raw: chrono::Utc::now().timestamp_millis(),
+                source_app: "ColorPicker".to_string(),
+                char_count: hex.chars().count(),
+                word_count: 1,
+                is_pinned: false,
+            };
+            let mut clips = crate::clipboard_listener::load_saved_clipboard();
+            clips.retain(|c| c.content != clip_item.content);
+            clips.insert(0, clip_item.clone());
+            if clips.len() > 300 {
+                clips.truncate(300);
+            }
+            crate::clipboard_listener::save_clipboard_to_disk(&clips);
+            let _ = app.emit("murmur://clipboard-changed", &clip_item);
+            let _ = app.emit_to("notch", "murmur://clipboard-changed", &clip_item);
+            let _ = app.emit("murmur://clipboard-history-updated", &clips);
+            let _ = app.emit_to("notch", "murmur://clipboard-history-updated", &clips);
+        }
+        Ok(hex)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Color sampler is only supported on macOS".to_string())
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SystemPermissionsStatus {
+    pub accessibility: bool,
+    pub microphone: bool,
+    pub microphone_status: String,
+}
+
+#[tauri::command]
+pub fn check_system_permissions() -> SystemPermissionsStatus {
+    #[cfg(target_os = "macos")]
+    {
+        let accessibility = request_accessibility_permissions();
+        let mic_code = unsafe { check_mic_permission_status() };
+        let (microphone, microphone_status) = match mic_code {
+            3 => (true, "authorized".to_string()),
+            2 => (false, "denied".to_string()),
+            1 => (false, "restricted".to_string()),
+            _ => (false, "not_determined".to_string()),
+        };
+        SystemPermissionsStatus {
+            accessibility,
+            microphone,
+            microphone_status,
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        SystemPermissionsStatus {
+            accessibility: true,
+            microphone: true,
+            microphone_status: "authorized".to_string(),
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn request_system_permissions() -> Result<SystemPermissionsStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::raw::c_void;
+        use tokio::sync::oneshot;
+
+        let accessibility = request_accessibility_permissions();
+        let (tx, rx) = oneshot::channel::<bool>();
+        let boxed_tx = Box::into_raw(Box::new(tx));
+
+        extern "C" fn on_mic_permission(granted: bool, ctx: *mut c_void) {
+            let tx = unsafe { Box::from_raw(ctx as *mut oneshot::Sender<bool>) };
+            let _ = tx.send(granted);
+        }
+
+        unsafe {
+            request_mic_permission(on_mic_permission, boxed_tx as *mut c_void);
+        }
+
+        let mic_granted = rx.await.unwrap_or(false);
+        let mic_code = unsafe { check_mic_permission_status() };
+        let (_, microphone_status) = match mic_code {
+            3 => (true, "authorized".to_string()),
+            2 => (false, "denied".to_string()),
+            1 => (false, "restricted".to_string()),
+            _ => (mic_granted, if mic_granted { "authorized".to_string() } else { "not_determined".to_string() }),
+        };
+
+        Ok(SystemPermissionsStatus {
+            accessibility,
+            microphone: mic_granted || mic_code == 3,
+            microphone_status,
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(SystemPermissionsStatus {
+            accessibility: true,
+            microphone: true,
+            microphone_status: "authorized".to_string(),
+        })
+    }
+}
+
