@@ -7,8 +7,9 @@ typedef void (*PermissionCallback)(bool granted, void *context);
 
 void sample_screen_color(ColorCallback callback, void *context) {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (@available(macOS 10.15, *)) {
-            NSColorSampler *sampler = [[NSColorSampler alloc] init];
+        Class samplerClass = NSClassFromString(@"NSColorSampler");
+        if (samplerClass != nil) {
+            NSColorSampler *sampler = [[samplerClass alloc] init];
             [sampler showSamplerWithSelectionHandler:^(NSColor * _Nullable selectedColor) {
                 if (selectedColor) {
                     NSColor *srgbColor = [selectedColor colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
@@ -37,7 +38,8 @@ void sample_screen_color(ColorCallback callback, void *context) {
 }
 
 int check_mic_permission_status() {
-    if (@available(macOS 10.14, *)) {
+    Class captureClass = NSClassFromString(@"AVCaptureDevice");
+    if (captureClass != nil) {
         AVAuthorizationStatus status = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
         // 0: NotDetermined, 1: Restricted, 2: Denied, 3: Authorized
         return (int)status;
@@ -46,7 +48,8 @@ int check_mic_permission_status() {
 }
 
 void request_mic_permission(PermissionCallback callback, void *context) {
-    if (@available(macOS 10.14, *)) {
+    Class captureClass = NSClassFromString(@"AVCaptureDevice");
+    if (captureClass != nil) {
         [AVCaptureDevice requestAccessForMediaType:AVMediaTypeAudio completionHandler:^(BOOL granted) {
             if (callback) {
                 callback(granted ? true : false, context);
