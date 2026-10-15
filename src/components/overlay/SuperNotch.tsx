@@ -15,8 +15,8 @@ import {
   Code,
   Link2,
   LayoutGrid,
+  LayoutDashboard,
   Sparkles,
-  Music,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -37,7 +37,6 @@ export const SuperNotch: React.FC = () => {
     orbTheme,
     setSuperNotchMode,
     setSuperNotchHudView,
-    setOrbTheme,
     setIsRecording,
     clipboardItems,
     activeClipboardCategory,
@@ -62,7 +61,6 @@ export const SuperNotch: React.FC = () => {
   const isDraggingRef = useRef(false);
 
   const activeMode = isRecording ? 'recording' : superNotchMode;
-  const isSearch = superNotchHudView === 'search';
 
   const showStatus = (msg: string) => {
     setStatusFeedback(msg);
@@ -75,7 +73,7 @@ export const SuperNotch: React.FC = () => {
       return { width: 860, height: 410 };
     }
     if (view === 'widgets') {
-      return { width: 860, height: 320 };
+      return { width: 860, height: 330 };
     }
     return { width: 860, height: 250 };
   }, []);
@@ -237,9 +235,9 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'cmd-widgets',
       command: '/widgets',
-      title: 'Widgets & Now Playing',
-      subtitle: 'Interactive music player & live hardware vitals',
-      icon: Music,
+      title: 'Widgets & Vitals',
+      subtitle: 'Live hardware vitals, now playing & focus timer',
+      icon: LayoutDashboard,
       action: () => {
         handleToggleView('widgets');
       },
@@ -434,10 +432,10 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
-      // Switch views on Tab
+      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search)
       if (e.key === 'Tab') {
         e.preventDefault();
-        const views: ('shelf' | 'search' | 'widgets')[] = ['shelf', 'search', 'widgets'];
+        const views: ('shelf' | 'widgets' | 'search')[] = ['shelf', 'widgets', 'search'];
         const currentIdx = views.indexOf(superNotchHudView);
         const nextView = views[(currentIdx + 1) % views.length];
         handleToggleView(nextView);
@@ -531,8 +529,10 @@ export const SuperNotch: React.FC = () => {
 
   const targetHeight =
     activeMode === 'shelf'
-      ? isSearch
+      ? superNotchHudView === 'search'
         ? 410
+        : superNotchHudView === 'widgets'
+        ? 330
         : 250
       : 28;
 
@@ -555,7 +555,6 @@ export const SuperNotch: React.FC = () => {
       {/* UNIFIED MORPHING DYNAMIC ISLAND (PURE JET BLACK #000000 MATCHING MACBOOK) */}
       {/* ========================================================================= */}
       <motion.div
-        layout
         initial={false}
         animate={{
           width: targetWidth,
@@ -563,8 +562,8 @@ export const SuperNotch: React.FC = () => {
         }}
         transition={{
           type: 'spring',
-          stiffness: 440,
-          damping: 34,
+          stiffness: 380,
+          damping: 32,
           mass: 0.8,
         }}
         onWheel={handleWheel}
@@ -745,7 +744,7 @@ export const SuperNotch: React.FC = () => {
               className="w-full h-full p-3 flex flex-col justify-between text-[#ededed] bg-black"
             >
               {/* TOP HEADER: Clean Minimal Search + Unboxed Icon Toggles (1:1 with SuPaste) */}
-              <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/[0.08]">
+              <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-transparent">
                 {/* Left: Roomy Search Bar + Action Toggles positioned immediately after it */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-2.5 bg-white/[0.06] hover:bg-white/[0.08] focus-within:bg-white/[0.09] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3.5 h-10 w-[300px] transition-all">
@@ -790,7 +789,7 @@ export const SuperNotch: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Distinct Tab Toggles: Clean Icon-Only Toggles for Shelf, Extensions, and Widgets */}
+                  {/* Distinct Tab Toggles: Clean Icon-Only Toggles: 1. Shelf, 2. Widgets, 3. Extensions (Always at the end) */}
                   <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/[0.06] ml-1">
                     {/* Tab 1: SuPaste Shelf View */}
                     <button
@@ -805,7 +804,20 @@ export const SuperNotch: React.FC = () => {
                       <LayoutGrid className="w-4 h-4" />
                     </button>
 
-                    {/* Tab 2: Extensions & Search View */}
+                    {/* Tab 2: Widgets & Hardware Vitals */}
+                    <button
+                      onClick={() => handleToggleView('widgets')}
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
+                        superNotchHudView === 'widgets'
+                          ? 'bg-white/15 text-white shadow-sm border border-white/10'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="Widgets & Hardware Vitals (Tab)"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                    </button>
+
+                    {/* Tab 3: Extensions & Quick Search (Always at the end) */}
                     <button
                       onClick={() => handleToggleView('search')}
                       className={`p-2 rounded-lg transition-all cursor-pointer ${
@@ -817,55 +829,16 @@ export const SuperNotch: React.FC = () => {
                     >
                       <Sparkles className="w-4 h-4" />
                     </button>
-
-                    {/* Tab 3: Widgets & Media View */}
-                    <button
-                      onClick={() => handleToggleView('widgets')}
-                      className={`p-2 rounded-lg transition-all cursor-pointer ${
-                        superNotchHudView === 'widgets'
-                          ? 'bg-white/15 text-white shadow-sm border border-white/10'
-                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
-                      }`}
-                      title="Widgets & Now Playing (Tab)"
-                    >
-                      <Music className="w-4 h-4" />
-                    </button>
                   </div>
                 </div>
 
-                {/* Right Side: Status Feedback, Orb Theme, Star (Pinned), Settings (Dashboard), and Close Button */}
+                {/* Right Side: Status Feedback, Star (Pinned), Settings (Dashboard), and Close Button */}
                 <div className="flex items-center gap-1">
                   {statusFeedback && (
                     <span className="text-[11px] text-zinc-400 font-mono pr-2 truncate max-w-[140px]">
                       {statusFeedback}
                     </span>
                   )}
-
-                  {/* Dictation Orb Theme Switcher (Aurora vs Brand Amber) */}
-                  <button
-                    onClick={() => {
-                      const next = orbTheme === 'aurora' ? 'brand' : 'aurora';
-                      setOrbTheme(next);
-                      showStatus(next === 'brand' ? 'Orb: DopeNotch Brand' : 'Orb: Aurora City');
-                    }}
-                    className={`p-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center ${
-                      orbTheme === 'brand'
-                        ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20'
-                        : 'text-cyan-400 bg-white/5 border border-white/10'
-                    }`}
-                    title={`Dictation Orb Theme: ${
-                      orbTheme === 'brand' ? 'DopeNotch Amber (Click for Aurora)' : 'City Lights Aurora (Click for Brand)'
-                    }`}
-                  >
-                    <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center relative">
-                      <div
-                        className={`w-2.5 h-2.5 rounded-full blur-[1px] ${
-                          orbTheme === 'brand' ? 'bg-amber-400' : 'bg-cyan-400'
-                        }`}
-                      />
-                      <div className="absolute w-1 h-1 rounded-full bg-white" />
-                    </div>
-                  </button>
 
                   {/* Star / Pinned Toggle */}
                   <button
@@ -1253,7 +1226,7 @@ export const SuperNotch: React.FC = () => {
                   </div>
 
                   {/* Raycast Keyboard Footer (1:1 with Images 2 & 3) */}
-                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-white/[0.06] font-mono">
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-transparent font-mono">
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1">
                         <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↵</kbd>
@@ -1284,11 +1257,11 @@ export const SuperNotch: React.FC = () => {
                   <WidgetsView />
 
                   {/* Widgets Footer */}
-                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-white/[0.06] font-mono">
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-transparent font-mono">
                     <div className="flex items-center gap-3">
                       <span className="flex items-center gap-1.5 text-zinc-400">
-                        <Music className="w-3 h-3 text-cyan-400" />
-                        <span>Now Playing & Live Vitals</span>
+                        <LayoutDashboard className="w-3 h-3 text-white" />
+                        <span>Hardware Vitals & Media</span>
                       </span>
                       <span className="flex items-center gap-1">
                         <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>

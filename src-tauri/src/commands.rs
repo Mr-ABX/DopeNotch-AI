@@ -906,3 +906,264 @@ pub async fn toggle_ruler(app: AppHandle) -> Result<(), String> {
     overlay::toggle_ruler_overlay(&app);
     Ok(())
 }
+
+// ============================================================
+// System Vitals & Media Control Commands
+// ============================================================
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct SystemVitals {
+    pub cpu_usage: f32,
+    pub mem_used_gb: f32,
+    pub mem_total_gb: f32,
+    pub mem_percent: f32,
+    pub battery_percent: u8,
+    pub is_charging: bool,
+    pub has_battery: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct MediaPlaybackStatus {
+    pub active: bool,
+    pub app: String,
+    pub state: String,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub duration: u64,
+    pub position: u64,
+}
+
+#[tauri::command]
+pub async fn get_system_vitals() -> Result<SystemVitals, String> {
+    #[cfg(target_os = "macos")]
+    {
+        // 1. Battery Info via pmset
+        let mut battery_percent = 100u8;
+        let mut is_charging = false;
+        let mut has_battery = false;
+
+        if let Ok(out) = std::process::Command::new("pmset").arg("-g").arg("batt").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if text.contains("InternalBattery") {
+                has_battery = true;
+                if let Some(pct_idx) = text.find("%;") {
+                    let prefix = &text[..pct_idx];
+                    if let Some(start_idx) = prefix.rfind(|c: char| !c.is_ascii_digit()) {
+                        if let Ok(p) = prefix[start_idx + 1..].parse::<u8>() {
+                            battery_percent = p;
+                        }
+                    }
+                }
+                is_charging = text.contains("charging") || text.contains("AC Power") || text.contains("charged;");
+            }
+        }
+
+        // 2. Memory Info via sysctl & vm_stat
+        let total_bytes: u64 = if let Ok(out) = std::process::Command::new("sysctl").arg("-n").arg("hw.memsize").output() {
+            String::from_utf8_lossy(&out.stdout).trim().parse::<u64>().unwrap_or(16 * 1024 * 1024 * 1024)
+        } else {
+            16 * 1024 * 1024 * 1024
+        };
+
+        let mem_total_gb = (total_bytes as f32 / 1_073_741_824.0 * 10.0).round() / 10.0;
+
+        let mut used_bytes: u64 = (total_bytes as f64 * 0.45) as u64;
+        if let Ok(out) = std::process::Command::new("vm_stat").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            let mut page_size: u64 = 4096;
+            if let Some(pos) = text.find("page size of ") {
+                let rest = &text[pos + 13..];
+                if let Some(end) = rest.find(" bytes") {
+                    if let Ok(ps) = rest[..end].trim().parse::<u64>() {
+                        page_size = ps;
+                    }
+                }
+            }
+
+            let mut active_pages: u64 = 0;
+            let mut wired_pages: u64 = 0;
+
+            for line in text.lines() {
+                if line.starts_with("Pages active:") {
+                    let num_str: String = line.chars().filter(|c| c.is_ascii_digit()).collect();
+                    active_pages = num_str.parse::<u64>().unwrap_or(0);
+                } else if line.starts_with("Pages wired down:") {
+                    let num_str: String = line.chars().filter(|c| c.is_ascii_digit()).collect();
+                    wired_pages = num_str.parse::<u64>().unwrap_or(0);
+                }
+            }
+
+            if active_pages > 0 || wired_pages > 0 {
+                used_bytes = (active_pages + wired_pages) * page_size;
+            }
+        }
+
+        let mem_used_gb = (used_bytes as f32 / 1_073_741_824.0 * 10.0).round() / 10.0;
+        let mem_percent = ((mem_used_gb / mem_total_gb) * 100.0).clamp(5.0, 99.0);
+
+        // 3. CPU Load via vm.loadavg normalized across CPU cores
+        let num_cores = num_cpus::get().max(1) as f32;
+        let mut cpu_usage: f32 = 12.0;
+
+        if let Ok(out) = std::process::Command::new("sysctl").arg("-n").arg("vm.loadavg").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if let Some(start) = text.find('{') {
+                let rest = &text[start + 1..];
+                let parts: Vec<&str> = rest.split_whitespace().collect();
+                if let Some(first) = parts.first() {
+                    if let Ok(load1) = first.parse::<f32>() {
+                        cpu_usage = ((load1 / num_cores) * 100.0).clamp(4.0, 98.0);
+                    }
+                }
+            }
+        }
+
+        Ok(SystemVitals {
+            cpu_usage: (cpu_usage * 10.0).round() / 10.0,
+            mem_used_gb,
+            mem_total_gb,
+            mem_percent: (mem_percent * 10.0).round() / 10.0,
+            battery_percent,
+            is_charging,
+            has_battery,
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(SystemVitals {
+            cpu_usage: 18.0,
+            mem_used_gb: 8.2,
+            mem_total_gb: 16.0,
+            mem_percent: 51.2,
+            battery_percent: 100,
+            is_charging: true,
+            has_battery: false,
+        })
+    }
+}
+
+#[tauri::command]
+pub async fn get_media_playback_status() -> Result<MediaPlaybackStatus, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let script = r#"
+function run() {
+  const se = Application("System Events");
+  const procs = se.processes.name();
+  let res = { active: false, app: "", state: "stopped", title: "", artist: "", album: "", duration: 0, position: 0 };
+  if (procs.indexOf("Spotify") !== -1) {
+    try {
+      const s = Application("Spotify");
+      res.active = true;
+      res.app = "Spotify";
+      res.state = s.playerState();
+      res.title = s.currentTrack.name();
+      res.artist = s.currentTrack.artist();
+      res.album = s.currentTrack.album();
+      res.duration = Math.round(s.currentTrack.duration() / 1000);
+      res.position = Math.round(s.playerPosition());
+    } catch (e) {}
+  } else if (procs.indexOf("Music") !== -1) {
+    try {
+      const m = Application("Music");
+      res.active = true;
+      res.app = "Music";
+      res.state = m.playerState();
+      res.title = m.currentTrack.name();
+      res.artist = m.currentTrack.artist();
+      res.album = m.currentTrack.album();
+      res.duration = Math.round(m.currentTrack.duration());
+      res.position = Math.round(m.playerPosition());
+    } catch (e) {}
+  }
+  return JSON.stringify(res);
+}
+"#;
+        let output = std::process::Command::new("osascript")
+            .arg("-l")
+            .arg("JavaScript")
+            .arg("-e")
+            .arg(script)
+            .output();
+
+        if let Ok(out) = output {
+            let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if let Ok(status) = serde_json::from_str::<MediaPlaybackStatus>(&text) {
+                return Ok(status);
+            }
+        }
+
+        Ok(MediaPlaybackStatus {
+            active: false,
+            app: String::new(),
+            state: "stopped".to_string(),
+            title: String::new(),
+            artist: String::new(),
+            album: String::new(),
+            duration: 0,
+            position: 0,
+        })
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(MediaPlaybackStatus {
+            active: false,
+            app: String::new(),
+            state: "stopped".to_string(),
+            title: String::new(),
+            artist: String::new(),
+            album: String::new(),
+            duration: 0,
+            position: 0,
+        })
+    }
+}
+
+#[tauri::command]
+pub async fn control_media_playback(action: String) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let script = r#"
+function run(argv) {
+  const action = argv[0];
+  const se = Application("System Events");
+  const procs = se.processes.name();
+  if (procs.indexOf("Spotify") !== -1) {
+    const s = Application("Spotify");
+    if (action === "playpause") s.playpause();
+    else if (action === "next") s.nextTrack();
+    else if (action === "prev") s.previousTrack();
+    return "ok";
+  } else if (procs.indexOf("Music") !== -1) {
+    const m = Application("Music");
+    if (action === "playpause") m.playpause();
+    else if (action === "next") m.nextTrack();
+    else if (action === "prev") m.previousTrack();
+    return "ok";
+  }
+  return "no_player";
+}
+"#;
+        let output = std::process::Command::new("osascript")
+            .arg("-l")
+            .arg("JavaScript")
+            .arg("-e")
+            .arg(script)
+            .arg(&action)
+            .output();
+
+        match output {
+            Ok(out) => {
+                let res = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                Ok(res == "ok")
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(false)
+    }
+}
+

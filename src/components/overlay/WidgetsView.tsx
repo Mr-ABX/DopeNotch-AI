@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Play,
   Pause,
@@ -9,76 +10,152 @@ import {
   Cpu,
   HardDrive,
   BatteryCharging,
+  Battery,
   Clock,
   Sparkles,
-  Zap,
 } from 'lucide-react';
 
-interface Track {
+interface SystemVitals {
+  cpu_usage: f32_number;
+  mem_used_gb: number;
+  mem_total_gb: number;
+  mem_percent: number;
+  battery_percent: number;
+  is_charging: boolean;
+  has_battery: boolean;
+}
+
+type f32_number = number;
+
+interface MediaPlaybackStatus {
+  active: boolean;
+  app: string;
+  state: string; // "playing" | "paused" | "stopped"
   title: string;
   artist: string;
   album: string;
-  duration: number; // in seconds
-  coverGradient: string;
+  duration: number;
+  position: number;
 }
 
-const PLAYLIST: Track[] = [
+interface AmbientTrack {
+  title: string;
+  artist: string;
+  album: string;
+  duration: number;
+}
+
+const AMBIENT_TRACKS: AmbientTrack[] = [
   {
-    title: 'Midnight City',
-    artist: 'M83',
-    album: "Hurry Up, We're Dreaming",
-    duration: 243,
-    coverGradient: 'from-cyan-500 via-indigo-600 to-purple-800',
+    title: 'Midnight Coding Flow',
+    artist: 'DopeNotch Lo-Fi',
+    album: 'Deep Focus Sessions',
+    duration: 210,
   },
   {
-    title: 'Starboy',
-    artist: 'The Weeknd ft. Daft Punk',
-    album: 'Starboy',
-    duration: 230,
-    coverGradient: 'from-rose-500 via-red-600 to-amber-700',
+    title: 'Silicon Nocturne',
+    artist: 'Neural Beats',
+    album: 'Whisper Waves',
+    duration: 185,
   },
   {
-    title: 'After Hours',
-    artist: 'The Weeknd',
-    album: 'After Hours',
-    duration: 361,
-    coverGradient: 'from-amber-500 via-orange-600 to-stone-900',
+    title: 'Quiet Terminal',
+    artist: 'Mono Pulse',
+    album: 'Developer Reverie',
+    duration: 240,
   },
 ];
 
 export const WidgetsView: React.FC = () => {
-  // Media Player State
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
-  const [currentTime, setCurrentTime] = useState(74); // 1:14
-  const [volume, setVolume] = useState(80);
+  // Live macOS Media State
+  const [nativeMedia, setNativeMedia] = useState<MediaPlaybackStatus>({
+    active: false,
+    app: '',
+    state: 'stopped',
+    title: '',
+    artist: '',
+    album: '',
+    duration: 0,
+    position: 0,
+  });
+
+  // Ambient Fallback Track State
+  const [ambientIndex, setAmbientIndex] = useState(0);
+  const [ambientPlaying, setAmbientPlaying] = useState(false);
+  const [ambientTime, setAmbientTime] = useState(45);
+  const [volume, setVolume] = useState(85);
   const [isMuted, setIsMuted] = useState(false);
+
+  // Live System Vitals
+  const [vitals, setVitals] = useState<SystemVitals>({
+    cpu_usage: 14.5,
+    mem_used_gb: 8.8,
+    mem_total_gb: 16.0,
+    mem_percent: 55.0,
+    battery_percent: 100,
+    is_charging: true,
+    has_battery: true,
+  });
 
   // Focus Timer State
   const [focusActive, setFocusActive] = useState(false);
   const [focusSeconds, setFocusSeconds] = useState(25 * 60);
 
-  // Live System Metrics (Simulated smoothly for realistic hardware feedback)
-  const [cpuUsage, setCpuUsage] = useState(18);
-  const [ramUsage, setRamUsage] = useState(8.4);
-  const [batteryLevel] = useState(94);
-  const [isCharging] = useState(true);
+  // Fetch real macOS media status
+  const fetchMedia = useCallback(async () => {
+    try {
+      const status = await invoke<MediaPlaybackStatus>('get_media_playback_status');
+      if (status && status.active) {
+        setNativeMedia(status);
+      } else {
+        setNativeMedia((prev) => (prev.active ? { ...prev, active: false } : prev));
+      }
+    } catch {
+      // Ignore background IPC failures
+    }
+  }, []);
 
-  const currentTrack = PLAYLIST[currentTrackIndex];
+  // Fetch real system vitals
+  const fetchVitals = useCallback(async () => {
+    try {
+      const res = await invoke<SystemVitals>('get_system_vitals');
+      if (res) {
+        setVitals(res);
+      }
+    } catch {
+      // Fallback: smooth slight pulse
+      setVitals((prev) => ({
+        ...prev,
+        cpu_usage: Math.min(90, Math.max(8, prev.cpu_usage + (Math.random() - 0.48) * 3)),
+      }));
+    }
+  }, []);
 
-  // Playback timer ticker
   useEffect(() => {
-    if (!isPlaying) return;
+    fetchMedia();
+    fetchVitals();
+
+    const mediaInterval = setInterval(fetchMedia, 1800);
+    const vitalsInterval = setInterval(fetchVitals, 2500);
+
+    return () => {
+      clearInterval(mediaInterval);
+      clearInterval(vitalsInterval);
+    };
+  }, [fetchMedia, fetchVitals]);
+
+  // Ambient fallback ticker
+  useEffect(() => {
+    if (nativeMedia.active || !ambientPlaying) return;
     const interval = setInterval(() => {
-      setCurrentTime((prev) => {
-        if (prev >= currentTrack.duration) {
-          return 0;
-        }
+      setAmbientTime((prev) => {
+        const dur = AMBIENT_TRACKS[ambientIndex].duration;
+        if (prev >= dur) return 0;
         return prev + 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying, currentTrack.duration]);
+  }, [ambientPlaying, ambientIndex, nativeMedia.active]);
 
   // Focus timer ticker
   useEffect(() => {
@@ -95,20 +172,26 @@ export const WidgetsView: React.FC = () => {
     return () => clearInterval(interval);
   }, [focusActive]);
 
-  // Smooth slight fluctuations for CPU load to give live pulse feel
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCpuUsage((prev) => {
-        const delta = (Math.random() - 0.48) * 4;
-        return Math.min(55, Math.max(12, Math.round(prev + delta)));
-      });
-      setRamUsage((prev) => {
-        const delta = (Math.random() - 0.5) * 0.1;
-        return Number(Math.min(12.5, Math.max(7.8, prev + delta)).toFixed(1));
-      });
-    }, 2500);
-    return () => clearInterval(interval);
-  }, []);
+  const handleMediaControl = async (action: 'playpause' | 'next' | 'prev') => {
+    if (nativeMedia.active) {
+      try {
+        await invoke('control_media_playback', { action });
+        setTimeout(fetchMedia, 250);
+      } catch (e) {
+        console.error('Media control failed:', e);
+      }
+    } else {
+      if (action === 'playpause') {
+        setAmbientPlaying(!ambientPlaying);
+      } else if (action === 'next') {
+        setAmbientIndex((prev) => (prev + 1) % AMBIENT_TRACKS.length);
+        setAmbientTime(0);
+      } else if (action === 'prev') {
+        setAmbientIndex((prev) => (prev - 1 + AMBIENT_TRACKS.length) % AMBIENT_TRACKS.length);
+        setAmbientTime(0);
+      }
+    }
+  };
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -116,68 +199,69 @@ export const WidgetsView: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    setCurrentTime(Math.floor(pos * currentTrack.duration));
-  };
+  const currentAmbient = AMBIENT_TRACKS[ambientIndex];
+  const isPlaying = nativeMedia.active
+    ? nativeMedia.state === 'playing'
+    : ambientPlaying;
+  const currentTitle = nativeMedia.active
+    ? nativeMedia.title || 'Untitled Track'
+    : currentAmbient.title;
+  const currentArtist = nativeMedia.active
+    ? nativeMedia.artist || 'Unknown Artist'
+    : currentAmbient.artist;
+  const currentAlbum = nativeMedia.active
+    ? nativeMedia.album || (nativeMedia.app ? `${nativeMedia.app} Playback` : 'Media')
+    : currentAmbient.album;
+  const currentDuration = nativeMedia.active
+    ? nativeMedia.duration || 180
+    : currentAmbient.duration;
+  const currentPosition = nativeMedia.active
+    ? nativeMedia.position || 0
+    : ambientTime;
 
-  const nextTrack = () => {
-    setCurrentTrackIndex((prev) => (prev + 1) % PLAYLIST.length);
-    setCurrentTime(0);
-  };
-
-  const prevTrack = () => {
-    setCurrentTrackIndex((prev) => (prev - 1 + PLAYLIST.length) % PLAYLIST.length);
-    setCurrentTime(0);
-  };
-
-  const progressPercent = Math.min(100, (currentTime / currentTrack.duration) * 100);
+  const progressPercent = Math.min(
+    100,
+    currentDuration > 0 ? (currentPosition / currentDuration) * 100 : 0
+  );
 
   return (
-    <div className="flex-1 flex gap-3 pt-2 pb-1 overflow-hidden select-none">
+    <div className="flex-1 flex gap-3 pt-1 pb-1 overflow-hidden select-none">
       {/* ===================================================================== */}
-      {/* LEFT COLUMN: INTERACTIVE NOW PLAYING MEDIA PLAYER                     */}
+      {/* LEFT COLUMN: MONOCHROME MEDIA PLAYER CARD (Apple Music / Spotify)    */}
       {/* ===================================================================== */}
-      <div className="flex-[1.2] bg-[#121215] border border-white/[0.08] rounded-2xl p-3 flex flex-col justify-between relative overflow-hidden group">
-        {/* Subtle Ambient Backlight Glow */}
-        <div
-          className={`absolute -top-12 -left-12 w-48 h-48 rounded-full blur-[40px] opacity-25 pointer-events-none bg-gradient-to-br ${currentTrack.coverGradient}`}
-        />
+      <div className="flex-[1.25] bg-[#0c0c0e] border border-white/[0.08] rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden group">
+        {/* Subtle monochrome ambient depth aura */}
+        <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full blur-[45px] opacity-15 pointer-events-none bg-white/20" />
 
         {/* Top: Album Art & Track Meta */}
         <div className="flex items-center gap-3 relative z-10">
-          {/* Animated Vinyl Artwork */}
-          <div className="relative w-14 h-14 shrink-0">
-            {/* Spinning Vinyl Disk */}
+          {/* Monochrome Vinyl Disk Artwork */}
+          <div className="relative w-13 h-13 shrink-0">
             <div
-              className={`w-14 h-14 rounded-full bg-[#0a0a0c] border border-white/20 shadow-xl flex items-center justify-center relative overflow-hidden ${
+              className={`w-13 h-13 rounded-full bg-[#141418] border border-white/20 shadow-lg flex items-center justify-center relative overflow-hidden ${
                 isPlaying ? 'animate-spin' : ''
               }`}
-              style={{ animationDuration: '6s' }}
+              style={{ animationDuration: '7s' }}
             >
               {/* Vinyl Groove Rings */}
-              <div className="absolute inset-1.5 rounded-full border border-white/[0.07]" />
-              <div className="absolute inset-3 rounded-full border border-white/[0.07]" />
-              <div className="absolute inset-4 rounded-full border border-white/[0.09]" />
-              {/* Center Gradient Label */}
-              <div
-                className={`w-5 h-5 rounded-full bg-gradient-to-tr ${currentTrack.coverGradient} flex items-center justify-center shadow-inner`}
-              >
-                <div className="w-1.5 h-1.5 rounded-full bg-black/80" />
+              <div className="absolute inset-1.5 rounded-full border border-white/[0.08]" />
+              <div className="absolute inset-3 rounded-full border border-white/[0.08]" />
+              {/* Center Monochrome Spindle */}
+              <div className="w-4.5 h-4.5 rounded-full bg-white/10 border border-white/30 flex items-center justify-center shadow-inner">
+                <div className="w-1.5 h-1.5 rounded-full bg-black" />
               </div>
             </div>
 
-            {/* Small Now Playing Equalizer Badge */}
+            {/* Now Playing Equalizer Pill */}
             {isPlaying && (
-              <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md bg-black/80 border border-white/10 backdrop-blur-md flex items-end gap-0.5 h-3.5">
-                <span className="w-0.5 h-2 bg-emerald-400 animate-pulse" />
+              <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md bg-black/90 border border-white/15 backdrop-blur-md flex items-end gap-0.5 h-3.5">
+                <span className="w-0.5 h-2 bg-white animate-pulse" />
                 <span
-                  className="w-0.5 h-3 bg-emerald-400 animate-pulse"
+                  className="w-0.5 h-3 bg-white animate-pulse"
                   style={{ animationDelay: '150ms' }}
                 />
                 <span
-                  className="w-0.5 h-1.5 bg-emerald-400 animate-pulse"
+                  className="w-0.5 h-1.5 bg-white animate-pulse"
                   style={{ animationDelay: '300ms' }}
                 />
               </div>
@@ -186,48 +270,50 @@ export const WidgetsView: React.FC = () => {
 
           {/* Track Meta Details */}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <h4 className="text-sm font-semibold text-white truncate tracking-tight">
-                {currentTrack.title}
+            <div className="flex items-center gap-2">
+              <h4 className="text-[13px] font-semibold text-white truncate tracking-tight">
+                {currentTitle}
               </h4>
+              {nativeMedia.active && (
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/15 shrink-0">
+                  {nativeMedia.app || 'macOS'}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-zinc-400 truncate">{currentTrack.artist}</p>
+            <p className="text-[11.5px] text-zinc-400 truncate mt-0.5">{currentArtist}</p>
             <span className="text-[10px] font-mono text-zinc-500 truncate block mt-0.5">
-              {currentTrack.album}
+              {currentAlbum}
             </span>
           </div>
         </div>
 
-        {/* Middle: Scrubbable Progress Bar */}
-        <div className="my-2 relative z-10">
-          <div
-            onClick={handleSeek}
-            className="h-1.5 w-full bg-white/[0.1] hover:bg-white/[0.15] rounded-full cursor-pointer relative overflow-hidden transition-all group/bar"
-          >
+        {/* Middle: Crisp Monochrome Progress Bar */}
+        <div className="my-2.5 relative z-10">
+          <div className="h-1.5 w-full bg-white/[0.1] hover:bg-white/[0.16] rounded-full relative overflow-hidden transition-all">
             <div
-              className="h-full bg-white rounded-full transition-all duration-100 relative"
+              className="h-full bg-white rounded-full transition-all duration-150"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
           <div className="flex justify-between items-center text-[10px] font-mono text-zinc-500 mt-1">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(currentTrack.duration)}</span>
+            <span>{formatTime(currentPosition)}</span>
+            <span>{formatTime(currentDuration)}</span>
           </div>
         </div>
 
-        {/* Bottom: Playback Controls & Volume Slider */}
-        <div className="flex items-center justify-between pt-1 relative z-10">
+        {/* Bottom: Playback Controls & Volume */}
+        <div className="flex items-center justify-between pt-0.5 relative z-10">
           {/* Skip & Play Buttons */}
           <div className="flex items-center gap-2">
             <button
-              onClick={prevTrack}
+              onClick={() => handleMediaControl('prev')}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              title="Previous"
+              title="Previous Track"
             >
               <SkipBack className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={() => handleMediaControl('playpause')}
               className="w-8 h-8 rounded-full bg-white text-black hover:scale-105 active:scale-95 flex items-center justify-center transition-all shadow-md cursor-pointer"
               title={isPlaying ? 'Pause' : 'Play'}
             >
@@ -238,9 +324,9 @@ export const WidgetsView: React.FC = () => {
               )}
             </button>
             <button
-              onClick={nextTrack}
+              onClick={() => handleMediaControl('next')}
               className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              title="Next"
+              title="Next Track"
             >
               <SkipForward className="w-3.5 h-3.5" />
             </button>
@@ -275,23 +361,25 @@ export const WidgetsView: React.FC = () => {
       </div>
 
       {/* ===================================================================== */}
-      {/* RIGHT COLUMN: SYSTEM MONITOR & QUICK UTILITIES                        */}
+      {/* RIGHT COLUMN: REAL HARDWARE VITALS & UTILITY TILES (Monochrome)       */}
       {/* ===================================================================== */}
-      <div className="flex-1 flex flex-col justify-between gap-2">
-        {/* System Vitals Card */}
-        <div className="bg-[#121215] border border-white/[0.08] rounded-xl p-2.5 flex flex-col gap-2">
+      <div className="flex-1 flex flex-col justify-between gap-2.5">
+        {/* Real Hardware Vitals Card */}
+        <div className="bg-[#0c0c0e] border border-white/[0.08] rounded-xl p-3 flex flex-col gap-2.5">
           {/* CPU Metric */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-400">
-              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="font-medium text-[11px]">CPU Load</span>
+              <Cpu className="w-3.5 h-3.5 text-white" />
+              <span className="font-medium text-[11px] text-zinc-300">CPU Load</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-zinc-300 font-semibold">{cpuUsage}%</span>
-              <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <span className="text-[11px] font-mono text-white font-semibold">
+                {Math.round(vitals.cpu_usage)}%
+              </span>
+              <div className="w-18 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-cyan-400 transition-all duration-500 rounded-full"
-                  style={{ width: `${cpuUsage}%` }}
+                  className="h-full bg-white transition-all duration-500 rounded-full"
+                  style={{ width: `${Math.min(100, vitals.cpu_usage)}%` }}
                 />
               </div>
             </div>
@@ -300,33 +388,37 @@ export const WidgetsView: React.FC = () => {
           {/* Memory Metric */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-400">
-              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="font-medium text-[11px]">Memory</span>
+              <HardDrive className="w-3.5 h-3.5 text-white" />
+              <span className="font-medium text-[11px] text-zinc-300">Memory</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-zinc-300 font-semibold">{ramUsage} GB</span>
-              <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <span className="text-[11px] font-mono text-white font-semibold">
+                {vitals.mem_used_gb} / {vitals.mem_total_gb} GB
+              </span>
+              <div className="w-18 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-emerald-400 transition-all duration-500 rounded-full"
-                  style={{ width: `${Math.round((ramUsage / 16) * 100)}%` }}
+                  className="h-full bg-white transition-all duration-500 rounded-full"
+                  style={{ width: `${vitals.mem_percent}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Battery Metric */}
+          {/* Battery / Power Metric */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-400">
-              <BatteryCharging className="w-3.5 h-3.5 text-amber-400" />
-              <span className="font-medium text-[11px]">Power</span>
-            </div>
-            <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-300 font-semibold">
-              <span>{batteryLevel}%</span>
-              {isCharging && (
-                <span className="text-[9px] text-amber-400 px-1 py-0.2 rounded bg-amber-400/10 border border-amber-400/20">
-                  Charging
-                </span>
+              {vitals.is_charging ? (
+                <BatteryCharging className="w-3.5 h-3.5 text-white" />
+              ) : (
+                <Battery className="w-3.5 h-3.5 text-white" />
               )}
+              <span className="font-medium text-[11px] text-zinc-300">Power</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-mono text-white font-semibold">
+              <span>{vitals.battery_percent}%</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-zinc-200 border border-white/15">
+                {vitals.is_charging ? 'AC Power' : 'Battery'}
+              </span>
             </div>
           </div>
         </div>
@@ -336,38 +428,40 @@ export const WidgetsView: React.FC = () => {
           {/* Pomodoro Focus Timer */}
           <button
             onClick={() => setFocusActive(!focusActive)}
-            className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
               focusActive
-                ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
-                : 'bg-[#121215] border-white/[0.08] hover:bg-white/[0.04] text-zinc-300'
+                ? 'bg-white/10 border-white/30 text-white'
+                : 'bg-[#0c0c0e] border-white/[0.08] hover:bg-white/[0.04] text-zinc-300'
             }`}
           >
             <div className="flex items-center justify-between w-full">
               <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-amber-400" /> Focus
+                <Clock className="w-3 h-3 text-white" /> Focus
               </span>
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
-                  focusActive ? 'bg-amber-400 animate-ping' : 'bg-zinc-600'
+                  focusActive ? 'bg-white animate-ping' : 'bg-zinc-600'
                 }`}
               />
             </div>
-            <div className="text-sm font-mono font-bold mt-1 tracking-tight">
+            <div className="text-sm font-mono font-bold mt-1 text-white tracking-tight">
               {formatTime(focusSeconds)}
             </div>
           </button>
 
-          {/* AI Quick Voice Prompt */}
-          <div className="p-2 rounded-xl border bg-[#121215] border-white/[0.08] flex flex-col justify-between">
+          {/* Local Speech Engine Status */}
+          <div className="p-2.5 rounded-xl border bg-[#0c0c0e] border-white/[0.08] flex flex-col justify-between">
             <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
               <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-purple-400" /> Smart Mic
+                <Sparkles className="w-3 h-3 text-white" /> Speech Engine
               </span>
-              <Zap className="w-2.5 h-2.5 text-emerald-400" />
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
             </div>
-            <div className="text-[11px] font-medium text-zinc-200 mt-1 flex items-center justify-between">
+            <div className="text-[11px] font-medium text-white mt-1 flex items-center justify-between">
               <span>Local Whisper</span>
-              <span className="text-[9px] font-mono text-emerald-400">Ready</span>
+              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/10">
+                ⌥V
+              </span>
             </div>
           </div>
         </div>

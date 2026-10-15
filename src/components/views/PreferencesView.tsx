@@ -31,6 +31,8 @@ export const PreferencesView: React.FC = () => {
     inputDevices,
     selectedInputDevice,
     setSelectedInputDevice,
+    orbTheme,
+    setOrbTheme,
     clearHistory,
   } = useAppStore();
 
@@ -400,6 +402,72 @@ export const PreferencesView: React.FC = () => {
                   <p className="text-[11px] text-zinc-500 mt-0.5">{style.desc}</p>
                 </button>
               ))}
+            </div>
+
+            {/* Dictation Liquid Orb Appearance */}
+            <div className="pt-2">
+              <h3 className="text-sm font-semibold text-white">Dictation Siri Orb Theme</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Liquid visualizer aura when listening to voice</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Option 1: City Lights Aurora */}
+              <button
+                type="button"
+                onClick={() => setOrbTheme('aurora')}
+                className={`p-3.5 rounded-xl text-left transition-all border cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  orbTheme === 'aurora'
+                    ? 'bg-[#18181c] border-cyan-500/40 shadow-sm ring-1 ring-cyan-500/20'
+                    : 'bg-[#111114] border-[#1e1e24] hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center relative bg-black/60 border border-white/10">
+                      <div className="w-3 h-3 rounded-full blur-[1px] bg-gradient-to-r from-cyan-400 via-purple-400 to-emerald-400" />
+                      <div className="absolute w-1 h-1 rounded-full bg-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-white">City Lights Aurora</span>
+                  </div>
+                  {orbTheme === 'aurora' && (
+                    <span className="text-[10px] font-mono font-medium text-cyan-400 bg-cyan-400/10 px-1.5 py-0.5 rounded border border-cyan-400/20">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Cool cyan, violet, and emerald fluid aura. Inspired by Apple Intelligence on macOS Sequoia.
+                </p>
+              </button>
+
+              {/* Option 2: DopeNotch Brand Amber */}
+              <button
+                type="button"
+                onClick={() => setOrbTheme('brand')}
+                className={`p-3.5 rounded-xl text-left transition-all border cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  orbTheme === 'brand'
+                    ? 'bg-[#18181c] border-amber-500/40 shadow-sm ring-1 ring-amber-500/20'
+                    : 'bg-[#111114] border-[#1e1e24] hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center relative bg-black/60 border border-white/10">
+                      <div className="w-3 h-3 rounded-full blur-[1px] bg-gradient-to-r from-amber-400 via-orange-500 to-emerald-400" />
+                      <div className="absolute w-1 h-1 rounded-full bg-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-white">DopeNotch Brand Amber</span>
+                  </div>
+                  {orbTheme === 'brand' && (
+                    <span className="text-[10px] font-mono font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Warm amber, fiery orange, and energetic emerald glowing aura. Matches the signature DopeNotch brand palette.
+                </p>
+              </button>
             </div>
           </div>
         )}

@@ -165,6 +165,9 @@ pub fn run() {
             commands::toggle_ruler,
             commands::check_system_permissions,
             commands::request_system_permissions,
+            commands::get_system_vitals,
+            commands::get_media_playback_status,
+            commands::control_media_playback,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")
