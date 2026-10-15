@@ -390,6 +390,8 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
                                     let _: () = msg_send![ns_app, activateIgnoringOtherApps: true];
                                 }
                             }
+                        } else {
+                            let _: () = msg_send![ns_win, orderFrontRegardless];
                         }
                     }
                 }

@@ -16,6 +16,7 @@ import {
   Link2,
   LayoutGrid,
   Sparkles,
+  Music,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -25,6 +26,7 @@ import {
   ClipboardCategory,
   ClipboardItem,
 } from '../../stores/appStore';
+import { WidgetsView } from './WidgetsView';
 
 export const SuperNotch: React.FC = () => {
   const {
@@ -32,8 +34,10 @@ export const SuperNotch: React.FC = () => {
     audioLevel,
     superNotchMode,
     superNotchHudView,
+    orbTheme,
     setSuperNotchMode,
     setSuperNotchHudView,
+    setOrbTheme,
     setIsRecording,
     clipboardItems,
     activeClipboardCategory,
@@ -55,6 +59,7 @@ export const SuperNotch: React.FC = () => {
   const searchListScrollRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openedAtRef = useRef<number>(0);
+  const isDraggingRef = useRef(false);
 
   const activeMode = isRecording ? 'recording' : superNotchMode;
   const isSearch = superNotchHudView === 'search';
@@ -64,16 +69,19 @@ export const SuperNotch: React.FC = () => {
     setTimeout(() => setStatusFeedback(null), 2000);
   };
 
-  // Target window dimensions for each state (fixed 860px width for both views, only height toggles)
-  const getExpandedDimensions = useCallback((view: 'shelf' | 'search') => {
+  // Target window dimensions for each state (fixed 860px width for all views, only height toggles)
+  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets') => {
     if (view === 'search') {
       return { width: 860, height: 410 };
+    }
+    if (view === 'widgets') {
+      return { width: 860, height: 320 };
     }
     return { width: 860, height: 250 };
   }, []);
 
   // Smooth shelf open: expand window first, then animate container
-  const openShelf = useCallback((targetView?: 'shelf' | 'search') => {
+  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets') => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -115,8 +123,8 @@ export const SuperNotch: React.FC = () => {
     }, 250);
   }, [setSuperNotchMode]);
 
-  // Switch between Shelf (SuPaste) and Search (Raycast) views
-  const handleToggleView = (newView: 'shelf' | 'search') => {
+  // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
+  const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
     setSuperNotchHudView(newView);
     const dims = getExpandedDimensions(newView);
     invoke('set_notch_expanded', {
@@ -224,6 +232,16 @@ export const SuperNotch: React.FC = () => {
       icon: LayoutGrid,
       action: () => {
         handleToggleView('shelf');
+      },
+    },
+    {
+      id: 'cmd-widgets',
+      command: '/widgets',
+      title: 'Widgets & Now Playing',
+      subtitle: 'Interactive music player & live hardware vitals',
+      icon: Music,
+      action: () => {
+        handleToggleView('widgets');
       },
     },
     {
@@ -419,7 +437,10 @@ export const SuperNotch: React.FC = () => {
       // Switch views on Tab
       if (e.key === 'Tab') {
         e.preventDefault();
-        handleToggleView(superNotchHudView === 'shelf' ? 'search' : 'shelf');
+        const views: ('shelf' | 'search' | 'widgets')[] = ['shelf', 'search', 'widgets'];
+        const currentIdx = views.indexOf(superNotchHudView);
+        const nextView = views[(currentIdx + 1) % views.length];
+        handleToggleView(nextView);
         return;
       }
 
@@ -624,7 +645,7 @@ export const SuperNotch: React.FC = () => {
             activeMode === 'shelf'
               ? 'border-b border-white/[0.08]'
               : activeMode === 'recording'
-              ? 'border-x border-b border-white/[0.08] cursor-pointer'
+              ? 'border-b border-white/[0.06] cursor-pointer'
               : 'cursor-pointer border-none'
           }`}
         >
@@ -672,7 +693,9 @@ export const SuperNotch: React.FC = () => {
                   className="w-32 h-6 rounded-full blur-[10px]"
                   style={{
                     background:
-                      'radial-gradient(ellipse at center, rgba(56,189,248,0.7) 0%, rgba(168,85,247,0.6) 45%, rgba(52,211,153,0.4) 80%, transparent 100%)',
+                      orbTheme === 'brand'
+                        ? 'radial-gradient(ellipse at center, rgba(245,158,11,0.75) 0%, rgba(249,115,22,0.6) 45%, rgba(16,185,129,0.4) 80%, transparent 100%)'
+                        : 'radial-gradient(ellipse at center, rgba(56,189,248,0.7) 0%, rgba(168,85,247,0.6) 45%, rgba(52,211,153,0.4) 80%, transparent 100%)',
                   }}
                 />
               </div>
@@ -690,7 +713,9 @@ export const SuperNotch: React.FC = () => {
                   style={{
                     width: `${38 + Math.min(55, audioLevel * 85)}px`,
                     background:
-                      'linear-gradient(90deg, #38bdf8 0%, #c084fc 35%, #f472b6 65%, #34d399 100%)',
+                      orbTheme === 'brand'
+                        ? 'linear-gradient(90deg, #fbbf24 0%, #f97316 35%, #ec4899 70%, #10b981 100%)'
+                        : 'linear-gradient(90deg, #38bdf8 0%, #c084fc 35%, #f472b6 65%, #34d399 100%)',
                   }}
                 />
                 {/* Crisp inner luminous nucleus */}
@@ -700,7 +725,9 @@ export const SuperNotch: React.FC = () => {
                     width: `${16 + Math.min(28, audioLevel * 50)}px`,
                     opacity: 0.85 + Math.min(0.15, audioLevel * 0.3),
                     boxShadow:
-                      '0 0 8px 1px rgba(255,255,255,0.9), 0 0 14px 2px rgba(56,189,248,0.8)',
+                      orbTheme === 'brand'
+                        ? '0 0 8px 1px rgba(255,255,255,0.95), 0 0 14px 2px rgba(245,158,11,0.85)'
+                        : '0 0 8px 1px rgba(255,255,255,0.9), 0 0 14px 2px rgba(56,189,248,0.8)',
                   }}
                 />
               </div>
@@ -763,45 +790,82 @@ export const SuperNotch: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Distinct Tab Toggles: Separate tabs so user clearly sees which is active */}
+                  {/* Distinct Tab Toggles: Clean Icon-Only Toggles for Shelf, Extensions, and Widgets */}
                   <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/[0.06] ml-1">
                     {/* Tab 1: SuPaste Shelf View */}
                     <button
                       onClick={() => handleToggleView('shelf')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
                         superNotchHudView === 'shelf'
                           ? 'bg-white/15 text-white shadow-sm border border-white/10'
                           : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
                       }`}
                       title="Clipboard Shelf View (Tab)"
                     >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                      <span className="text-[11.5px]">Shelf</span>
+                      <LayoutGrid className="w-4 h-4" />
                     </button>
 
                     {/* Tab 2: Extensions & Search View */}
                     <button
                       onClick={() => handleToggleView('search')}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
                         superNotchHudView === 'search'
                           ? 'bg-white/15 text-white shadow-sm border border-white/10'
                           : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
                       }`}
                       title="Extensions & Quick Search (Tab)"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span className="text-[11.5px]">Extensions</span>
+                      <Sparkles className="w-4 h-4" />
+                    </button>
+
+                    {/* Tab 3: Widgets & Media View */}
+                    <button
+                      onClick={() => handleToggleView('widgets')}
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
+                        superNotchHudView === 'widgets'
+                          ? 'bg-white/15 text-white shadow-sm border border-white/10'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="Widgets & Now Playing (Tab)"
+                    >
+                      <Music className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* Right Side: Status Feedback, Star (Pinned), Settings (Dashboard), and Close Button */}
+                {/* Right Side: Status Feedback, Orb Theme, Star (Pinned), Settings (Dashboard), and Close Button */}
                 <div className="flex items-center gap-1">
                   {statusFeedback && (
                     <span className="text-[11px] text-zinc-400 font-mono pr-2 truncate max-w-[140px]">
                       {statusFeedback}
                     </span>
                   )}
+
+                  {/* Dictation Orb Theme Switcher (Aurora vs Brand Amber) */}
+                  <button
+                    onClick={() => {
+                      const next = orbTheme === 'aurora' ? 'brand' : 'aurora';
+                      setOrbTheme(next);
+                      showStatus(next === 'brand' ? 'Orb: DopeNotch Brand' : 'Orb: Aurora City');
+                    }}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer flex items-center justify-center ${
+                      orbTheme === 'brand'
+                        ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20'
+                        : 'text-cyan-400 bg-white/5 border border-white/10'
+                    }`}
+                    title={`Dictation Orb Theme: ${
+                      orbTheme === 'brand' ? 'DopeNotch Amber (Click for Aurora)' : 'City Lights Aurora (Click for Brand)'
+                    }`}
+                  >
+                    <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center relative">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full blur-[1px] ${
+                          orbTheme === 'brand' ? 'bg-amber-400' : 'bg-cyan-400'
+                        }`}
+                      />
+                      <div className="absolute w-1 h-1 rounded-full bg-white" />
+                    </div>
+                  </button>
 
                   {/* Star / Pinned Toggle */}
                   <button
@@ -895,12 +959,40 @@ export const SuperNotch: React.FC = () => {
                             key={item.id}
                             draggable={true}
                             onDragStart={(e) => {
+                              isDraggingRef.current = true;
+                              e.dataTransfer.effectAllowed = 'copyMove';
                               e.dataTransfer.setData('text/plain', item.content);
+                              e.dataTransfer.setData('text', item.content);
                               if (item.category === 'image') {
+                                e.dataTransfer.setData('text/html', `<img src="${item.content}" alt="image" />`);
                                 e.dataTransfer.setData('text/uri-list', item.content);
+                                try {
+                                  const b64Parts = item.content.split(',');
+                                  const b64Data = b64Parts.length > 1 ? b64Parts[1] : b64Parts[0];
+                                  const byteChars = atob(b64Data);
+                                  const byteArr = new Uint8Array(byteChars.length);
+                                  for (let i = 0; i < byteChars.length; i++) {
+                                    byteArr[i] = byteChars.charCodeAt(i);
+                                  }
+                                  const blob = new Blob([byteArr], { type: 'image/png' });
+                                  const file = new File([blob], `image-${item.timestampRaw || Date.now()}.png`, { type: 'image/png' });
+                                  e.dataTransfer.items.add(file);
+                                } catch {}
                               }
                             }}
-                            onClick={() => handlePaste(item)}
+                            onDragEnd={() => {
+                              setTimeout(() => {
+                                isDraggingRef.current = false;
+                              }, 180);
+                            }}
+                            onClick={(e) => {
+                              if (isDraggingRef.current) return;
+                              handlePaste(item, e);
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              handlePaste(item, e);
+                            }}
                             onMouseEnter={() => setShelfSelectedIndex(index)}
                             className={`w-[155px] min-w-[155px] h-[120px] rounded-xl p-2.5 flex flex-col justify-between transition-all duration-100 cursor-pointer select-none group relative overflow-hidden ${
                               isColor
@@ -1173,7 +1265,34 @@ export const SuperNotch: React.FC = () => {
                       </span>
                       <span className="flex items-center gap-1">
                         <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
-                        <span>Shelf</span>
+                        <span>Next Tab</span>
+                      </span>
+                    </div>
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
+                      <span>Close</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* VIEW C: WIDGETS & MEDIA VIEW                                     */}
+              {/* ================================================================= */}
+              {superNotchHudView === 'widgets' && (
+                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                  <WidgetsView />
+
+                  {/* Widgets Footer */}
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-white/[0.06] font-mono">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1.5 text-zinc-400">
+                        <Music className="w-3 h-3 text-cyan-400" />
+                        <span>Now Playing & Live Vitals</span>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
+                        <span>Next Tab</span>
                       </span>
                     </div>
                     <span className="flex items-center gap-1">

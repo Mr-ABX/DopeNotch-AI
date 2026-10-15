@@ -12,6 +12,7 @@ import {
   Sparkles,
   Command,
   Play,
+  Music,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
@@ -127,6 +128,25 @@ export const ExtensionsView: React.FC = () => {
         setSuperNotchMode('shelf');
         setSuperNotchHudView('shelf');
         showNotification('SuPaste Shelf expanded at screen top');
+      },
+    },
+    {
+      id: 'ext-widgets',
+      command: '/widgets',
+      title: 'Widgets & Media Player',
+      category: 'utilities',
+      description: 'Interactive Now Playing vinyl music widget with scrubbable timeline, plus live CPU, RAM & battery vitals.',
+      howItWorks: 'Directly displays audio playback states and system vitals within the dynamic notch overlay.',
+      howToUse: 'Click the Music icon in the Notch header, press Tab to cycle to Widgets, or run /widgets in search.',
+      icon: Music,
+      hotkey: '⌥M',
+      status: 'active',
+      actionLabel: 'Open Widgets View',
+      onExecute: () => {
+        invoke('set_notch_expanded', { expanded: true, width: 860, height: 320 }).catch(() => {});
+        setSuperNotchMode('shelf');
+        setSuperNotchHudView('widgets');
+        showNotification('Widgets & Media Player expanded');
       },
     },
     {

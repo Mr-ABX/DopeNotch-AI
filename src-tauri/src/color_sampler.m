@@ -69,9 +69,21 @@ void request_mic_permission(PermissionCallback callback, void *context) {
 void record_target_application() {
     @autoreleasepool {
         NSRunningApplication *front = [[NSWorkspace sharedWorkspace] frontmostApplication];
-        NSString *myBundle = [[NSBundle mainBundle] bundleIdentifier];
-        if (front && myBundle && ![[front bundleIdentifier] isEqualToString:myBundle]) {
+        pid_t myPid = [[NSRunningApplication currentApplication] processIdentifier];
+        if (front && [front processIdentifier] != myPid) {
             g_previous_app = front;
+        } else if (!g_previous_app || [g_previous_app isTerminated]) {
+            // Fallback: look for the most recently active regular application
+            NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+            for (NSRunningApplication *app in apps) {
+                if ([app activationPolicy] == NSApplicationActivationPolicyRegular &&
+                    [app processIdentifier] != myPid &&
+                    ![app isTerminated] &&
+                    ![app isHidden]) {
+                    g_previous_app = app;
+                    break;
+                }
+            }
         }
     }
 }
@@ -87,28 +99,52 @@ bool paste_text_to_target_app(const char *text) {
         [pb clearContents];
         [pb setString:nsText forType:NSPasteboardTypeString];
 
-        if (g_previous_app) {
-            [g_previous_app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
-        } else {
-            [NSApp hide:nil];
+        // Yield focus to the recorded target application
+        pid_t myPid = [[NSRunningApplication currentApplication] processIdentifier];
+        NSRunningApplication *target = (g_previous_app && ![g_previous_app isTerminated] && [g_previous_app processIdentifier] != myPid) 
+            ? g_previous_app 
+            : nil;
+
+        if (!target) {
+            NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+            for (NSRunningApplication *app in apps) {
+                if ([app activationPolicy] == NSApplicationActivationPolicyRegular &&
+                    [app processIdentifier] != myPid &&
+                    ![app isTerminated] &&
+                    ![app isHidden]) {
+                    target = app;
+                    break;
+                }
+            }
         }
 
-        // Wait 70ms for the target application to gain active focus
-        usleep(70000);
+        if (target) {
+            [target activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+        }
 
-        CGEventRef event_down = CGEventCreateKeyboardEvent(NULL, 0x09, true); // 0x09 = ANSI 'v'
-        if (!event_down) return false;
-        CGEventSetFlags(event_down, kCGEventFlagMaskCommand);
-        CGEventPost(kCGHIDEventTap, event_down);
-        CFRelease(event_down);
+        // Give the target app enough time to gain true OS focus before sending Cmd+V
+        usleep(140000); // 140ms
 
-        usleep(25000);
+        CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
 
-        CGEventRef event_up = CGEventCreateKeyboardEvent(NULL, 0x09, false);
+        CGEventRef event_down = CGEventCreateKeyboardEvent(source, 0x09, true); // 0x09 = ANSI 'v'
+        if (event_down) {
+            CGEventSetFlags(event_down, kCGEventFlagMaskCommand);
+            CGEventPost(kCGHIDEventTap, event_down);
+            CFRelease(event_down);
+        }
+
+        usleep(35000); // 35ms
+
+        CGEventRef event_up = CGEventCreateKeyboardEvent(source, 0x09, false);
         if (event_up) {
             CGEventSetFlags(event_up, kCGEventFlagMaskCommand);
             CGEventPost(kCGHIDEventTap, event_up);
             CFRelease(event_up);
+        }
+
+        if (source) {
+            CFRelease(source);
         }
 
         return true;
@@ -134,27 +170,51 @@ bool paste_image_to_target_app(const char *base64_data) {
         [pb setData:imgData forType:NSPasteboardTypePNG];
         [pb setData:imgData forType:NSPasteboardTypeTIFF];
 
-        if (g_previous_app) {
-            [g_previous_app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
-        } else {
-            [NSApp hide:nil];
+        // Yield focus to the recorded target application
+        pid_t myPid = [[NSRunningApplication currentApplication] processIdentifier];
+        NSRunningApplication *target = (g_previous_app && ![g_previous_app isTerminated] && [g_previous_app processIdentifier] != myPid) 
+            ? g_previous_app 
+            : nil;
+
+        if (!target) {
+            NSArray<NSRunningApplication *> *apps = [[NSWorkspace sharedWorkspace] runningApplications];
+            for (NSRunningApplication *app in apps) {
+                if ([app activationPolicy] == NSApplicationActivationPolicyRegular &&
+                    [app processIdentifier] != myPid &&
+                    ![app isTerminated] &&
+                    ![app isHidden]) {
+                    target = app;
+                    break;
+                }
+            }
         }
 
-        usleep(70000);
+        if (target) {
+            [target activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+        }
 
-        CGEventRef event_down = CGEventCreateKeyboardEvent(NULL, 0x09, true);
-        if (!event_down) return false;
-        CGEventSetFlags(event_down, kCGEventFlagMaskCommand);
-        CGEventPost(kCGHIDEventTap, event_down);
-        CFRelease(event_down);
+        usleep(140000); // 140ms
 
-        usleep(25000);
+        CGEventSourceRef source = CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
 
-        CGEventRef event_up = CGEventCreateKeyboardEvent(NULL, 0x09, false);
+        CGEventRef event_down = CGEventCreateKeyboardEvent(source, 0x09, true);
+        if (event_down) {
+            CGEventSetFlags(event_down, kCGEventFlagMaskCommand);
+            CGEventPost(kCGHIDEventTap, event_down);
+            CFRelease(event_down);
+        }
+
+        usleep(35000); // 35ms
+
+        CGEventRef event_up = CGEventCreateKeyboardEvent(source, 0x09, false);
         if (event_up) {
             CGEventSetFlags(event_up, kCGEventFlagMaskCommand);
             CGEventPost(kCGHIDEventTap, event_up);
             CFRelease(event_up);
+        }
+
+        if (source) {
+            CFRelease(source);
         }
 
         return true;

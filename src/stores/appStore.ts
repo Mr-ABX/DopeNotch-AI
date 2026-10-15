@@ -22,7 +22,8 @@ export type SidebarTab =
 export type OverlayStyle = 'notch' | 'minimal' | 'hidden';
 export type RecordingMode = 'dictate' | 'prompt' | 'rewrite' | 'command';
 export type SuperNotchMode = 'idle' | 'recording' | 'shelf';
-export type SuperNotchHudView = 'search' | 'shelf';
+export type SuperNotchHudView = 'search' | 'shelf' | 'widgets';
+export type OrbTheme = 'aurora' | 'brand';
 export type ClipboardCategory = 'all' | 'image' | 'dictation' | 'clipboard' | 'pinned' | 'code' | 'link' | 'color';
 
 export interface ClipboardItem {
@@ -167,6 +168,7 @@ interface AppState {
   recordingMode: RecordingMode;
   superNotchMode: SuperNotchMode;
   superNotchHudView: SuperNotchHudView;
+  orbTheme: OrbTheme;
   liveWPM: number;
   liveLatencyMs: number;
   setIsRecording: (recording: boolean) => void;
@@ -175,6 +177,7 @@ interface AppState {
   setRecordingMode: (mode: RecordingMode) => void;
   setSuperNotchMode: (mode: SuperNotchMode) => void;
   setSuperNotchHudView: (view: SuperNotchHudView) => void;
+  setOrbTheme: (theme: OrbTheme) => void;
   setLiveMetrics: (wpm: number, latencyMs: number) => void;
 
   // SuPaste Clipboard Manager
@@ -483,6 +486,7 @@ export const useAppStore = create<AppState>((set) => ({
   recordingMode: 'dictate',
   superNotchMode: 'idle',
   superNotchHudView: 'search',
+  orbTheme: (typeof window !== 'undefined' && (localStorage.getItem('dopenotch_orb_theme') as OrbTheme)) || 'aurora',
   liveWPM: 150,
   liveLatencyMs: 65,
   setIsRecording: (isRecording) => set({ isRecording }),
@@ -491,6 +495,14 @@ export const useAppStore = create<AppState>((set) => ({
   setRecordingMode: (recordingMode) => set({ recordingMode }),
   setSuperNotchMode: (superNotchMode) => set({ superNotchMode }),
   setSuperNotchHudView: (superNotchHudView) => set({ superNotchHudView }),
+  setOrbTheme: (orbTheme) => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('dopenotch_orb_theme', orbTheme);
+      } catch {}
+    }
+    set({ orbTheme });
+  },
   setLiveMetrics: (liveWPM, liveLatencyMs) => set({ liveWPM, liveLatencyMs }),
 
   // SuPaste Clipboard Manager
