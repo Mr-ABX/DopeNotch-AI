@@ -15,7 +15,6 @@ import {
   Code,
   Link2,
   LayoutGrid,
-  Layers,
   Sparkles,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
@@ -57,6 +56,7 @@ export const SuperNotch: React.FC = () => {
   const shelfScrollRef = useRef<HTMLDivElement>(null);
   const searchListScrollRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openedAtRef = useRef<number>(0);
 
   const isCommand = recordingMode === 'command';
   const isRewrite = recordingMode === 'rewrite';
@@ -76,7 +76,7 @@ export const SuperNotch: React.FC = () => {
     if (view === 'search') {
       return { width: 860, height: 410 };
     }
-    return { width: 860, height: 220 };
+    return { width: 860, height: 250 };
   }, []);
 
   // Smooth shelf open: expand window first, then animate container
@@ -86,6 +86,7 @@ export const SuperNotch: React.FC = () => {
       closeTimerRef.current = null;
     }
 
+    openedAtRef.current = Date.now();
     const view = targetView || superNotchHudView;
     const dims = getExpandedDimensions(view);
 
@@ -356,6 +357,38 @@ export const SuperNotch: React.FC = () => {
     };
   }, [activeMode, closeShelf, openShelf]);
 
+  // Click-outside listener: Auto-close expanded notch when losing focus to another window or desktop
+  useEffect(() => {
+    if (activeMode !== 'shelf') return;
+
+    let unlistenBlur: (() => void) | null = null;
+    const currentWin = getCurrentWindow();
+
+    currentWin
+      .listen('tauri://blur', () => {
+        if (Date.now() - openedAtRef.current > 350) {
+          closeShelf();
+        }
+      })
+      .then((unlisten) => {
+        unlistenBlur = unlisten;
+      })
+      .catch(() => {});
+
+    const handleWindowBlur = () => {
+      if (Date.now() - openedAtRef.current > 350) {
+        closeShelf();
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      if (unlistenBlur) unlistenBlur();
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [activeMode, closeShelf]);
+
   // Keyboard navigation inside Notch
   useEffect(() => {
     if (activeMode !== 'shelf') return;
@@ -460,7 +493,7 @@ export const SuperNotch: React.FC = () => {
     activeMode === 'shelf'
       ? isSearch
         ? 410
-        : 220
+        : 250
       : activeMode === 'recording'
       ? 44
       : 28;
@@ -509,47 +542,80 @@ export const SuperNotch: React.FC = () => {
       >
         {/* Top Left Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
         <svg
-          width={activeMode === 'shelf' ? 18 : 10}
-          height={activeMode === 'shelf' ? 18 : 10}
-          viewBox={activeMode === 'shelf' ? '0 0 18 18' : '0 0 10 10'}
-          className={`absolute top-0 pointer-events-none fill-black z-20 ${
-            activeMode === 'shelf' ? '-left-[18px]' : '-left-[10px]'
+          width={activeMode === 'shelf' ? 20 : 10}
+          height={activeMode === 'shelf' ? 20 : 10}
+          viewBox={activeMode === 'shelf' ? '0 0 20 20' : '0 0 10 10'}
+          className={`absolute top-0 pointer-events-none z-20 ${
+            activeMode === 'shelf' ? '-left-[20px]' : '-left-[10px]'
           }`}
         >
           {activeMode === 'shelf' ? (
-            <path d="M 0 0 H 18 V 18 C 18 8.059 9.941 0 0 0 Z" />
+            <>
+              {/* Solid jet-black fillet fill overlapping into notch boundary */}
+              <path
+                d="M 0 0 C 11.046 0 20 8.954 20 20 H 20.5 V 0 Z"
+                fill="#000000"
+              />
+              {/* Organic curved border matching the notch stroke */}
+              <path
+                d="M 0 0 C 11.046 0 20 8.954 20 20"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.08)"
+                strokeWidth="1"
+              />
+            </>
           ) : (
-            <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" />
+            <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" fill="#000000" />
           )}
         </svg>
 
         {/* Top Right Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
         <svg
-          width={activeMode === 'shelf' ? 18 : 10}
-          height={activeMode === 'shelf' ? 18 : 10}
-          viewBox={activeMode === 'shelf' ? '0 0 18 18' : '0 0 10 10'}
-          className={`absolute top-0 pointer-events-none fill-black z-20 ${
-            activeMode === 'shelf' ? '-right-[18px]' : '-right-[10px]'
+          width={activeMode === 'shelf' ? 20 : 10}
+          height={activeMode === 'shelf' ? 20 : 10}
+          viewBox={activeMode === 'shelf' ? '0 0 20 20' : '0 0 10 10'}
+          className={`absolute top-0 pointer-events-none z-20 ${
+            activeMode === 'shelf' ? '-right-[20px]' : '-right-[10px]'
           }`}
         >
           {activeMode === 'shelf' ? (
-            <path d="M 18 0 H 0 V 18 C 0 8.059 8.059 0 18 0 Z" />
+            <>
+              {/* Solid jet-black fillet fill overlapping into notch boundary */}
+              <path
+                d="M 20 0 C 8.954 0 0 8.954 0 20 H -0.5 V 0 Z"
+                fill="#000000"
+              />
+              {/* Organic curved border matching the notch stroke */}
+              <path
+                d="M 20 0 C 8.954 0 0 8.954 0 20"
+                fill="none"
+                stroke="rgba(255, 255, 255, 0.08)"
+                strokeWidth="1"
+              />
+            </>
           ) : (
-            <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" />
+            <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" fill="#000000" />
           )}
         </svg>
 
         {/* Main Notch Body Container */}
         <div
           style={{ borderRadius: targetRadius }}
-          className={`w-full h-full flex flex-col items-center overflow-hidden bg-black transition-shadow ${
+          className={`w-full h-full flex flex-col items-center overflow-hidden bg-black transition-shadow relative ${
             activeMode === 'shelf'
-              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.08]'
+              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-b border-white/[0.08]'
               : activeMode === 'recording'
               ? 'shadow-[0_10px_30px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.1]'
               : 'cursor-pointer border-none'
           }`}
         >
+          {/* Continuous Left & Right Borders: starting at top 20px so they connect seamlessly with ear curve without any straight vertical line breaking corner illusion! */}
+          {activeMode === 'shelf' && (
+            <>
+              <div className="absolute top-[20px] bottom-0 left-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
+              <div className="absolute top-[20px] bottom-0 right-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
+            </>
+          )}
           <AnimatePresence mode="wait">
           {/* 1. IDLE NOTCH VIEW (Pure Hardware Bezel - ZERO TEXT, ZERO DOTS) */}
           {activeMode === 'idle' && (
@@ -671,73 +737,76 @@ export const SuperNotch: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Unboxed Action Icons right after the search bar (1:1 with SuPaste) */}
-                  <div className="flex items-center gap-1 ml-1">
-                    {/* Star / Pinned Toggle */}
+                  {/* Distinct Tab Toggles: Separate tabs so user clearly sees which is active */}
+                  <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/[0.06] ml-1">
+                    {/* Tab 1: SuPaste Shelf View */}
                     <button
-                      onClick={() =>
-                        setActiveClipboardCategory(
-                          activeClipboardCategory === 'pinned' ? 'all' : 'pinned'
-                        )
-                      }
-                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                        activeClipboardCategory === 'pinned'
-                          ? 'text-amber-400 bg-white/10'
-                          : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                      }`}
-                      title="Favorites"
-                    >
-                      <Star className="w-4 h-4 fill-current" />
-                    </button>
-
-                    {/* View Mode Switcher (Grid / Shelf vs Search List) */}
-                    <button
-                      onClick={() =>
-                        handleToggleView(
-                          superNotchHudView === 'shelf' ? 'search' : 'shelf'
-                        )
-                      }
-                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                        superNotchHudView === 'search'
-                          ? 'text-white bg-white/10'
-                          : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                      }`}
-                      title={
+                      onClick={() => handleToggleView('shelf')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                         superNotchHudView === 'shelf'
-                          ? 'Switch to Raycast Search (Tab)'
-                          : 'Switch to SuPaste Shelf (Tab)'
-                      }
+                          ? 'bg-white/15 text-white shadow-sm border border-white/10'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="Clipboard Shelf View (Tab)"
                     >
-                      {superNotchHudView === 'shelf' ? (
-                        <LayoutGrid className="w-4 h-4" />
-                      ) : (
-                        <Layers className="w-4 h-4" />
-                      )}
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span className="text-[11.5px]">Shelf</span>
                     </button>
 
-                    {/* Open Dashboard */}
+                    {/* Tab 2: Extensions & Search View */}
                     <button
-                      onClick={handleOpenDashboard}
-                      className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                      title="Open Dashboard"
+                      onClick={() => handleToggleView('search')}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                        superNotchHudView === 'search'
+                          ? 'bg-white/15 text-white shadow-sm border border-white/10'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="Extensions & Quick Search (Tab)"
                     >
-                      <Settings className="w-4 h-4" />
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span className="text-[11.5px]">Extensions</span>
                     </button>
                   </div>
                 </div>
 
-                {/* Right Side: Status Feedback & Close Button */}
-                <div className="flex items-center gap-2">
+                {/* Right Side: Status Feedback, Star (Pinned), Settings (Dashboard), and Close Button */}
+                <div className="flex items-center gap-1">
                   {statusFeedback && (
                     <span className="text-[11px] text-zinc-400 font-mono pr-2 truncate max-w-[140px]">
                       {statusFeedback}
                     </span>
                   )}
 
+                  {/* Star / Pinned Toggle */}
+                  <button
+                    onClick={() =>
+                      setActiveClipboardCategory(
+                        activeClipboardCategory === 'pinned' ? 'all' : 'pinned'
+                      )
+                    }
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                      activeClipboardCategory === 'pinned'
+                        ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title="Starred & Pinned Clips"
+                  >
+                    <Star className="w-4 h-4 fill-current" />
+                  </button>
+
+                  {/* Open Dashboard Settings */}
+                  <button
+                    onClick={handleOpenDashboard}
+                    className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    title="Open Dashboard"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+
                   {/* Close Notch */}
                   <button
                     onClick={closeShelf}
-                    className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer ml-0.5"
                     title="Close (Esc)"
                   >
                     <X className="w-4 h-4" />
@@ -777,10 +846,10 @@ export const SuperNotch: React.FC = () => {
                     })}
                   </div>
 
-                  {/* Compact Horizontal Shelf Stream (140px x 105px cards) */}
+                  {/* Horizontal Shelf Stream (155px x 120px cards with comfortable padding) */}
                   <div
                     ref={shelfScrollRef}
-                    className="flex flex-row gap-2.5 overflow-x-auto py-1 px-0.5 items-stretch flex-1 custom-slim-scrollbar"
+                    className="flex flex-row gap-2.5 overflow-x-auto pt-1 pb-1.5 px-0.5 items-stretch flex-1 custom-slim-scrollbar"
                   >
                     {filteredShelfItems.length === 0 ? (
                       <div className="w-full py-8 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
@@ -800,7 +869,7 @@ export const SuperNotch: React.FC = () => {
                             key={item.id}
                             onClick={() => handlePaste(item.content)}
                             onMouseEnter={() => setShelfSelectedIndex(index)}
-                            className={`w-[140px] min-w-[140px] h-[105px] rounded-xl p-2.5 flex flex-col justify-between transition-all duration-100 cursor-pointer select-none group relative overflow-hidden ${
+                            className={`w-[155px] min-w-[155px] h-[120px] rounded-xl p-2.5 flex flex-col justify-between transition-all duration-100 cursor-pointer select-none group relative overflow-hidden ${
                               isColor
                                 ? 'border border-white/20'
                                 : isSelected
@@ -860,7 +929,7 @@ export const SuperNotch: React.FC = () => {
                                 </span>
                               </div>
                             ) : (
-                              <div className="flex-1 overflow-hidden pr-0.5">
+                              <div className="flex-1 overflow-hidden pr-0.5 min-h-0">
                                 <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-mono mb-1">
                                   {item.category === 'dictation' ? (
                                     <Mic className="w-2.5 h-2.5 text-amber-400" />
@@ -874,7 +943,7 @@ export const SuperNotch: React.FC = () => {
                                   </span>
                                 </div>
                                 <p
-                                  className={`text-[11px] leading-tight line-clamp-2 ${
+                                  className={`text-[11px] leading-snug line-clamp-3 ${
                                     item.category === 'code'
                                       ? 'font-mono text-zinc-300'
                                       : 'text-zinc-200'
@@ -886,7 +955,7 @@ export const SuperNotch: React.FC = () => {
                             )}
 
                             {/* Card Footer: Timestamp & Paste Overlay */}
-                            <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 font-mono">
+                            <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 font-mono shrink-0">
                               <span>{item.timestamp}</span>
                               <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white font-medium flex items-center gap-0.5">
                                 <CornerDownLeft className="w-2.5 h-2.5" /> Paste

@@ -324,7 +324,7 @@ pub fn toggle_tray_popover(app: &AppHandle) {
 pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height: Option<f64>) {
     if let Some(window) = app.get_webview_window("notch") {
         let (content_w, content_h) = if expanded {
-            (width.unwrap_or(860.0_f64), height.unwrap_or(220.0_f64))
+            (width.unwrap_or(860.0_f64), height.unwrap_or(250.0_f64))
         } else {
             (160.0_f64, 28.0_f64)
         };
