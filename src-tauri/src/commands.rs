@@ -391,7 +391,36 @@ fn paste_text(app: &AppHandle, text: &str) -> Result<()> {
 
 #[tauri::command]
 pub async fn paste_text_direct(text: String, app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        extern "C" {
+            fn paste_text_to_target_app(text: *const std::os::raw::c_char) -> bool;
+        }
+        let c_text = std::ffi::CString::new(text.clone()).unwrap_or_default();
+        let success = unsafe { paste_text_to_target_app(c_text.as_ptr()) };
+        if success {
+            return Ok(());
+        }
+    }
     paste_text(&app, &text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn paste_image_direct(base64_data: String, _app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        extern "C" {
+            fn paste_image_to_target_app(base64_data: *const std::os::raw::c_char) -> bool;
+        }
+        let c_b64 = std::ffi::CString::new(base64_data).unwrap_or_default();
+        let success = unsafe { paste_image_to_target_app(c_b64.as_ptr()) };
+        if success {
+            return Ok(());
+        }
+        return Err("Failed to paste image".to_string());
+    }
+    #[cfg(not(target_os = "macos"))]
+    Err("Image pasting only supported on macOS currently".to_string())
 }
 
 #[tauri::command]

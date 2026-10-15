@@ -166,25 +166,114 @@ pub fn save_clipboard_to_disk(items: &[ClipboardItemPayload]) {
     }
 }
 
+#[cfg(target_os = "macos")]
+extern "C" {
+    fn get_system_pasteboard_change_count() -> std::os::raw::c_long;
+    fn get_pasteboard_image_as_base64() -> *mut std::os::raw::c_char;
+    fn free_c_string(s: *mut std::os::raw::c_char);
+}
+
+#[cfg(target_os = "macos")]
+pub fn get_macos_pasteboard_image() -> Option<String> {
+    unsafe {
+        let ptr = get_pasteboard_image_as_base64();
+        if ptr.is_null() {
+            return None;
+        }
+        let c_str = std::ffi::CStr::from_ptr(ptr);
+        let res = c_str.to_str().ok().map(|s| s.to_string());
+        free_c_string(ptr);
+        res
+    }
+}
+
 /// Starts background thread to monitor OS clipboard changes live
 pub fn start_clipboard_monitor(app_handle: AppHandle) {
     tauri::async_runtime::spawn(async move {
-        let last_text = Arc::new(Mutex::new(String::new()));
+        let last_change_count = Arc::new(Mutex::new(0i64));
+        let last_content = Arc::new(Mutex::new(String::new()));
         
-        // Prime last_text with current clipboard so app start doesn't trigger spurious change
+        // Prime last values with current clipboard so app start doesn't trigger spurious change
         #[cfg(target_os = "macos")]
-        if let Some(initial_text) = get_macos_pasteboard_text() {
-            *last_text.lock().unwrap() = initial_text;
+        {
+            let count = unsafe { get_system_pasteboard_change_count() };
+            *last_change_count.lock().unwrap() = count as i64;
+            if let Some(initial_img) = get_macos_pasteboard_image() {
+                *last_content.lock().unwrap() = initial_img;
+            } else if let Some(initial_text) = get_macos_pasteboard_text() {
+                *last_content.lock().unwrap() = initial_text;
+            }
         }
 
         #[cfg(not(target_os = "macos"))]
         if let Ok(initial_text) = app_handle.clipboard().read_text() {
-            *last_text.lock().unwrap() = initial_text;
+            *last_content.lock().unwrap() = initial_text;
         }
 
         loop {
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
 
+            #[cfg(target_os = "macos")]
+            {
+                let count = unsafe { get_system_pasteboard_change_count() } as i64;
+                let mut last_cc = last_change_count.lock().unwrap();
+                if count == *last_cc {
+                    continue;
+                }
+                *last_cc = count;
+                drop(last_cc);
+            }
+
+            // 1. Check if an image was copied to pasteboard
+            let image_opt = {
+                #[cfg(target_os = "macos")]
+                {
+                    get_macos_pasteboard_image()
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    None::<String>
+                }
+            };
+
+            if let Some(img_data) = image_opt {
+                let mut last = last_content.lock().unwrap();
+                if *last != img_data {
+                    *last = img_data.clone();
+                    drop(last);
+
+                    let source_app = get_frontmost_app_name();
+                    let now = chrono::Utc::now().timestamp_millis();
+
+                    let item = ClipboardItemPayload {
+                        id: format!("clip-{}", now),
+                        content: img_data,
+                        category: "image".to_string(),
+                        timestamp: "Just now".to_string(),
+                        timestamp_raw: now,
+                        source_app,
+                        char_count: 0,
+                        word_count: 0,
+                        is_pinned: false,
+                    };
+
+                    let mut saved = load_saved_clipboard();
+                    saved.retain(|c| c.content != item.content);
+                    saved.insert(0, item.clone());
+                    if saved.len() > 300 {
+                        saved.truncate(300);
+                    }
+                    save_clipboard_to_disk(&saved);
+
+                    log::info!("[clipboard] Captured new image from {}", item.source_app);
+
+                    let _ = app_handle.emit("murmur://clipboard-changed", &item);
+                    let _ = app_handle.emit("murmur://clipboard-history-updated", &saved);
+                    continue;
+                }
+            }
+
+            // 2. Check if text was copied to pasteboard
             let current_text_opt = {
                 #[cfg(target_os = "macos")]
                 {
@@ -202,7 +291,7 @@ pub fn start_clipboard_monitor(app_handle: AppHandle) {
                     continue;
                 }
 
-                let mut last = last_text.lock().unwrap();
+                let mut last = last_content.lock().unwrap();
                 if *last != trimmed {
                     *last = trimmed.to_string();
                     drop(last);

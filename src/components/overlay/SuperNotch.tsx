@@ -30,8 +30,6 @@ export const SuperNotch: React.FC = () => {
   const {
     isRecording,
     audioLevel,
-    streamingText,
-    recordingMode,
     superNotchMode,
     superNotchHudView,
     setSuperNotchMode,
@@ -58,13 +56,8 @@ export const SuperNotch: React.FC = () => {
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openedAtRef = useRef<number>(0);
 
-  const isCommand = recordingMode === 'command';
-  const isRewrite = recordingMode === 'rewrite';
   const activeMode = isRecording ? 'recording' : superNotchMode;
   const isSearch = superNotchHudView === 'search';
-
-  // 7 Equalizer Bars calculation for recording mode
-  const bars = [0.35, 0.65, 0.95, 1.0, 0.85, 0.55, 0.35];
 
   const showStatus = (msg: string) => {
     setStatusFeedback(msg);
@@ -133,20 +126,38 @@ export const SuperNotch: React.FC = () => {
     }).catch(() => {});
   };
 
-  const handleCopy = (item: ClipboardItem, e?: React.MouseEvent) => {
+  const handleCopy = async (item: ClipboardItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    navigator.clipboard.writeText(item.content);
+    if (item.category === 'image') {
+      try {
+        await invoke('paste_image_direct', { base64Data: item.content });
+      } catch {
+        // Fallback
+      }
+    } else {
+      navigator.clipboard.writeText(item.content);
+    }
     setCopiedId(item.id);
     showStatus('Copied');
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const handlePaste = async (text: string, e?: React.MouseEvent) => {
+  const handlePaste = async (itemOrText: ClipboardItem | string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    const isItem = typeof itemOrText === 'object';
+    const isImage = isItem && itemOrText.category === 'image';
+    const content = isItem ? itemOrText.content : itemOrText;
+
     try {
-      await invoke('paste_text_direct', { text });
+      if (isImage) {
+        await invoke('paste_image_direct', { base64Data: content });
+      } else {
+        await invoke('paste_text_direct', { text: content });
+      }
     } catch {
-      await navigator.clipboard.writeText(text);
+      if (!isImage) {
+        await navigator.clipboard.writeText(content);
+      }
     }
     closeShelf();
   };
@@ -310,6 +321,11 @@ export const SuperNotch: React.FC = () => {
     return [
       { id: 'all', label: 'All', count: clipboardItems.length },
       {
+        id: 'image',
+        label: 'Images',
+        count: clipboardItems.filter((i) => i.category === 'image').length,
+      },
+      {
         id: 'dictation',
         label: 'Dictations',
         count: clipboardItems.filter((i) => i.category === 'dictation').length,
@@ -424,7 +440,7 @@ export const SuperNotch: React.FC = () => {
           } else {
             const clipIdx = searchSelectedIndex - searchResults.commands.length;
             const clip = searchResults.clips[clipIdx];
-            if (clip) handlePaste(clip.content);
+            if (clip) handlePaste(clip);
           }
         }
       } else {
@@ -453,7 +469,7 @@ export const SuperNotch: React.FC = () => {
         } else if (e.key === 'Enter') {
           e.preventDefault();
           const item = filteredShelfItems[shelfSelectedIndex];
-          if (item) handlePaste(item.content);
+          if (item) handlePaste(item);
         }
       }
     };
@@ -481,12 +497,15 @@ export const SuperNotch: React.FC = () => {
     }
   };
 
-  // Dimensions based on state (fixed 860px width for both shelf & search views)
+  // Dimensions based on state:
+  // - shelf: fixed 860px width, height 250px (shelf) or 410px (search)
+  // - recording: strictly locked at 28px height (menu bar level), width smoothly expands to 220px
+  // - idle: 160px width, 28px height
   const targetWidth =
     activeMode === 'shelf'
       ? 860
       : activeMode === 'recording'
-      ? 340
+      ? 220
       : 160;
 
   const targetHeight =
@@ -494,15 +513,11 @@ export const SuperNotch: React.FC = () => {
       ? isSearch
         ? 410
         : 250
-      : activeMode === 'recording'
-      ? 44
       : 28;
 
   const targetRadius =
     activeMode === 'shelf'
       ? '0 0 24px 24px'
-      : activeMode === 'recording'
-      ? '0 0 18px 18px'
       : '0 0 14px 14px';
 
   return (
@@ -536,6 +551,10 @@ export const SuperNotch: React.FC = () => {
           if (activeMode === 'idle') {
             e.stopPropagation();
             openShelf();
+          } else if (activeMode === 'recording') {
+            e.stopPropagation();
+            invoke('toggle_recording').catch(() => {});
+            setIsRecording(false);
           }
         }}
         className="pointer-events-auto relative z-10 flex flex-col items-center select-none"
@@ -598,18 +617,18 @@ export const SuperNotch: React.FC = () => {
           )}
         </svg>
 
-        {/* Main Notch Body Container */}
+        {/* Main Notch Body Container (Pure SuPaste Crisp Hardware Profile - Zero Blurry Drop Shadow) */}
         <div
           style={{ borderRadius: targetRadius }}
-          className={`w-full h-full flex flex-col items-center overflow-hidden bg-black transition-shadow relative ${
+          className={`w-full h-full flex flex-col items-center overflow-hidden bg-black relative ${
             activeMode === 'shelf'
-              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-b border-white/[0.08]'
+              ? 'border-b border-white/[0.08]'
               : activeMode === 'recording'
-              ? 'shadow-[0_10px_30px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.1]'
+              ? 'border-x border-b border-white/[0.08] cursor-pointer'
               : 'cursor-pointer border-none'
           }`}
         >
-          {/* Continuous Left & Right Borders: starting at top 20px so they connect seamlessly with ear curve without any straight vertical line breaking corner illusion! */}
+          {/* Continuous Left & Right Borders: starting at top 20px so they connect seamlessly with ear curve */}
           {activeMode === 'shelf' && (
             <>
               <div className="absolute top-[20px] bottom-0 left-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
@@ -630,69 +649,61 @@ export const SuperNotch: React.FC = () => {
             />
           )}
 
-          {/* 2. RECORDING NOTCH VIEW (Sleek Audio Waveform) */}
+          {/* 2. RECORDING NOTCH VIEW (Siri-Style Liquid Orb - Locked 28px height, 220px width, zero text) */}
           {activeMode === 'recording' && (
             <motion.div
               key="recording-view"
-              initial={{ opacity: 0, scale: 0.96 }}
+              initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
+              exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="w-full h-full px-4 flex items-center justify-between bg-black text-[#ededed]"
+              className="w-full h-full flex items-center justify-center bg-black cursor-pointer overflow-hidden relative"
+              title="Listening... Click notch to stop"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="flex items-center gap-[2px] h-3.5">
-                  {bars.map((mult, i) => {
-                    const heightPercent = Math.max(
-                      20,
-                      Math.min(100, audioLevel * 100 * mult * 2.5)
-                    );
-                    return (
-                      <div
-                        key={i}
-                        className={`w-[2.5px] rounded-full transition-all duration-75 ${
-                          isCommand
-                            ? 'bg-rose-400'
-                            : isRewrite
-                            ? 'bg-sky-400'
-                            : 'bg-amber-400'
-                        }`}
-                        style={{ height: `${heightPercent}%` }}
-                      />
-                    );
-                  })}
-                </div>
-
-                <span
-                  className={`text-[11px] font-semibold tracking-wide ${
-                    isCommand
-                      ? 'text-rose-400'
-                      : isRewrite
-                      ? 'text-sky-400'
-                      : 'text-amber-400'
-                  }`}
-                >
-                  {isCommand ? 'Command' : isRewrite ? 'Rewrite' : 'Dictate'}
-                </span>
-              </div>
-
-              <div className="flex-1 px-3 truncate text-center">
-                <span className="text-xs text-zinc-300 font-mono">
-                  {streamingText || 'Listening...'}
-                </span>
-              </div>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  invoke('toggle_recording').catch(() => {});
-                  setIsRecording(false);
+              {/* Outer soft ambient halo that breathes and pulses with microphone input */}
+              <div
+                className="absolute inset-0 pointer-events-none flex items-center justify-center transition-all duration-75"
+                style={{
+                  opacity: 0.4 + Math.min(0.6, audioLevel * 1.5),
+                  transform: `scale(${1 + Math.min(0.5, audioLevel * 1.0)})`,
                 }}
-                className="w-5 h-5 rounded-full bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
-                title="Stop recording"
               >
-                <div className="w-2 h-2 rounded-sm bg-rose-400" />
-              </button>
+                <div
+                  className="w-32 h-6 rounded-full blur-[10px]"
+                  style={{
+                    background:
+                      'radial-gradient(ellipse at center, rgba(56,189,248,0.7) 0%, rgba(168,85,247,0.6) 45%, rgba(52,211,153,0.4) 80%, transparent 100%)',
+                  }}
+                />
+              </div>
+
+              {/* Siri Liquid Orb: Organic pulsating pill with luminous core */}
+              <div
+                className="relative flex items-center justify-center transition-all duration-75"
+                style={{
+                  transform: `scale(${0.92 + Math.min(0.38, audioLevel * 1.1)})`,
+                }}
+              >
+                {/* Fluid gradient pill aura */}
+                <div
+                  className="h-3 rounded-full blur-[3px] transition-all duration-75"
+                  style={{
+                    width: `${38 + Math.min(55, audioLevel * 85)}px`,
+                    background:
+                      'linear-gradient(90deg, #38bdf8 0%, #c084fc 35%, #f472b6 65%, #34d399 100%)',
+                  }}
+                />
+                {/* Crisp inner luminous nucleus */}
+                <div
+                  className="absolute h-1.5 rounded-full bg-white transition-all duration-75"
+                  style={{
+                    width: `${16 + Math.min(28, audioLevel * 50)}px`,
+                    opacity: 0.85 + Math.min(0.15, audioLevel * 0.3),
+                    boxShadow:
+                      '0 0 8px 1px rgba(255,255,255,0.9), 0 0 14px 2px rgba(56,189,248,0.8)',
+                  }}
+                />
+              </div>
             </motion.div>
           )}
 
@@ -723,7 +734,22 @@ export const SuperNotch: React.FC = () => {
                           handleToggleView('search');
                         }
                       }}
-                      onKeyDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        if (
+                          [
+                            'ArrowLeft',
+                            'ArrowRight',
+                            'ArrowUp',
+                            'ArrowDown',
+                            'Enter',
+                            'Escape',
+                            'Tab',
+                          ].includes(e.key)
+                        ) {
+                          return;
+                        }
+                        e.stopPropagation();
+                      }}
                       autoFocus
                       className="w-full bg-transparent border-none text-[13px] text-white placeholder:text-zinc-500 focus:outline-none select-text cursor-text font-normal"
                     />
@@ -867,7 +893,14 @@ export const SuperNotch: React.FC = () => {
                         return (
                           <div
                             key={item.id}
-                            onClick={() => handlePaste(item.content)}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', item.content);
+                              if (item.category === 'image') {
+                                e.dataTransfer.setData('text/uri-list', item.content);
+                              }
+                            }}
+                            onClick={() => handlePaste(item)}
                             onMouseEnter={() => setShelfSelectedIndex(index)}
                             className={`w-[155px] min-w-[155px] h-[120px] rounded-xl p-2.5 flex flex-col justify-between transition-all duration-100 cursor-pointer select-none group relative overflow-hidden ${
                               isColor
@@ -922,7 +955,18 @@ export const SuperNotch: React.FC = () => {
                             </div>
 
                             {/* Card Content Body */}
-                            {isColor ? (
+                            {item.category === 'image' ? (
+                              <div className="flex-1 overflow-hidden min-h-0 relative rounded-lg bg-black/40 flex items-center justify-center">
+                                <img
+                                  src={item.content}
+                                  alt="Copied image"
+                                  className="w-full h-full object-cover rounded-lg pointer-events-none"
+                                />
+                                <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-[9px] font-mono text-zinc-300">
+                                  {item.sourceApp || 'Image'}
+                                </div>
+                              </div>
+                            ) : isColor ? (
                               <div className="flex-1 flex flex-col justify-end">
                                 <span className="text-[11px] font-mono font-bold text-white bg-black/60 px-2 py-0.5 rounded backdrop-blur-md self-start">
                                   {item.content}
@@ -1045,7 +1089,14 @@ export const SuperNotch: React.FC = () => {
                               return (
                                 <div
                                   key={item.id}
-                                  onClick={() => handlePaste(item.content)}
+                                  draggable={true}
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', item.content);
+                                    if (item.category === 'image') {
+                                      e.dataTransfer.setData('text/uri-list', item.content);
+                                    }
+                                  }}
+                                  onClick={() => handlePaste(item)}
                                   onMouseEnter={() => setSearchSelectedIndex(overallIndex)}
                                   className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
                                     isSelected
@@ -1054,20 +1105,30 @@ export const SuperNotch: React.FC = () => {
                                   }`}
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                    <div
-                                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-white/[0.06] text-zinc-400"
-                                      style={isColor ? { backgroundColor: item.content } : undefined}
-                                    >
-                                      {item.category === 'dictation' ? (
-                                        <Mic className="w-3 h-3 text-amber-400" />
-                                      ) : item.category === 'code' ? (
-                                        <Code className="w-3 h-3" />
-                                      ) : item.category === 'link' ? (
-                                        <Link2 className="w-3 h-3" />
-                                      ) : isColor ? null : (
-                                        <Copy className="w-3 h-3" />
-                                      )}
-                                    </div>
+                                    {item.category === 'image' ? (
+                                      <div className="w-6 h-6 rounded-md overflow-hidden bg-white/[0.06] flex-shrink-0">
+                                        <img
+                                          src={item.content}
+                                          alt="clip thumbnail"
+                                          className="w-full h-full object-cover pointer-events-none"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-white/[0.06] text-zinc-400"
+                                        style={isColor ? { backgroundColor: item.content } : undefined}
+                                      >
+                                        {item.category === 'dictation' ? (
+                                          <Mic className="w-3 h-3 text-amber-400" />
+                                        ) : item.category === 'code' ? (
+                                          <Code className="w-3 h-3" />
+                                        ) : item.category === 'link' ? (
+                                          <Link2 className="w-3 h-3" />
+                                        ) : isColor ? null : (
+                                          <Copy className="w-3 h-3" />
+                                        )}
+                                      </div>
+                                    )}
 
                                     <span
                                       className={`text-xs truncate max-w-[420px] ${
@@ -1076,7 +1137,9 @@ export const SuperNotch: React.FC = () => {
                                           : 'text-zinc-200'
                                       }`}
                                     >
-                                      {item.content.replace(/\n+/g, ' ')}
+                                      {item.category === 'image'
+                                        ? 'Image preview'
+                                        : item.content.replace(/\n+/g, ' ')}
                                     </span>
                                   </div>
 

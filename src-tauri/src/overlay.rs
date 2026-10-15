@@ -150,8 +150,8 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
                         if !screen.is_null() {
                             let screen_frame: NSRect = msg_send![screen, frame];
 
-                            // Idle notch: 200px wide (160px notch body + 20px ears on each side), 28px tall flush with menu bar
-                            let win_w = 200.0_f64;
+                            // Idle/Recording notch: 280px window width (supports 160px idle and 220px recording + ears), 28px tall flush with menu bar
+                            let win_w = 280.0_f64;
                             let win_h = 28.0_f64;
 
                             let target_frame = NSRect {
@@ -335,7 +335,7 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
         let (target_w, target_h) = if expanded {
             (content_w + 80.0, content_h + 40.0)
         } else {
-            (200.0, 28.0)
+            (280.0, 28.0)
         };
 
         #[cfg(target_os = "macos")]
@@ -377,6 +377,11 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
                         }
 
                         if expanded {
+                            extern "C" {
+                                fn record_target_application();
+                            }
+                            record_target_application();
+
                             let _: () = msg_send![ns_win, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
                             let app_cls = objc2::ffi::objc_getClass(b"NSApplication\0".as_ptr() as *const _);
                             if !app_cls.is_null() {

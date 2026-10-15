@@ -23,12 +23,12 @@ export type OverlayStyle = 'notch' | 'minimal' | 'hidden';
 export type RecordingMode = 'dictate' | 'prompt' | 'rewrite' | 'command';
 export type SuperNotchMode = 'idle' | 'recording' | 'shelf';
 export type SuperNotchHudView = 'search' | 'shelf';
-export type ClipboardCategory = 'all' | 'dictation' | 'clipboard' | 'pinned' | 'code' | 'link' | 'color';
+export type ClipboardCategory = 'all' | 'image' | 'dictation' | 'clipboard' | 'pinned' | 'code' | 'link' | 'color';
 
 export interface ClipboardItem {
   id: string;
   content: string;
-  category: 'dictation' | 'clipboard' | 'code' | 'link' | 'color';
+  category: 'dictation' | 'clipboard' | 'code' | 'link' | 'color' | 'image';
   timestamp: string;
   timestampRaw: number;
   isPinned: boolean;

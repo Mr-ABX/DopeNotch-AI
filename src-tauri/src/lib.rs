@@ -157,6 +157,7 @@ pub fn run() {
             commands::set_notch_expanded,
             commands::preview_notch,
             commands::paste_text_direct,
+            commands::paste_image_direct,
             commands::toggle_hud,
             commands::pick_screen_color,
             commands::open_ruler,

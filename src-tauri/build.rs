@@ -1,6 +1,7 @@
 fn main() {
     #[cfg(target_os = "macos")]
     {
+        println!("cargo:rerun-if-changed=src/color_sampler.m");
         cc::Build::new()
             .file("src/color_sampler.m")
             .flag("-fobjc-arc")
