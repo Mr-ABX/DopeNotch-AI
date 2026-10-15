@@ -856,3 +856,24 @@ pub async fn request_system_permissions() -> Result<SystemPermissionsStatus, Str
     }
 }
 
+// ============================================================
+// Pixel Distance Ruler Commands
+// ============================================================
+
+#[tauri::command]
+pub async fn open_ruler(app: AppHandle) -> Result<(), String> {
+    overlay::show_ruler_overlay(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_ruler(app: AppHandle) -> Result<(), String> {
+    overlay::hide_ruler_overlay(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn toggle_ruler(app: AppHandle) -> Result<(), String> {
+    overlay::toggle_ruler_overlay(&app);
+    Ok(())
+}

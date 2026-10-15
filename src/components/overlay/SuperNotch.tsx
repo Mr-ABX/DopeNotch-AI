@@ -184,7 +184,10 @@ export const SuperNotch: React.FC = () => {
       subtitle: 'Screen laser measurement for margins & padding',
       icon: Ruler,
       action: () => {
-        showStatus('Pixel Ruler Active');
+        closeShelf();
+        setTimeout(() => {
+          invoke('open_ruler').catch(() => {});
+        }, 120);
       },
     },
     {

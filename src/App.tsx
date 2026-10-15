@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Dashboard } from './components/layout/Dashboard';
 import { SuperNotch } from './components/overlay/SuperNotch';
+import { PixelRulerOverlay } from './components/overlay/PixelRulerOverlay';
 import { TrayMenu } from './components/TrayMenu';
 import { useLiquidSync } from './hooks/useLiquidSync';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -12,8 +13,9 @@ const windowLabel = getCurrentWindow().label;
 function App() {
   useLiquidSync();
 
-  const [view] = useState<'dashboard' | 'tray' | 'notch'>(
+  const [view] = useState<'dashboard' | 'tray' | 'notch' | 'ruler'>(
     windowLabel === 'notch' || windowLabel === 'overlay' ? 'notch' :
+    windowLabel === 'ruler' ? 'ruler' :
     windowLabel === 'tray' ? 'tray' :
     'dashboard'
   );
@@ -46,6 +48,10 @@ function App() {
 
   if (view === 'tray') {
     return <TrayMenu />;
+  }
+
+  if (view === 'ruler') {
+    return <PixelRulerOverlay />;
   }
 
   return (

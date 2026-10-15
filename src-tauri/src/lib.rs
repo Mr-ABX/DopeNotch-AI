@@ -159,6 +159,9 @@ pub fn run() {
             commands::paste_text_direct,
             commands::toggle_hud,
             commands::pick_screen_color,
+            commands::open_ruler,
+            commands::close_ruler,
+            commands::toggle_ruler,
             commands::check_system_permissions,
             commands::request_system_permissions,
         ])
@@ -282,6 +285,30 @@ pub fn setup_global_shortcut(app: &AppHandle, primary_hotkey: &str) {
         match result {
             Ok(_) => log::info!("Successfully registered HUD global shortcut: '{}'", hud_sc),
             Err(e) => log::debug!("Could not register HUD shortcut '{}': {}", hud_sc, e),
+        }
+    }
+
+    // Register shortcuts to toggle the Pixel Ruler Overlay
+    let ruler_aliases = [
+        "Option+R",
+        "Alt+R",
+    ];
+
+    for r_sc in ruler_aliases {
+        let app_h = app_clone.clone();
+        let sc_name = r_sc.to_string();
+        let result = app.global_shortcut().on_shortcut(r_sc, move |_app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                log::info!("[global_shortcut] Toggle Ruler shortcut triggered: '{}'", sc_name);
+                let app_inner = app_h.clone();
+                tauri::async_runtime::spawn(async move {
+                    overlay::toggle_ruler_overlay(&app_inner);
+                });
+            }
+        });
+        match result {
+            Ok(_) => log::info!("Successfully registered Ruler global shortcut: '{}'", r_sc),
+            Err(e) => log::debug!("Could not register Ruler shortcut '{}': {}", r_sc, e),
         }
     }
 }

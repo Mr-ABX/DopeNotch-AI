@@ -58,6 +58,21 @@
         "visible": false,
         "shadow": false,
         "focus": true
+      },
+      {
+        "label": "ruler",
+        "title": "DopeNotch Pixel Ruler",
+        "url": "/",
+        "width": 1920,
+        "height": 1080,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false,
+        "focus": true
       }
     ]
   },

@@ -88,6 +88,7 @@ export const ExtensionsView: React.FC = () => {
       status: 'active',
       actionLabel: 'Inspect Dimensions',
       onExecute: () => {
+        invoke('open_ruler').catch(() => {});
         showNotification('Pixel Ruler overlay engaged (press Esc to dismiss)');
       },
     },

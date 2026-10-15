@@ -3,49 +3,56 @@
 use tauri::{AppHandle, Manager};
 use crate::settings::AppSettings;
 
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NSPoint { pub x: f64, pub y: f64 }
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NSSize { pub width: f64, pub height: f64 }
+
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct NSRect { pub origin: NSPoint, pub size: NSSize }
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::Encode for NSPoint {
+    const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
+        "CGPoint",
+        &[<f64 as objc2::Encode>::ENCODING, <f64 as objc2::Encode>::ENCODING],
+    );
+}
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::Encode for NSSize {
+    const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
+        "CGSize",
+        &[<f64 as objc2::Encode>::ENCODING, <f64 as objc2::Encode>::ENCODING],
+    );
+}
+
+#[cfg(target_os = "macos")]
+unsafe impl objc2::Encode for NSRect {
+    const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
+        "CGRect",
+        &[<NSPoint as objc2::Encode>::ENCODING, <NSSize as objc2::Encode>::ENCODING],
+    );
+}
+
 /// Show the top notch visualizer window
 pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
     if let Some(window) = app.get_webview_window("notch") {
         // Show window first so window is initialized by Tauri
         let _ = window.show();
 
-
         #[cfg(target_os = "macos")]
         {
             use objc2::msg_send;
             use objc2::runtime::{AnyObject, AnyClass, Sel};
             use objc2::ffi::{class_replaceMethod, object_setClass, objc_getClass};
-
-            #[repr(C)]
-            #[derive(Clone, Copy)]
-            struct NSPoint { x: f64, y: f64 }
-
-            #[repr(C)]
-            #[derive(Clone, Copy)]
-            struct NSSize { width: f64, height: f64 }
-
-            #[repr(C)]
-            #[derive(Clone, Copy)]
-            struct NSRect { origin: NSPoint, size: NSSize }
-
-            unsafe impl objc2::Encode for NSPoint {
-                const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                    "CGPoint",
-                    &[<f64 as objc2::Encode>::ENCODING, <f64 as objc2::Encode>::ENCODING],
-                );
-            }
-            unsafe impl objc2::Encode for NSSize {
-                const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                    "CGSize",
-                    &[<f64 as objc2::Encode>::ENCODING, <f64 as objc2::Encode>::ENCODING],
-                );
-            }
-            unsafe impl objc2::Encode for NSRect {
-                const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                    "CGRect",
-                    &[<NSPoint as objc2::Encode>::ENCODING, <NSSize as objc2::Encode>::ENCODING],
-                );
-            }
 
             unsafe extern "C" fn unconstrained_constrain_frame_rect(
                 _this: *mut AnyObject,
@@ -336,37 +343,6 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
             use objc2::msg_send;
             use objc2::runtime::AnyObject;
 
-            #[repr(C)]
-            #[derive(Clone, Copy)]
-            struct NSPoint { x: f64, y: f64 }
-
-            #[repr(C)]
-            #[derive(Clone, Copy)]
-            struct NSSize { width: f64, height: f64 }
-
-            #[repr(C)]
-            #[derive(Clone, Copy)]
-            struct NSRect { origin: NSPoint, size: NSSize }
-
-            unsafe impl objc2::Encode for NSPoint {
-                const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                    "CGPoint",
-                    &[<f64 as objc2::Encode>::ENCODING, <f64 as objc2::Encode>::ENCODING],
-                );
-            }
-            unsafe impl objc2::Encode for NSSize {
-                const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                    "CGSize",
-                    &[<f64 as objc2::Encode>::ENCODING, <f64 as objc2::Encode>::ENCODING],
-                );
-            }
-            unsafe impl objc2::Encode for NSRect {
-                const ENCODING: objc2::Encoding = objc2::Encoding::Struct(
-                    "CGRect",
-                    &[<NSPoint as objc2::Encode>::ENCODING, <NSSize as objc2::Encode>::ENCODING],
-                );
-            }
-
             let window_clone = window.clone();
             let _ = app.run_on_main_thread(move || {
                 if let Ok(ns_win) = window_clone.ns_window() {
@@ -428,6 +404,97 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
                 let _ = window.set_size(tauri::LogicalSize::new(target_w, target_h));
                 let _ = window.set_position(tauri::LogicalPosition::new(x, 0.0));
             }
+        }
+    }
+}
+
+/// Show the fullscreen transparent pixel ruler overlay
+pub fn show_ruler_overlay(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("ruler") {
+        #[cfg(target_os = "macos")]
+        {
+            use objc2::msg_send;
+            use objc2::runtime::AnyObject;
+            use objc2::ffi::{object_setClass, objc_getClass};
+
+            let window_clone = window.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Ok(ns_win) = window_clone.ns_window() {
+                    let ns_win = ns_win as *mut AnyObject;
+                    unsafe {
+                        let panel_class = objc_getClass(b"NSPanel\0".as_ptr() as *const _);
+                        if !panel_class.is_null() {
+                            object_setClass(ns_win as *mut _, panel_class as *mut _);
+                            let _: () = msg_send![ns_win, setFloatingPanel: true];
+                            let _: () = msg_send![ns_win, setWorksWhenModal: true];
+                        }
+
+                        // Max shielding window level (floats on top of all windows and menu bar)
+                        let _: () = msg_send![ns_win, setLevel: 2147483647i64];
+                        let _: () = msg_send![ns_win, setCollectionBehavior: 337u64];
+                        let _: () = msg_send![ns_win, setStyleMask: 0u64];
+                        let _: () = msg_send![ns_win, setHasShadow: false];
+                        let _: () = msg_send![ns_win, invalidateShadow];
+
+                        // Set 100% transparent background
+                        let color_cls = objc_getClass(b"NSColor\0".as_ptr() as *const _);
+                        if !color_cls.is_null() {
+                            let clear_color: *mut AnyObject = msg_send![color_cls as *mut AnyObject, clearColor];
+                            let _: () = msg_send![ns_win, setBackgroundColor: clear_color];
+                            let _: () = msg_send![ns_win, setOpaque: false];
+                        }
+
+                        // Size to fill the active screen
+                        let screen: *mut AnyObject = msg_send![ns_win, screen];
+                        if !screen.is_null() {
+                            let screen_frame: NSRect = msg_send![screen, frame];
+                            let _: () = msg_send![ns_win, setFrame: screen_frame, display: true];
+                        }
+
+                        let _: () = msg_send![ns_win, orderFrontRegardless];
+                        let _: () = msg_send![ns_win, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
+
+                        let app_cls = objc_getClass(b"NSApplication\0".as_ptr() as *const _);
+                        if !app_cls.is_null() {
+                            let ns_app: *mut AnyObject = msg_send![app_cls as *mut AnyObject, sharedApplication];
+                            if !ns_app.is_null() {
+                                let _: () = msg_send![ns_app, activateIgnoringOtherApps: true];
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            if let Ok(Some(monitor)) = window.primary_monitor() {
+                let _ = window.set_size(monitor.size());
+                let _ = window.set_position(tauri::PhysicalPosition::new(0, 0));
+            }
+        }
+
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = tauri::Emitter::emit(app, "dopenotch://ruler-activated", ());
+    }
+}
+
+/// Hide the ruler overlay window
+pub fn hide_ruler_overlay(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("ruler") {
+        let _ = window.hide();
+        let _ = tauri::Emitter::emit(app, "dopenotch://ruler-deactivated", ());
+    }
+}
+
+/// Toggle the ruler overlay window
+pub fn toggle_ruler_overlay(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("ruler") {
+        if window.is_visible().unwrap_or(false) {
+            hide_ruler_overlay(app);
+        } else {
+            show_ruler_overlay(app);
         }
     }
 }
