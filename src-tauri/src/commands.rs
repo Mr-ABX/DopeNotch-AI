@@ -224,7 +224,7 @@ async fn handle_transcription_result(
     // If operating mode is Assistant, route transcript into Notch Assistant workspace
     if settings.operating_mode == crate::settings::OperatingMode::Assistant {
         overlay::show_visualizer(&app, &settings);
-        overlay::resize_notch(&app, true);
+        overlay::resize_notch(&app, true, None, None);
         let _ = app.emit("murmur://assistant-voice-input", &text);
         let _ = app.emit_to("notch", "murmur://assistant-voice-input", &text);
     } else {
@@ -669,8 +669,8 @@ pub async fn clear_all_app_data(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn set_notch_expanded(app: tauri::AppHandle, expanded: bool) {
-    overlay::resize_notch(&app, expanded);
+pub fn set_notch_expanded(app: tauri::AppHandle, expanded: bool, width: Option<f64>, height: Option<f64>) {
+    overlay::resize_notch(&app, expanded, width, height);
 }
 
 #[tauri::command]

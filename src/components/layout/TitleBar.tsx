@@ -69,18 +69,11 @@ export const TitleBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Center Draggable Title */}
+      {/* Center Draggable Region */}
       <div
         data-tauri-drag-region
-        className="flex-1 flex items-center justify-center gap-2 text-xs font-semibold text-zinc-200 h-full tracking-wide cursor-default pointer-events-auto"
-      >
-        <span
-          data-tauri-drag-region
-          className="text-zinc-100 font-medium pointer-events-none select-none tracking-wide text-xs"
-        >
-          DopeNotch
-        </span>
-      </div>
+        className="flex-1 h-full cursor-default pointer-events-auto"
+      />
 
       {/* Right Stats & Non-Mac Controls */}
       <div className="flex items-center gap-3" data-tauri-drag-region>

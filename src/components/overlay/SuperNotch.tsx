@@ -14,6 +14,7 @@ import {
   Ruler,
   Code,
   Link2,
+  LayoutGrid,
   Layers,
   Sparkles,
 } from 'lucide-react';
@@ -60,6 +61,7 @@ export const SuperNotch: React.FC = () => {
   const isCommand = recordingMode === 'command';
   const isRewrite = recordingMode === 'rewrite';
   const activeMode = isRecording ? 'recording' : superNotchMode;
+  const isSearch = superNotchHudView === 'search';
 
   // 7 Equalizer Bars calculation for recording mode
   const bars = [0.35, 0.65, 0.95, 1.0, 0.85, 0.55, 0.35];
@@ -69,15 +71,33 @@ export const SuperNotch: React.FC = () => {
     setTimeout(() => setStatusFeedback(null), 2000);
   };
 
+  // Target window dimensions for each state
+  const getExpandedDimensions = useCallback((view: 'shelf' | 'search') => {
+    if (view === 'search') {
+      return { width: 700, height: 390 };
+    }
+    return { width: 860, height: 215 };
+  }, []);
+
   // Smooth shelf open: expand window first, then animate container
-  const openShelf = useCallback(() => {
+  const openShelf = useCallback((targetView?: 'shelf' | 'search') => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
-    invoke('set_notch_expanded', { expanded: true }).catch(() => {});
+
+    const view = targetView || superNotchHudView;
+    const dims = getExpandedDimensions(view);
+
+    invoke('set_notch_expanded', {
+      expanded: true,
+      width: dims.width,
+      height: dims.height,
+    }).catch(() => {});
+
     setSuperNotchMode('shelf');
     getCurrentWindow().setFocus().catch(() => {});
+
     const focusSearch = () => {
       if (searchInputRef.current) {
         searchInputRef.current.focus();
@@ -86,22 +106,37 @@ export const SuperNotch: React.FC = () => {
     setTimeout(focusSearch, 50);
     setTimeout(focusSearch, 150);
     setTimeout(focusSearch, 280);
-  }, [setSuperNotchMode]);
+  }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView]);
 
   // Smooth shelf close: animate container collapse first, then shrink window
   const closeShelf = useCallback(() => {
     setSuperNotchMode('idle');
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
-      invoke('set_notch_expanded', { expanded: false }).catch(() => {});
-    }, 280);
+      invoke('set_notch_expanded', {
+        expanded: false,
+        width: 160,
+        height: 28,
+      }).catch(() => {});
+    }, 250);
   }, [setSuperNotchMode]);
+
+  // Switch between Shelf (SuPaste) and Search (Raycast) views
+  const handleToggleView = (newView: 'shelf' | 'search') => {
+    setSuperNotchHudView(newView);
+    const dims = getExpandedDimensions(newView);
+    invoke('set_notch_expanded', {
+      expanded: true,
+      width: dims.width,
+      height: dims.height,
+    }).catch(() => {});
+  };
 
   const handleCopy = (item: ClipboardItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     navigator.clipboard.writeText(item.content);
     setCopiedId(item.id);
-    showStatus('Copied to clipboard');
+    showStatus('Copied');
     setTimeout(() => setCopiedId(null), 1500);
   };
 
@@ -121,24 +156,24 @@ export const SuperNotch: React.FC = () => {
     closeShelf();
   };
 
-  // Raycast Tool Commands
+  // Built-in Extensions & Tools
   const toolCommands = useMemo(() => [
     {
       id: 'cmd-color',
       command: '/color',
       title: 'Screen Color Eyedropper',
-      subtitle: 'Native macOS pixel loupe • copies hex to clipboard',
+      subtitle: 'Native macOS pixel magnifying loupe • copies hex',
       icon: Pipette,
       action: async () => {
         try {
-          showStatus('Activating pixel loupe...');
+          showStatus('Pixel Loupe Active...');
           closeShelf();
           const hex = await invoke<string>('pick_screen_color');
           if (hex) {
-            showStatus(`Sampled: ${hex}`);
+            showStatus(`Sampled ${hex}`);
           }
         } catch (e: any) {
-          showStatus(e?.toString() || 'Color picker cancelled');
+          showStatus(e?.toString() || 'Picker cancelled');
         }
       },
     },
@@ -146,10 +181,10 @@ export const SuperNotch: React.FC = () => {
       id: 'cmd-ruler',
       command: '/ruler',
       title: 'Pixel Distance Ruler',
-      subtitle: 'Snapping laser measurement for margins & padding',
+      subtitle: 'Screen laser measurement for margins & padding',
       icon: Ruler,
       action: () => {
-        showStatus('Pixel Ruler: Hover any UI border to snap');
+        showStatus('Pixel Ruler Active');
       },
     },
     {
@@ -169,29 +204,29 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'cmd-shelf',
       command: '/shelf',
-      title: 'Switch to Horizontal Shelf',
-      subtitle: 'View SuPaste card gallery',
-      icon: Layers,
+      title: 'SuPaste Card Shelf',
+      subtitle: 'Switch to horizontal clipboard card view',
+      icon: LayoutGrid,
       action: () => {
-        setSuperNotchHudView('shelf');
+        handleToggleView('shelf');
       },
     },
     {
       id: 'cmd-pinned',
       command: '/pinned',
-      title: 'View Pinned Clips',
-      subtitle: 'Filter history by starred items',
+      title: 'Starred & Pinned Clips',
+      subtitle: 'Filter history by saved items',
       icon: Star,
       action: () => {
         setActiveClipboardCategory('pinned');
-        setSuperNotchHudView('shelf');
+        handleToggleView('shelf');
       },
     },
     {
       id: 'cmd-settings',
       command: '/settings',
       title: 'DopeNotch Dashboard',
-      subtitle: 'Open preferences, models & audio settings',
+      subtitle: 'Preferences, whisper engines & shortcuts',
       icon: Settings,
       action: () => {
         handleOpenDashboard();
@@ -200,23 +235,22 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'cmd-clear',
       command: '/clear',
-      title: 'Clear Unpinned Clips',
-      subtitle: 'Prune non-pinned items from history',
+      title: 'Clear Unpinned History',
+      subtitle: 'Prune non-pinned items from local storage',
       icon: Trash2,
       action: () => {
         invoke('clear_clipboard_history').catch(() => {});
         setClipboardItems(clipboardItems.filter((i) => i.isPinned));
-        showStatus('Cleared non-pinned history');
+        showStatus('Pruned unpinned items');
       },
     },
-  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, setSuperNotchHudView]);
+  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording]);
 
-  // Combined fast search results (Commands + Clips)
+  // Combined fast search results
   const searchResults = useMemo(() => {
     const q = clipboardSearchQuery.trim().toLowerCase();
     const isSlash = q.startsWith('/');
 
-    // Matching tool commands
     const matchingCommands = toolCommands.filter((cmd) => {
       if (isSlash) {
         return (
@@ -231,7 +265,6 @@ export const SuperNotch: React.FC = () => {
       );
     });
 
-    // Matching clipboard/dictation items
     const matchingClips = clipboardItems.filter((item) => {
       if (isSlash) return false;
       if (!q) return true;
@@ -249,111 +282,78 @@ export const SuperNotch: React.FC = () => {
     };
   }, [clipboardSearchQuery, toolCommands, clipboardItems]);
 
-  // Filter items for Page 2: Horizontal Shelf
+  // Filtered shelf items by category
   const filteredShelfItems = useMemo(() => {
-    return clipboardItems.filter((item) => {
-      if (activeClipboardCategory === 'pinned' && !item.isPinned) return false;
-      if (activeClipboardCategory === 'dictation' && item.category !== 'dictation') return false;
-      if (activeClipboardCategory === 'clipboard' && item.category !== 'clipboard') return false;
-      if (activeClipboardCategory === 'code' && item.category !== 'code') return false;
-      if (activeClipboardCategory === 'link' && item.category !== 'link') return false;
-      if (activeClipboardCategory === 'color' && item.category !== 'color') return false;
-
-      if (clipboardSearchQuery.trim() && !clipboardSearchQuery.startsWith('/')) {
-        const q = clipboardSearchQuery.toLowerCase();
-        return (
-          item.content.toLowerCase().includes(q) ||
-          (item.sourceApp && item.sourceApp.toLowerCase().includes(q))
-        );
-      }
-      return true;
-    });
-  }, [activeClipboardCategory, clipboardItems, clipboardSearchQuery]);
-
-  // Calculate live counts for each category badge
-  const counts = useMemo(() => ({
-    all: clipboardItems.length,
-    dictation: clipboardItems.filter((c) => c.category === 'dictation').length,
-    clipboard: clipboardItems.filter((c) => c.category === 'clipboard').length,
-    pinned: clipboardItems.filter((c) => c.isPinned).length,
-    code: clipboardItems.filter((c) => c.category === 'code').length,
-    link: clipboardItems.filter((c) => c.category === 'link').length,
-    color: clipboardItems.filter((c) => c.category === 'color').length,
-  }), [clipboardItems]);
-
-  // Keep selection indexes in bounds
-  useEffect(() => {
-    if (searchSelectedIndex >= searchResults.totalCount) {
-      setSearchSelectedIndex(Math.max(0, searchResults.totalCount - 1));
+    let items = clipboardItems;
+    if (activeClipboardCategory === 'pinned') {
+      items = items.filter((i) => i.isPinned);
+    } else if (activeClipboardCategory !== 'all') {
+      items = items.filter((i) => i.category === activeClipboardCategory);
     }
-  }, [searchResults.totalCount, searchSelectedIndex]);
-
-  useEffect(() => {
-    if (shelfSelectedIndex >= filteredShelfItems.length) {
-      setShelfSelectedIndex(Math.max(0, filteredShelfItems.length - 1));
+    if (clipboardSearchQuery.trim()) {
+      const q = clipboardSearchQuery.toLowerCase();
+      items = items.filter(
+        (i) =>
+          i.content.toLowerCase().includes(q) ||
+          (i.sourceApp && i.sourceApp.toLowerCase().includes(q))
+      );
     }
-  }, [filteredShelfItems.length, shelfSelectedIndex]);
+    return items;
+  }, [clipboardItems, activeClipboardCategory, clipboardSearchQuery]);
 
-  // Sync window size with Tauri backend & fetch fresh clipboard items
-  useEffect(() => {
-    if (activeMode === 'shelf') {
-      invoke<any[]>('get_clipboard_history')
-        .then((items) => {
-          if (Array.isArray(items)) {
-            setClipboardItems(
-              items.map((it) => ({
-                id: it.id,
-                content: it.content,
-                category: it.category,
-                timestamp: it.timestamp,
-                timestampRaw: it.timestamp_raw || Date.now(),
-                sourceApp: it.source_app || 'Clipboard',
-                charCount: it.char_count || it.content.length,
-                wordCount: it.word_count || it.content.split(/\s+/).filter(Boolean).length,
-                isPinned: it.is_pinned || false,
-              }))
-            );
-          }
-        })
-        .catch(() => {});
-    }
-  }, [activeMode, setClipboardItems]);
+  // Category items with counts (1:1 with SuPaste Screenshot)
+  const categories: { id: ClipboardCategory; label: string; count: number }[] = useMemo(() => {
+    return [
+      { id: 'all', label: 'All', count: clipboardItems.length },
+      {
+        id: 'dictation',
+        label: 'Dictations',
+        count: clipboardItems.filter((i) => i.category === 'dictation').length,
+      },
+      {
+        id: 'code',
+        label: 'Code',
+        count: clipboardItems.filter((i) => i.category === 'code').length,
+      },
+      {
+        id: 'link',
+        label: 'Links',
+        count: clipboardItems.filter((i) => i.category === 'link').length,
+      },
+      {
+        id: 'color',
+        label: 'Colors',
+        count: clipboardItems.filter((i) => i.category === 'color').length,
+      },
+      {
+        id: 'pinned',
+        label: 'Pinned',
+        count: clipboardItems.filter((i) => i.isPinned).length,
+      },
+    ];
+  }, [clipboardItems]);
 
-  // Listen for global shortcut toggle HUD event (Option+V / Cmd+Shift+V)
+  // Listen for backend toggle events
   useEffect(() => {
-    let unlistenFn: (() => void) | null = null;
-    listen('murmur://toggle-hud', () => {
-      if (superNotchMode === 'shelf') {
+    const unlistenToggle = listen('murmur://toggle-shelf', () => {
+      if (activeMode === 'shelf') {
         closeShelf();
       } else {
-        setSuperNotchHudView('search');
         openShelf();
       }
-    }).then((fn) => {
-      unlistenFn = fn;
+    });
+
+    const unlistenOpen = listen('murmur://open-shelf', () => {
+      openShelf();
     });
 
     return () => {
-      if (unlistenFn) unlistenFn();
+      unlistenToggle.then((f) => f());
+      unlistenOpen.then((f) => f());
     };
-  }, [superNotchMode, openShelf, closeShelf, setSuperNotchHudView]);
+  }, [activeMode, closeShelf, openShelf]);
 
-  // Auto-close notch on blur (window losing focus) with safety grace period
-  useEffect(() => {
-    if (activeMode !== 'shelf') return;
-
-    const mountedAt = Date.now();
-    const handleBlur = () => {
-      // Allow 400ms grace period so initial window focus doesn't falsely trigger blur
-      if (Date.now() - mountedAt < 400) return;
-      closeShelf();
-    };
-
-    window.addEventListener('blur', handleBlur);
-    return () => window.removeEventListener('blur', handleBlur);
-  }, [activeMode, closeShelf]);
-
-  // Master Keyboard Navigation (Arrows, Tab, Enter, Esc)
+  // Keyboard navigation inside Notch
   useEffect(() => {
     if (activeMode !== 'shelf') return;
 
@@ -364,46 +364,56 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
-      // Tab switches between Search View and Horizontal Shelf View
+      // Switch views on Tab
       if (e.key === 'Tab') {
         e.preventDefault();
-        setSuperNotchHudView(superNotchHudView === 'search' ? 'shelf' : 'search');
+        handleToggleView(superNotchHudView === 'shelf' ? 'search' : 'shelf');
         return;
       }
 
-      // PAGE 1: SEARCH VIEW KEYBOARD CONTROLS
       if (superNotchHudView === 'search') {
+        const total = searchResults.commands.length + searchResults.clips.length;
+        if (total === 0) return;
+
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          setSearchSelectedIndex((prev) =>
-            prev < searchResults.totalCount - 1 ? prev + 1 : prev
-          );
+          setSearchSelectedIndex((prev) => (prev + 1) % total);
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
-          setSearchSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+          setSearchSelectedIndex((prev) => (prev - 1 + total) % total);
         } else if (e.key === 'Enter') {
           e.preventDefault();
           if (searchSelectedIndex < searchResults.commands.length) {
-            const cmd = searchResults.commands[searchSelectedIndex];
-            if (cmd) cmd.action();
+            searchResults.commands[searchSelectedIndex].action();
           } else {
             const clipIdx = searchSelectedIndex - searchResults.commands.length;
             const clip = searchResults.clips[clipIdx];
             if (clip) handlePaste(clip.content);
           }
         }
-      }
+      } else {
+        // Shelf view navigation with arrows
+        const count = filteredShelfItems.length;
+        if (count === 0) return;
 
-      // PAGE 2: HORIZONTAL SHELF KEYBOARD CONTROLS
-      if (superNotchHudView === 'shelf') {
         if (e.key === 'ArrowRight') {
           e.preventDefault();
-          setShelfSelectedIndex((prev) =>
-            prev < filteredShelfItems.length - 1 ? prev + 1 : prev
-          );
+          const nextIdx = Math.min(count - 1, shelfSelectedIndex + 1);
+          setShelfSelectedIndex(nextIdx);
+          shelfScrollRef.current?.children[nextIdx]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'center',
+          });
         } else if (e.key === 'ArrowLeft') {
           e.preventDefault();
-          setShelfSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0));
+          const prevIdx = Math.max(0, shelfSelectedIndex - 1);
+          setShelfSelectedIndex(prevIdx);
+          shelfScrollRef.current?.children[prevIdx]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'center',
+          });
         } else if (e.key === 'Enter') {
           e.preventDefault();
           const item = filteredShelfItems[shelfSelectedIndex];
@@ -416,45 +426,50 @@ export const SuperNotch: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     activeMode,
-    superNotchHudView,
+    closeShelf,
+    filteredShelfItems,
+    handlePaste,
+    handleToggleView,
     searchResults,
     searchSelectedIndex,
-    filteredShelfItems,
     shelfSelectedIndex,
-    closeShelf,
-    setSuperNotchHudView,
+    superNotchHudView,
   ]);
 
-  // Scroll active shelf card into view
-  useEffect(() => {
-    if (activeMode === 'shelf' && superNotchHudView === 'shelf' && shelfScrollRef.current) {
-      const selectedEl = shelfScrollRef.current.children[shelfSelectedIndex] as HTMLElement;
-      if (selectedEl) {
-        selectedEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    }
-  }, [shelfSelectedIndex, activeMode, superNotchHudView]);
-
-  // Handle Trackpad Horizontal Swipe to switch pages
+  // Horizontal wheel scroll handler for shelf
   const handleWheel = (e: React.WheelEvent) => {
-    if (Math.abs(e.deltaX) > 28) {
-      if (e.deltaX > 28 && superNotchHudView === 'search') {
-        setSuperNotchHudView('shelf');
-      } else if (e.deltaX < -28 && superNotchHudView === 'shelf') {
-        setSuperNotchHudView('search');
+    if (activeMode === 'shelf' && superNotchHudView === 'shelf' && shelfScrollRef.current) {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        shelfScrollRef.current.scrollLeft += e.deltaY;
       }
     }
   };
 
-  const categories: { id: ClipboardCategory | 'pinned'; label: string; count: number }[] = [
-    { id: 'all', label: 'History', count: counts.all },
-    { id: 'dictation', label: 'Dictations', count: counts.dictation },
-    { id: 'clipboard', label: 'Clips', count: counts.clipboard },
-    { id: 'code', label: 'Code', count: counts.code },
-    { id: 'color', label: 'Colors', count: counts.color },
-    { id: 'link', label: 'Links', count: counts.link },
-    { id: 'pinned', label: 'Pinned', count: counts.pinned },
-  ];
+  // Dimensions based on state
+  const targetWidth =
+    activeMode === 'shelf'
+      ? isSearch
+        ? 700
+        : 860
+      : activeMode === 'recording'
+      ? 320
+      : 160;
+
+  const targetHeight =
+    activeMode === 'shelf'
+      ? isSearch
+        ? 390
+        : 215
+      : activeMode === 'recording'
+      ? 44
+      : 28;
+
+  const targetRadius =
+    activeMode === 'shelf'
+      ? '0 0 24px 24px'
+      : activeMode === 'recording'
+      ? '0 0 18px 18px'
+      : '0 0 16px 16px';
 
   return (
     <div className="fixed top-0 left-0 w-full h-full pointer-events-none flex flex-col items-center select-none overflow-hidden bg-transparent">
@@ -467,20 +482,20 @@ export const SuperNotch: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* UNIFIED MORPHING DYNAMIC ISLAND NOTCH CONTAINER                          */}
+      {/* UNIFIED MORPHING DYNAMIC ISLAND (PURE JET BLACK #000000 MATCHING MACBOOK) */}
       {/* ========================================================================= */}
       <motion.div
         layout
         initial={false}
         animate={{
-          width: activeMode === 'shelf' ? 740 : activeMode === 'recording' ? 360 : 184,
-          height: activeMode === 'shelf' ? 420 : activeMode === 'recording' ? 58 : 34,
-          borderRadius: activeMode === 'shelf' ? '0 0 24px 24px' : activeMode === 'recording' ? '0 0 20px 20px' : '0 0 16px 16px',
+          width: targetWidth,
+          height: targetHeight,
+          borderRadius: targetRadius,
         }}
         transition={{
           type: 'spring',
-          stiffness: 420,
-          damping: 32,
+          stiffness: 440,
+          damping: 34,
           mass: 0.8,
         }}
         onWheel={handleWheel}
@@ -490,41 +505,29 @@ export const SuperNotch: React.FC = () => {
             openShelf();
           }
         }}
-        className={`pointer-events-auto relative z-10 flex flex-col items-center overflow-hidden select-none transition-shadow ${
+        className={`pointer-events-auto relative z-10 flex flex-col items-center overflow-hidden select-none bg-black transition-shadow ${
           activeMode === 'shelf'
-            ? 'bg-[#0e0e11]/95 backdrop-blur-3xl border-x border-b border-white/[0.08] shadow-[0_28px_70px_-15px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)]'
+            ? 'shadow-[0_22px_60px_rgba(0,0,0,0.92)] border-x border-b border-white/[0.08]'
             : activeMode === 'recording'
-            ? 'bg-[#0a0a0c] border-x border-b border-white/[0.1] shadow-[0_12px_36px_rgba(0,0,0,0.8)]'
-            : 'bg-black cursor-pointer hover:shadow-[0_4px_16px_rgba(245,158,11,0.25)] border-x border-b border-black'
+            ? 'shadow-[0_10px_30px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.1]'
+            : 'cursor-pointer border-none'
         }`}
       >
         <AnimatePresence mode="wait">
-          {/* 1. IDLE NOTCH VIEW */}
+          {/* 1. IDLE NOTCH VIEW (Pure Hardware Bezel - ZERO TEXT, ZERO DOTS) */}
           {activeMode === 'idle' && (
             <motion.div
               key="idle-view"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="w-full h-full flex items-center justify-between px-3.5 group"
-              title="Click or press ⌥V to open DopeNotch Search & Shelf"
-            >
-              {/* Left ambient lens */}
-              <div className="w-2.5 h-2.5 rounded-full bg-white/[0.08] border border-white/[0.05]" />
-              
-              {/* Center subtle label & audio dot */}
-              <div className="flex items-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400/90 shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
-                <span className="text-[11px] font-medium tracking-tight text-zinc-300">DopeNotch</span>
-              </div>
-
-              {/* Right acoustic sensor */}
-              <div className="w-2.5 h-2.5 rounded-full bg-white/[0.08] border border-white/[0.05]" />
-            </motion.div>
+              transition={{ duration: 0.12 }}
+              className="w-full h-full cursor-pointer bg-black"
+              title="Click or press ⌥V to open SuPaste shelf"
+            />
           )}
 
-          {/* 2. RECORDING NOTCH VIEW */}
+          {/* 2. RECORDING NOTCH VIEW (Sleek Audio Waveform) */}
           {activeMode === 'recording' && (
             <motion.div
               key="recording-view"
@@ -532,10 +535,10 @@ export const SuperNotch: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
               transition={{ duration: 0.15 }}
-              className="w-full h-full px-5 py-2 flex flex-col items-center justify-between"
+              className="w-full h-full px-4 flex items-center justify-between bg-black text-[#ededed]"
             >
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-[2.5px] h-3.5">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-[2px] h-3.5">
                   {bars.map((mult, i) => {
                     const heightPercent = Math.max(
                       20,
@@ -570,121 +573,130 @@ export const SuperNotch: React.FC = () => {
                 </span>
               </div>
 
-              <div className="w-full text-center px-2">
-                <p className="text-xs text-[#ededed] font-medium leading-tight line-clamp-1">
-                  {streamingText ? (
-                    <>
-                      <span>{streamingText}</span>
-                      <span className="inline-block w-1 h-3 bg-white ml-1 animate-pulse align-middle" />
-                    </>
-                  ) : (
-                    <span className="text-zinc-500 text-[11px]">Listening to your voice...</span>
-                  )}
-                </p>
+              <div className="flex-1 px-3 truncate text-center">
+                <span className="text-xs text-zinc-300 font-mono">
+                  {streamingText || 'Listening...'}
+                </span>
               </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  invoke('toggle_recording').catch(() => {});
+                  setIsRecording(false);
+                }}
+                className="w-5 h-5 rounded-full bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 flex items-center justify-center transition-colors cursor-pointer"
+                title="Stop recording"
+              >
+                <div className="w-2 h-2 rounded-sm bg-rose-400" />
+              </button>
             </motion.div>
           )}
 
-          {/* 3. EXPANDED HUD VIEW (RAYCAST FAST SEARCH & SUPASTE SHELF) */}
+          {/* 3. EXPANDED SHELF / RAYCAST SEARCH NOTCH */}
           {activeMode === 'shelf' && (
             <motion.div
               key="shelf-view"
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.18 }}
-              className="w-full h-full p-3.5 flex flex-col justify-between text-[#ededed]"
+              transition={{ duration: 0.16 }}
+              className="w-full h-full p-3 flex flex-col justify-between text-[#ededed] bg-black"
             >
-              {/* TOP HEADER: Clean Search Input + Minimal Glass Segmented Control */}
-              <div className="flex items-center justify-between gap-3 pb-3 border-b border-white/[0.06]">
+              {/* TOP HEADER: Clean Minimal Search + Unboxed Icon Toggles (1:1 with SuPaste) */}
+              <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.08]">
                 {/* Search Input Box */}
-                <div className="flex items-center gap-2.5 bg-white/[0.04] border border-white/[0.08] focus-within:border-white/[0.2] focus-within:bg-white/[0.07] rounded-xl px-3 py-1.5 flex-1 max-w-[360px] transition-all">
-                  <Search className="w-3.5 h-3.5 text-zinc-400 flex-shrink-0" />
+                <div className="flex items-center gap-2 bg-white/[0.06] rounded-lg px-2.5 py-1 flex-1 max-w-[280px]">
+                  <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Search clips or type '/' for tools..."
+                    placeholder="Search..."
                     value={clipboardSearchQuery}
-                    onChange={(e) => setClipboardSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
+                    onChange={(e) => {
+                      setClipboardSearchQuery(e.target.value);
+                      if (e.target.value.startsWith('/') && superNotchHudView !== 'search') {
+                        handleToggleView('search');
+                      }
                     }}
+                    onKeyDown={(e) => e.stopPropagation()}
                     autoFocus
-                    className="w-full bg-transparent border-none text-[13px] text-white placeholder:text-zinc-500 focus:outline-none pointer-events-auto select-text cursor-text font-normal"
+                    className="w-full bg-transparent border-none text-xs text-white placeholder:text-zinc-500 focus:outline-none select-text cursor-text font-normal"
                   />
                   {clipboardSearchQuery && (
                     <button
                       onClick={() => setClipboardSearchQuery('')}
-                      className="text-zinc-500 hover:text-white text-xs px-1"
+                      className="text-zinc-500 hover:text-white text-xs cursor-pointer"
                     >
                       ✕
                     </button>
                   )}
                 </div>
 
-                {/* Minimalist Segmented View Switcher (Search vs Shelf) */}
-                <div className="flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/[0.06]">
-                  <button
-                    onClick={() => setSuperNotchHudView('search')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                      superNotchHudView === 'search'
-                        ? 'bg-white/[0.14] text-white shadow-sm font-semibold'
-                        : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    <Search className="w-3 h-3" />
-                    <span>Search</span>
-                  </button>
-                  <button
-                    onClick={() => setSuperNotchHudView('shelf')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                      superNotchHudView === 'shelf'
-                        ? 'bg-white/[0.14] text-white shadow-sm font-semibold'
-                        : 'text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    <Layers className="w-3 h-3" />
-                    <span>Shelf</span>
-                    <span className="text-[10px] text-zinc-400 font-mono">({clipboardItems.length})</span>
-                  </button>
-                </div>
-
-                {/* Right Actions */}
+                {/* Right Unboxed Action Icons (1:1 with SuPaste Screenshot) */}
                 <div className="flex items-center gap-1">
                   {statusFeedback && (
-                    <span className="text-[10px] font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20 animate-fade-in truncate max-w-[140px]">
+                    <span className="text-[10px] text-zinc-400 font-mono pr-2 truncate max-w-[120px]">
                       {statusFeedback}
                     </span>
                   )}
 
+                  {/* Star / Pinned Toggle */}
                   <button
                     onClick={() =>
                       setActiveClipboardCategory(
                         activeClipboardCategory === 'pinned' ? 'all' : 'pinned'
                       )
                     }
-                    className={`p-1.5 rounded-lg transition-colors ${
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                       activeClipboardCategory === 'pinned'
-                        ? 'bg-amber-400/20 text-amber-400'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
+                        ? 'text-amber-400 bg-white/10'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
                     }`}
-                    title="Toggle Pinned View"
+                    title="Favorites"
                   >
                     <Star className="w-3.5 h-3.5 fill-current" />
                   </button>
 
+                  {/* View Mode Switcher (Grid / Shelf vs Search List) */}
+                  <button
+                    onClick={() =>
+                      handleToggleView(
+                        superNotchHudView === 'shelf' ? 'search' : 'shelf'
+                      )
+                    }
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      superNotchHudView === 'search'
+                        ? 'text-white bg-white/10'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title={
+                      superNotchHudView === 'shelf'
+                        ? 'Switch to Raycast Search (Tab)'
+                        : 'Switch to SuPaste Shelf (Tab)'
+                    }
+                  >
+                    {superNotchHudView === 'shelf' ? (
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                    ) : (
+                      <Layers className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  {/* Open Dashboard */}
                   <button
                     onClick={handleOpenDashboard}
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                     title="Open Dashboard"
                   >
                     <Settings className="w-3.5 h-3.5" />
                   </button>
 
+                  {/* Close Notch */}
                   <button
                     onClick={closeShelf}
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors"
-                    title="Close (Esc)"
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    title="Close"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -692,222 +704,47 @@ export const SuperNotch: React.FC = () => {
               </div>
 
               {/* ================================================================= */}
-              {/* VIEW 1: FAST SEARCH & RAYCAST COMMAND LIST                        */}
-              {/* ================================================================= */}
-              {superNotchHudView === 'search' && (
-                <div className="flex-1 flex flex-col justify-between pt-2 overflow-hidden">
-                  {/* Search Results List */}
-                  <div
-                    ref={searchListScrollRef}
-                    className="flex-1 overflow-y-auto no-scrollbar space-y-1 pr-1 max-h-[305px]"
-                  >
-                    {searchResults.totalCount === 0 ? (
-                      <div className="py-16 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1.5">
-                        <Sparkles className="w-5 h-5 text-zinc-600 mb-1" />
-                        <p className="font-medium text-zinc-400">No matching tools or clips</p>
-                        <p className="text-[11px] text-zinc-600">
-                          Type <span className="font-mono text-zinc-400">/</span> to browse tools, or swipe horizontally to view the shelf.
-                        </p>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Section: Tool Commands */}
-                        {searchResults.commands.length > 0 && (
-                          <div className="mb-2.5">
-                            <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
-                              Quick Tools & Actions
-                            </div>
-                            {searchResults.commands.map((cmd, i) => {
-                              const isSelected = searchSelectedIndex === i;
-                              const CmdIcon = cmd.icon;
-                              return (
-                                <div
-                                  key={cmd.id}
-                                  onClick={() => cmd.action()}
-                                  onMouseEnter={() => setSearchSelectedIndex(i)}
-                                  className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'bg-white/[0.1] text-white shadow-sm'
-                                      : 'hover:bg-white/[0.04] text-zinc-300'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] text-amber-400/90 flex items-center justify-center flex-shrink-0">
-                                      <CmdIcon className="w-3.5 h-3.5" />
-                                    </div>
-                                    <div className="flex items-center gap-2 truncate">
-                                      <span className="font-mono text-[12px] font-semibold text-amber-400/90">
-                                        {cmd.command}
-                                      </span>
-                                      <span className="text-[13px] font-medium text-white/95">
-                                        {cmd.title}
-                                      </span>
-                                      <span className="text-[11.5px] text-zinc-400 truncate hidden md:inline">
-                                        {cmd.subtitle}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <span className="text-[10px] uppercase font-mono tracking-wider text-zinc-400 px-2 py-0.5 rounded bg-white/[0.05] border border-white/[0.06]">
-                                    Tool
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Section: Clips & Dictations */}
-                        {searchResults.clips.length > 0 && (
-                          <div>
-                            <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
-                              Recent Clips & Dictations
-                            </div>
-                            {searchResults.clips.map((item, idx) => {
-                              const overallIndex = searchResults.commands.length + idx;
-                              const isSelected = searchSelectedIndex === overallIndex;
-                              const isColor = item.category === 'color';
-
-                              return (
-                                <div
-                                  key={item.id}
-                                  onClick={() => handlePaste(item.content)}
-                                  onMouseEnter={() => setSearchSelectedIndex(overallIndex)}
-                                  className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'bg-white/[0.1] text-white shadow-sm'
-                                      : 'hover:bg-white/[0.04] text-zinc-300'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    {/* Category Icon Badge */}
-                                    <div
-                                      className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-white/[0.06] border border-white/[0.08] ${
-                                        item.category === 'dictation'
-                                          ? 'text-amber-400'
-                                          : item.category === 'code'
-                                          ? 'text-sky-400'
-                                          : item.category === 'link'
-                                          ? 'text-blue-400'
-                                          : 'text-zinc-400'
-                                      }`}
-                                      style={isColor ? { backgroundColor: item.content } : undefined}
-                                    >
-                                      {item.category === 'dictation' ? (
-                                        <Mic className="w-3.5 h-3.5" />
-                                      ) : item.category === 'code' ? (
-                                        <Code className="w-3.5 h-3.5" />
-                                      ) : item.category === 'link' ? (
-                                        <Link2 className="w-3.5 h-3.5" />
-                                      ) : isColor ? null : (
-                                        <Copy className="w-3.5 h-3.5" />
-                                      )}
-                                    </div>
-
-                                    {/* Content Preview */}
-                                    <span
-                                      className={`text-[12.5px] truncate max-w-[440px] ${
-                                        item.category === 'code'
-                                          ? 'font-mono text-zinc-200'
-                                          : 'text-zinc-200'
-                                      }`}
-                                    >
-                                      {item.content.replace(/\n+/g, ' ')}
-                                    </span>
-                                  </div>
-
-                                  {/* Source & Timestamp */}
-                                  <div className="flex items-center gap-2.5 flex-shrink-0 ml-3">
-                                    {item.isPinned && (
-                                      <Pin className="w-3 h-3 text-amber-400 fill-current" />
-                                    )}
-                                    <span className="text-[10px] text-zinc-400 font-mono truncate max-w-[80px] bg-white/[0.04] px-1.5 py-0.5 rounded">
-                                      {item.sourceApp || 'Clip'}
-                                    </span>
-                                    <span className="text-[10px] text-zinc-500 font-mono">
-                                      {item.timestamp}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Raycast Keyboard Footer */}
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-2 border-t border-white/[0.06]">
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1.5">
-                        <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">↵</kbd>
-                        <span>Paste</span>
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">↑↓</kbd>
-                        <span>Select</span>
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">Tab</kbd>
-                        <span>Shelf View</span>
-                      </span>
-                    </div>
-                    <span className="flex items-center gap-1.5">
-                      <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">Esc</kbd>
-                      <span>Close</span>
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* ================================================================= */}
-              {/* VIEW 2: HORIZONTAL VISUAL SHELF                                   */}
+              {/* VIEW A: SUPASTE HORIZONTAL VISUAL SHELF (1:1 with Screenshot 1)  */}
               {/* ================================================================= */}
               {superNotchHudView === 'shelf' && (
-                <div className="flex-1 flex flex-col justify-between pt-2 overflow-hidden">
+                <div className="flex-1 flex flex-col justify-between pt-1.5 overflow-hidden">
                   {/* Category Filter Pills */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-                      {categories.map((cat) => {
-                        const isActive = activeClipboardCategory === cat.id;
-                        return (
-                          <button
-                            key={cat.id}
-                            onClick={() => setActiveClipboardCategory(cat.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] transition-all whitespace-nowrap ${
-                              isActive
-                                ? 'bg-white text-black font-semibold shadow-sm'
-                                : 'bg-white/[0.04] text-zinc-400 hover:text-white hover:bg-white/[0.08]'
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1.5">
+                    {categories.map((cat) => {
+                      const isActive = activeClipboardCategory === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setActiveClipboardCategory(cat.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] transition-all whitespace-nowrap cursor-pointer ${
+                            isActive
+                              ? 'bg-white text-black font-semibold shadow-sm'
+                              : 'bg-[#18181c] text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          <span>{cat.label}</span>
+                          <span
+                            className={`text-[9.5px] font-mono ${
+                              isActive ? 'text-zinc-600 font-bold' : 'text-zinc-500'
                             }`}
                           >
-                            <span>{cat.label}</span>
-                            <span
-                              className={`text-[9.5px] font-mono ${
-                                isActive ? 'text-zinc-600 font-bold' : 'text-zinc-500'
-                              }`}
-                            >
-                              {cat.count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-mono hidden sm:inline">
-                      Swipe trackpad or use ←→ arrows
-                    </span>
+                            {cat.count}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {/* Horizontal Shelf Stream */}
+                  {/* Compact Horizontal Shelf Stream (140px x 105px cards) */}
                   <div
                     ref={shelfScrollRef}
-                    className="flex flex-row gap-3 overflow-x-auto no-scrollbar py-1 px-1 items-stretch max-h-[260px] flex-1"
+                    className="flex flex-row gap-2.5 overflow-x-auto py-1 px-0.5 items-stretch flex-1 custom-slim-scrollbar"
                   >
                     {filteredShelfItems.length === 0 ? (
-                      <div className="w-full py-16 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
-                        <Layers className="w-5 h-5 text-zinc-600 mb-1" />
+                      <div className="w-full py-8 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
                         <p className="font-medium text-zinc-400">No clips found</p>
                         <p className="text-[11px] text-zinc-600">
-                          Copy items to your clipboard or dictate speech to see them here.
+                          Copy text, code or links to see them on the shelf.
                         </p>
                       </div>
                     ) : (
@@ -921,12 +758,12 @@ export const SuperNotch: React.FC = () => {
                             key={item.id}
                             onClick={() => handlePaste(item.content)}
                             onMouseEnter={() => setShelfSelectedIndex(index)}
-                            className={`w-[168px] min-w-[168px] h-[245px] rounded-2xl p-3.5 flex flex-col justify-between transition-all duration-150 cursor-pointer select-none group relative overflow-hidden ${
+                            className={`w-[140px] min-w-[140px] h-[105px] rounded-xl p-2.5 flex flex-col justify-between transition-all duration-100 cursor-pointer select-none group relative overflow-hidden ${
                               isColor
                                 ? 'border border-white/20'
                                 : isSelected
-                                ? 'bg-white/[0.1] border border-white/25 shadow-lg'
-                                : 'bg-white/[0.04] border border-white/[0.07] hover:bg-white/[0.07] hover:border-white/[0.12]'
+                                ? 'bg-[#1e1e22] border border-white/30 shadow-md'
+                                : 'bg-[#141416] border border-white/[0.08] hover:bg-[#1a1a1e] hover:border-white/20'
                             }`}
                             style={
                               isColor
@@ -934,19 +771,31 @@ export const SuperNotch: React.FC = () => {
                                 : undefined
                             }
                           >
-                            {/* Hover Actions Bar */}
-                            <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            {/* Hover Quick Action Buttons */}
+                            <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   togglePinClipboardItem(item.id);
                                 }}
-                                className={`p-1 rounded-md bg-black/60 backdrop-blur-md transition-colors ${
-                                  item.isPinned ? 'text-amber-400' : 'text-zinc-400 hover:text-white'
+                                className={`p-1 rounded bg-black/70 backdrop-blur-md transition-colors ${
+                                  item.isPinned
+                                    ? 'text-amber-400'
+                                    : 'text-zinc-400 hover:text-white'
                                 }`}
                                 title={item.isPinned ? 'Unpin' : 'Pin'}
                               >
-                                <Pin className="w-3 h-3 fill-current" />
+                                <Pin className="w-2.5 h-2.5 fill-current" />
+                              </button>
+
+                              <button
+                                onClick={(e) => handleCopy(item, e)}
+                                className={`p-1 rounded bg-black/70 backdrop-blur-md transition-colors ${
+                                  isCopied ? 'text-amber-400' : 'text-zinc-400 hover:text-white'
+                                }`}
+                                title="Copy"
+                              >
+                                <Copy className="w-2.5 h-2.5" />
                               </button>
 
                               <button
@@ -954,35 +803,39 @@ export const SuperNotch: React.FC = () => {
                                   e.stopPropagation();
                                   deleteClipboardItem(item.id);
                                 }}
-                                className="p-1 rounded-md bg-black/60 backdrop-blur-md text-zinc-400 hover:text-rose-400 transition-colors"
+                                className="p-1 rounded bg-black/70 backdrop-blur-md text-zinc-400 hover:text-rose-400 transition-colors"
                                 title="Delete"
                               >
-                                <Trash2 className="w-3 h-3" />
+                                <Trash2 className="w-2.5 h-2.5" />
                               </button>
                             </div>
 
-                            {/* Card Body */}
+                            {/* Card Content Body */}
                             {isColor ? (
                               <div className="flex-1 flex flex-col justify-end">
-                                <span className="text-xs font-mono font-bold text-white bg-black/60 px-2 py-1 rounded-md backdrop-blur-md self-start">
+                                <span className="text-[11px] font-mono font-bold text-white bg-black/60 px-2 py-0.5 rounded backdrop-blur-md self-start">
                                   {item.content}
                                 </span>
                               </div>
                             ) : (
-                              <div className="flex-1 overflow-hidden pr-1">
-                                {item.category === 'dictation' && (
-                                  <div className="flex items-center gap-1.5 mb-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.5)]" />
-                                    <span className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider font-mono">
-                                      Dictation
-                                    </span>
-                                  </div>
-                                )}
+                              <div className="flex-1 overflow-hidden pr-0.5">
+                                <div className="flex items-center gap-1 text-[10px] text-zinc-500 font-mono mb-1">
+                                  {item.category === 'dictation' ? (
+                                    <Mic className="w-2.5 h-2.5 text-amber-400" />
+                                  ) : item.category === 'code' ? (
+                                    <Code className="w-2.5 h-2.5 text-zinc-400" />
+                                  ) : item.category === 'link' ? (
+                                    <Link2 className="w-2.5 h-2.5 text-zinc-400" />
+                                  ) : null}
+                                  <span className="truncate max-w-[90px]">
+                                    {item.sourceApp || 'Text'}
+                                  </span>
+                                </div>
                                 <p
-                                  className={`text-[12.5px] leading-relaxed line-clamp-6 ${
+                                  className={`text-[11px] leading-tight line-clamp-2 ${
                                     item.category === 'code'
-                                      ? 'font-mono text-zinc-300 text-[11.5px]'
-                                      : 'text-[#ededed] font-sans'
+                                      ? 'font-mono text-zinc-300'
+                                      : 'text-zinc-200'
                                   }`}
                                 >
                                   {item.content}
@@ -990,53 +843,167 @@ export const SuperNotch: React.FC = () => {
                               </div>
                             )}
 
-                            {/* Card Footer */}
-                            <div className="flex items-center justify-between text-[10.5px] text-zinc-400 pt-2 border-t border-white/[0.06] font-mono">
-                              <span className="truncate max-w-[85px] text-zinc-400">
-                                {item.sourceApp || 'Clipboard'}
+                            {/* Card Footer: Timestamp & Paste Overlay */}
+                            <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1 font-mono">
+                              <span>{item.timestamp}</span>
+                              <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white font-medium flex items-center gap-0.5">
+                                <CornerDownLeft className="w-2.5 h-2.5" /> Paste
                               </span>
-                              <span className="text-zinc-500 text-[10px] flex-shrink-0">
-                                {item.timestamp}
-                              </span>
-                            </div>
-
-                            {/* Quick Paste / Copy Hover Bar */}
-                            <div className="absolute inset-x-0 bottom-0 py-1.5 bg-black/80 backdrop-blur-md flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <span className="text-[11px] font-medium text-white flex items-center gap-1">
-                                <CornerDownLeft className="w-3 h-3" /> Paste
-                              </span>
-                              <button
-                                onClick={(e) => handleCopy(item, e)}
-                                className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"
-                              >
-                                <Copy className="w-3 h-3" />
-                                {isCopied ? 'Copied' : 'Copy'}
-                              </button>
                             </div>
                           </div>
                         );
                       })
                     )}
                   </div>
+                </div>
+              )}
 
-                  {/* Shelf Keyboard Footer */}
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 pt-2 border-t border-white/[0.06]">
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1.5">
-                        <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">↵</kbd>
-                        <span>Paste</span>
+              {/* ================================================================= */}
+              {/* VIEW B: RAYCAST SEARCH VIEW (1:1 with Screenshots 2 & 3)         */}
+              {/* ================================================================= */}
+              {superNotchHudView === 'search' && (
+                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                  {/* Results List */}
+                  <div
+                    ref={searchListScrollRef}
+                    className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
+                  >
+                    {searchResults.totalCount === 0 ? (
+                      <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
+                        <Sparkles className="w-4 h-4 text-zinc-600 mb-1" />
+                        <p className="font-medium text-zinc-400">No matching commands or clips</p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Section: Extensions & Tools */}
+                        {searchResults.commands.length > 0 && (
+                          <div className="mb-2">
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
+                              Extensions & Tools
+                            </div>
+                            {searchResults.commands.map((cmd, i) => {
+                              const isSelected = searchSelectedIndex === i;
+                              const CmdIcon = cmd.icon;
+                              return (
+                                <div
+                                  key={cmd.id}
+                                  onClick={() => cmd.action()}
+                                  onMouseEnter={() => setSearchSelectedIndex(i)}
+                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-white/[0.1] text-white shadow-sm'
+                                      : 'hover:bg-white/[0.04] text-zinc-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0">
+                                      <CmdIcon className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div className="flex items-center gap-2 truncate">
+                                      <span className="font-mono text-[11px] font-semibold text-zinc-200">
+                                        {cmd.command}
+                                      </span>
+                                      <span className="text-xs font-medium text-white truncate">
+                                        {cmd.title}
+                                      </span>
+                                      <span className="text-[11px] text-zinc-500 truncate hidden md:inline">
+                                        {cmd.subtitle}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-zinc-500 px-1.5 py-0.2 rounded bg-white/[0.04]">
+                                    Extension
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Section: Clips & Dictations */}
+                        {searchResults.clips.length > 0 && (
+                          <div>
+                            <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
+                              Clipboard & Dictations
+                            </div>
+                            {searchResults.clips.map((item, idx) => {
+                              const overallIndex = searchResults.commands.length + idx;
+                              const isSelected = searchSelectedIndex === overallIndex;
+                              const isColor = item.category === 'color';
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  onClick={() => handlePaste(item.content)}
+                                  onMouseEnter={() => setSearchSelectedIndex(overallIndex)}
+                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-white/[0.1] text-white shadow-sm'
+                                      : 'hover:bg-white/[0.04] text-zinc-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                    <div
+                                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-white/[0.06] text-zinc-400"
+                                      style={isColor ? { backgroundColor: item.content } : undefined}
+                                    >
+                                      {item.category === 'dictation' ? (
+                                        <Mic className="w-3 h-3 text-amber-400" />
+                                      ) : item.category === 'code' ? (
+                                        <Code className="w-3 h-3" />
+                                      ) : item.category === 'link' ? (
+                                        <Link2 className="w-3 h-3" />
+                                      ) : isColor ? null : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </div>
+
+                                    <span
+                                      className={`text-xs truncate max-w-[420px] ${
+                                        item.category === 'code'
+                                          ? 'font-mono text-zinc-200'
+                                          : 'text-zinc-200'
+                                      }`}
+                                    >
+                                      {item.content.replace(/\n+/g, ' ')}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                    {item.isPinned && (
+                                      <Pin className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                                    )}
+                                    <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[70px]">
+                                      {item.sourceApp || 'Clip'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Raycast Keyboard Footer (1:1 with Images 2 & 3) */}
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-white/[0.06] font-mono">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↵</kbd>
+                        <span>Open</span>
                       </span>
-                      <span className="flex items-center gap-1.5">
-                        <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">←→</kbd>
-                        <span>Browse</span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↑↓</kbd>
+                        <span>Navigate</span>
                       </span>
-                      <span className="flex items-center gap-1.5">
-                        <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">Tab</kbd>
-                        <span>Search View</span>
+                      <span className="flex items-center gap-1">
+                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
+                        <span>Shelf</span>
                       </span>
                     </div>
-                    <span className="flex items-center gap-1.5">
-                      <kbd className="px-1.5 py-0.5 rounded bg-white/[0.08] border border-white/[0.12] text-zinc-300 font-mono text-[10px]">Esc</kbd>
+                    <span className="flex items-center gap-1">
+                      <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
                       <span>Close</span>
                     </span>
                   </div>

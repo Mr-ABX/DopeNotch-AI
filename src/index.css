@@ -177,3 +177,33 @@
   background: rgba(255, 255, 255, 0.22);
   color: #ffffff;
 }
+
+/* Custom super slim scrollbar - hidden by default, visible only on hover/scroll */
+.custom-slim-scrollbar::-webkit-scrollbar {
+  height: 2.5px;
+  width: 2.5px;
+}
+
+.custom-slim-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-slim-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 9999px;
+  transition: background-color 0.15s ease;
+}
+
+.custom-slim-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

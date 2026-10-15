@@ -9,8 +9,8 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
         // Show window first so window is initialized by Tauri
         let _ = window.show();
 
-        let target_w = 360.0_f64;
-        let target_h = 64.0_f64;
+        let target_w = 160.0_f64;
+        let target_h = 28.0_f64;
 
         #[cfg(target_os = "macos")]
         {
@@ -173,12 +173,12 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
 /// Hide the notch visualizer window if the setting is AutoHidden, or shrink to idle size
 pub fn hide_visualizers(app: &AppHandle, settings: &AppSettings) {
     if settings.visibility_mode == crate::settings::VisibilityMode::AlwaysOn {
-        resize_notch(app, false);
+        resize_notch(app, false, None, None);
         return; // Keep small idle notch visible
     }
 
     if let Some(window) = app.get_webview_window("notch") {
-        resize_notch(app, false);
+        resize_notch(app, false, None, None);
         let _ = window.hide();
     }
 }
@@ -300,10 +300,11 @@ pub fn toggle_tray_popover(app: &AppHandle) {
 }
 
 /// Resize the notch window dynamically between idle and expanded modes
-pub fn resize_notch(app: &AppHandle, expanded: bool) {
+pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height: Option<f64>) {
     if let Some(window) = app.get_webview_window("notch") {
-        let target_w = if expanded { 760.0_f64 } else { 184.0_f64 };
-        let target_h = if expanded { 430.0_f64 } else { 34.0_f64 };
+        let (default_w, default_h) = if expanded { (860.0_f64, 230.0_f64) } else { (160.0_f64, 28.0_f64) };
+        let target_w = width.unwrap_or(default_w);
+        let target_h = height.unwrap_or(default_h);
 
         #[cfg(target_os = "macos")]
         {
