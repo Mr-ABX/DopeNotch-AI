@@ -9,8 +9,6 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
         // Show window first so window is initialized by Tauri
         let _ = window.show();
 
-        let target_w = 160.0_f64;
-        let target_h = 28.0_f64;
 
         #[cfg(target_os = "macos")]
         {
@@ -88,6 +86,19 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
 
                         // 0 = NSWindowStyleMaskBorderless (allows panel to become key window without nonactivating lock)
                         let _: () = msg_send![ns_win, setStyleMask: 0u64];
+
+                        // CRITICAL: Disable macOS native rectangular window shadow completely so
+                        // the custom rounded notch does not cast a sharp square/pointy shadow box!
+                        let _: () = msg_send![ns_win, setHasShadow: false];
+                        let _: () = msg_send![ns_win, invalidateShadow];
+
+                        // Ensure transparent background
+                        let color_cls = objc_getClass(b"NSColor\0".as_ptr() as *const _);
+                        if !color_cls.is_null() {
+                            let clear_color: *mut AnyObject = msg_send![color_cls as *mut AnyObject, clearColor];
+                            let _: () = msg_send![ns_win, setBackgroundColor: clear_color];
+                            let _: () = msg_send![ns_win, setOpaque: false];
+                        }
                         
                         // Bring it to the absolute front
                         let _: () = msg_send![ns_win, orderFrontRegardless];
@@ -132,15 +143,18 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
                         if !screen.is_null() {
                             let screen_frame: NSRect = msg_send![screen, frame];
 
-                            // Target frame: centered horizontally, flush against top edge of physical screen
+                            // Idle notch: 200px wide (160px notch body + 20px ears on each side), 28px tall flush with menu bar
+                            let win_w = 200.0_f64;
+                            let win_h = 28.0_f64;
+
                             let target_frame = NSRect {
                                 origin: NSPoint {
-                                    x: screen_frame.origin.x + (screen_frame.size.width - target_w) / 2.0,
-                                    y: screen_frame.origin.y + screen_frame.size.height - target_h,
+                                    x: screen_frame.origin.x + (screen_frame.size.width - win_w) / 2.0,
+                                    y: screen_frame.origin.y + screen_frame.size.height - win_h,
                                 },
                                 size: NSSize {
-                                    width: target_w,
-                                    height: target_h,
+                                    width: win_w,
+                                    height: win_h,
                                 },
                             };
 
@@ -302,9 +316,20 @@ pub fn toggle_tray_popover(app: &AppHandle) {
 /// Resize the notch window dynamically between idle and expanded modes
 pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height: Option<f64>) {
     if let Some(window) = app.get_webview_window("notch") {
-        let (default_w, default_h) = if expanded { (860.0_f64, 230.0_f64) } else { (160.0_f64, 28.0_f64) };
-        let target_w = width.unwrap_or(default_w);
-        let target_h = height.unwrap_or(default_h);
+        let (content_w, content_h) = if expanded {
+            (width.unwrap_or(860.0_f64), height.unwrap_or(220.0_f64))
+        } else {
+            (160.0_f64, 28.0_f64)
+        };
+
+        // Canvas margins:
+        // Expanded: +80px width (40px each side for ears & CSS shadow diffusion), +40px height at bottom
+        // Idle: +40px width (20px each side for concave fillet ears), exact 28px height flush with menu bar
+        let (target_w, target_h) = if expanded {
+            (content_w + 80.0, content_h + 40.0)
+        } else {
+            (200.0, 28.0)
+        };
 
         #[cfg(target_os = "macos")]
         {
@@ -347,6 +372,18 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
                 if let Ok(ns_win) = window_clone.ns_window() {
                     let ns_win = ns_win as *mut AnyObject;
                     unsafe {
+                        // CRITICAL: Ensure macOS native square window shadow is disabled
+                        let _: () = msg_send![ns_win, setHasShadow: false];
+                        let _: () = msg_send![ns_win, invalidateShadow];
+
+                        // Ensure transparent background
+                        let color_cls = objc2::ffi::objc_getClass(b"NSColor\0".as_ptr() as *const _);
+                        if !color_cls.is_null() {
+                            let clear_color: *mut AnyObject = msg_send![color_cls as *mut AnyObject, clearColor];
+                            let _: () = msg_send![ns_win, setBackgroundColor: clear_color];
+                            let _: () = msg_send![ns_win, setOpaque: false];
+                        }
+
                         let screen: *mut AnyObject = msg_send![ns_win, screen];
                         if !screen.is_null() {
                             let screen_frame: NSRect = msg_send![screen, frame];

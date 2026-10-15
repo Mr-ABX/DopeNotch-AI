@@ -14,6 +14,7 @@ export type SidebarTab =
   | 'customDictionary'
   | 'stats'
   | 'history'
+  | 'extensions'
   | 'preferences'
   | 'changelog'
   | 'feedback';

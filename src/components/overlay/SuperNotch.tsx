@@ -71,12 +71,12 @@ export const SuperNotch: React.FC = () => {
     setTimeout(() => setStatusFeedback(null), 2000);
   };
 
-  // Target window dimensions for each state
+  // Target window dimensions for each state (fixed 860px width for both views, only height toggles)
   const getExpandedDimensions = useCallback((view: 'shelf' | 'search') => {
     if (view === 'search') {
-      return { width: 700, height: 390 };
+      return { width: 860, height: 410 };
     }
-    return { width: 860, height: 215 };
+    return { width: 860, height: 220 };
   }, []);
 
   // Smooth shelf open: expand window first, then animate container
@@ -445,21 +445,19 @@ export const SuperNotch: React.FC = () => {
     }
   };
 
-  // Dimensions based on state
+  // Dimensions based on state (fixed 860px width for both shelf & search views)
   const targetWidth =
     activeMode === 'shelf'
-      ? isSearch
-        ? 700
-        : 860
+      ? 860
       : activeMode === 'recording'
-      ? 320
+      ? 340
       : 160;
 
   const targetHeight =
     activeMode === 'shelf'
       ? isSearch
-        ? 390
-        : 215
+        ? 410
+        : 220
       : activeMode === 'recording'
       ? 44
       : 28;
@@ -469,10 +467,10 @@ export const SuperNotch: React.FC = () => {
       ? '0 0 24px 24px'
       : activeMode === 'recording'
       ? '0 0 18px 18px'
-      : '0 0 16px 16px';
+      : '0 0 14px 14px';
 
   return (
-    <div className="fixed top-0 left-0 w-full h-full pointer-events-none flex flex-col items-center select-none overflow-hidden bg-transparent">
+    <div className="fixed top-0 left-0 w-full h-full pointer-events-none flex flex-col items-center select-none overflow-visible bg-transparent">
       {/* Click-outside backdrop to auto-close shelf */}
       {activeMode === 'shelf' && (
         <div
@@ -490,7 +488,6 @@ export const SuperNotch: React.FC = () => {
         animate={{
           width: targetWidth,
           height: targetHeight,
-          borderRadius: targetRadius,
         }}
         transition={{
           type: 'spring',
@@ -505,15 +502,52 @@ export const SuperNotch: React.FC = () => {
             openShelf();
           }
         }}
-        className={`pointer-events-auto relative z-10 flex flex-col items-center overflow-hidden select-none bg-black transition-shadow ${
-          activeMode === 'shelf'
-            ? 'shadow-[0_22px_60px_rgba(0,0,0,0.92)] border-x border-b border-white/[0.08]'
-            : activeMode === 'recording'
-            ? 'shadow-[0_10px_30px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.1]'
-            : 'cursor-pointer border-none'
-        }`}
+        className="pointer-events-auto relative z-10 flex flex-col items-center select-none"
       >
-        <AnimatePresence mode="wait">
+        {/* Top Left Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
+        <svg
+          width={activeMode === 'shelf' ? 18 : 10}
+          height={activeMode === 'shelf' ? 18 : 10}
+          viewBox={activeMode === 'shelf' ? '0 0 18 18' : '0 0 10 10'}
+          className={`absolute top-0 pointer-events-none fill-black z-20 ${
+            activeMode === 'shelf' ? '-left-[18px]' : '-left-[10px]'
+          }`}
+        >
+          {activeMode === 'shelf' ? (
+            <path d="M 0 0 H 18 V 18 C 18 8.059 9.941 0 0 0 Z" />
+          ) : (
+            <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" />
+          )}
+        </svg>
+
+        {/* Top Right Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
+        <svg
+          width={activeMode === 'shelf' ? 18 : 10}
+          height={activeMode === 'shelf' ? 18 : 10}
+          viewBox={activeMode === 'shelf' ? '0 0 18 18' : '0 0 10 10'}
+          className={`absolute top-0 pointer-events-none fill-black z-20 ${
+            activeMode === 'shelf' ? '-right-[18px]' : '-right-[10px]'
+          }`}
+        >
+          {activeMode === 'shelf' ? (
+            <path d="M 18 0 H 0 V 18 C 0 8.059 8.059 0 18 0 Z" />
+          ) : (
+            <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" />
+          )}
+        </svg>
+
+        {/* Main Notch Body Container */}
+        <div
+          style={{ borderRadius: targetRadius }}
+          className={`w-full h-full flex flex-col items-center overflow-hidden bg-black transition-shadow ${
+            activeMode === 'shelf'
+              ? 'shadow-[0_20px_50px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.08]'
+              : activeMode === 'recording'
+              ? 'shadow-[0_10px_30px_rgba(0,0,0,0.85)] border-x border-b border-white/[0.1]'
+              : 'cursor-pointer border-none'
+          }`}
+        >
+          <AnimatePresence mode="wait">
           {/* 1. IDLE NOTCH VIEW (Pure Hardware Bezel - ZERO TEXT, ZERO DOTS) */}
           {activeMode === 'idle' && (
             <motion.div
@@ -604,101 +638,106 @@ export const SuperNotch: React.FC = () => {
               className="w-full h-full p-3 flex flex-col justify-between text-[#ededed] bg-black"
             >
               {/* TOP HEADER: Clean Minimal Search + Unboxed Icon Toggles (1:1 with SuPaste) */}
-              <div className="flex items-center justify-between gap-3 pb-2 border-b border-white/[0.08]">
-                {/* Search Input Box */}
-                <div className="flex items-center gap-2 bg-white/[0.06] rounded-lg px-2.5 py-1 flex-1 max-w-[280px]">
-                  <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search..."
-                    value={clipboardSearchQuery}
-                    onChange={(e) => {
-                      setClipboardSearchQuery(e.target.value);
-                      if (e.target.value.startsWith('/') && superNotchHudView !== 'search') {
-                        handleToggleView('search');
-                      }
-                    }}
-                    onKeyDown={(e) => e.stopPropagation()}
-                    autoFocus
-                    className="w-full bg-transparent border-none text-xs text-white placeholder:text-zinc-500 focus:outline-none select-text cursor-text font-normal"
-                  />
-                  {clipboardSearchQuery && (
+              <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-white/[0.08]">
+                {/* Left: Roomy Search Bar + Action Toggles positioned immediately after it */}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5 bg-white/[0.06] hover:bg-white/[0.08] focus-within:bg-white/[0.09] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3.5 h-10 w-[300px] transition-all">
+                    <Search className="w-4 h-4 text-zinc-500 shrink-0" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Search..."
+                      value={clipboardSearchQuery}
+                      onChange={(e) => {
+                        setClipboardSearchQuery(e.target.value);
+                        if (e.target.value.startsWith('/') && superNotchHudView !== 'search') {
+                          handleToggleView('search');
+                        }
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      autoFocus
+                      className="w-full bg-transparent border-none text-[13px] text-white placeholder:text-zinc-500 focus:outline-none select-text cursor-text font-normal"
+                    />
+                    {clipboardSearchQuery && (
+                      <button
+                        onClick={() => setClipboardSearchQuery('')}
+                        className="text-zinc-500 hover:text-white text-xs cursor-pointer p-0.5"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Unboxed Action Icons right after the search bar (1:1 with SuPaste) */}
+                  <div className="flex items-center gap-1 ml-1">
+                    {/* Star / Pinned Toggle */}
                     <button
-                      onClick={() => setClipboardSearchQuery('')}
-                      className="text-zinc-500 hover:text-white text-xs cursor-pointer"
+                      onClick={() =>
+                        setActiveClipboardCategory(
+                          activeClipboardCategory === 'pinned' ? 'all' : 'pinned'
+                        )
+                      }
+                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                        activeClipboardCategory === 'pinned'
+                          ? 'text-amber-400 bg-white/10'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                      }`}
+                      title="Favorites"
                     >
-                      ✕
+                      <Star className="w-4 h-4 fill-current" />
                     </button>
-                  )}
+
+                    {/* View Mode Switcher (Grid / Shelf vs Search List) */}
+                    <button
+                      onClick={() =>
+                        handleToggleView(
+                          superNotchHudView === 'shelf' ? 'search' : 'shelf'
+                        )
+                      }
+                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                        superNotchHudView === 'search'
+                          ? 'text-white bg-white/10'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                      }`}
+                      title={
+                        superNotchHudView === 'shelf'
+                          ? 'Switch to Raycast Search (Tab)'
+                          : 'Switch to SuPaste Shelf (Tab)'
+                      }
+                    >
+                      {superNotchHudView === 'shelf' ? (
+                        <LayoutGrid className="w-4 h-4" />
+                      ) : (
+                        <Layers className="w-4 h-4" />
+                      )}
+                    </button>
+
+                    {/* Open Dashboard */}
+                    <button
+                      onClick={handleOpenDashboard}
+                      className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                      title="Open Dashboard"
+                    >
+                      <Settings className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
 
-                {/* Right Unboxed Action Icons (1:1 with SuPaste Screenshot) */}
-                <div className="flex items-center gap-1">
+                {/* Right Side: Status Feedback & Close Button */}
+                <div className="flex items-center gap-2">
                   {statusFeedback && (
-                    <span className="text-[10px] text-zinc-400 font-mono pr-2 truncate max-w-[120px]">
+                    <span className="text-[11px] text-zinc-400 font-mono pr-2 truncate max-w-[140px]">
                       {statusFeedback}
                     </span>
                   )}
 
-                  {/* Star / Pinned Toggle */}
-                  <button
-                    onClick={() =>
-                      setActiveClipboardCategory(
-                        activeClipboardCategory === 'pinned' ? 'all' : 'pinned'
-                      )
-                    }
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                      activeClipboardCategory === 'pinned'
-                        ? 'text-amber-400 bg-white/10'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    }`}
-                    title="Favorites"
-                  >
-                    <Star className="w-3.5 h-3.5 fill-current" />
-                  </button>
-
-                  {/* View Mode Switcher (Grid / Shelf vs Search List) */}
-                  <button
-                    onClick={() =>
-                      handleToggleView(
-                        superNotchHudView === 'shelf' ? 'search' : 'shelf'
-                      )
-                    }
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                      superNotchHudView === 'search'
-                        ? 'text-white bg-white/10'
-                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
-                    }`}
-                    title={
-                      superNotchHudView === 'shelf'
-                        ? 'Switch to Raycast Search (Tab)'
-                        : 'Switch to SuPaste Shelf (Tab)'
-                    }
-                  >
-                    {superNotchHudView === 'shelf' ? (
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                    ) : (
-                      <Layers className="w-3.5 h-3.5" />
-                    )}
-                  </button>
-
-                  {/* Open Dashboard */}
-                  <button
-                    onClick={handleOpenDashboard}
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                    title="Open Dashboard"
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                  </button>
-
                   {/* Close Notch */}
                   <button
                     onClick={closeShelf}
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-                    title="Close"
+                    className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    title="Close (Esc)"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -1012,6 +1051,7 @@ export const SuperNotch: React.FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
       </motion.div>
     </div>
   );

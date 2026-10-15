@@ -7,6 +7,7 @@ import { VoiceEngineView } from '../views/VoiceEngineView';
 import { CommandModeView } from '../views/CommandModeView';
 import { TranscriptionHistoryView } from '../views/TranscriptionHistoryView';
 import { PreferencesView } from '../views/PreferencesView';
+import { ExtensionsView } from '../views/ExtensionsView';
 import { SettingsModal } from '../settings/SettingsModal';
 
 export const Dashboard: React.FC = () => {
@@ -24,6 +25,8 @@ export const Dashboard: React.FC = () => {
       case 'fileTranscription':
       case 'meetingTools':
         return <TranscriptionHistoryView />;
+      case 'extensions':
+        return <ExtensionsView />;
       case 'commandMode':
       case 'writeMode':
       case 'rewriteMode':
