@@ -739,6 +739,9 @@ extern "C" {
         callback: extern "C" fn(bool, *mut std::os::raw::c_void),
         context: *mut std::os::raw::c_void,
     );
+    fn perform_screen_ocr() -> *mut std::os::raw::c_char;
+    fn check_grammar_native(input: *const std::os::raw::c_char) -> *mut std::os::raw::c_char;
+    fn free_c_string(ptr: *mut std::os::raw::c_char);
 }
 
 #[tauri::command]
@@ -803,6 +806,306 @@ pub async fn pick_screen_color(app: AppHandle) -> Result<String, String> {
     {
         Err("Color sampler is only supported on macOS".to_string())
     }
+}
+
+#[tauri::command]
+pub async fn grab_screen_ocr(app: AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CStr;
+        use tauri_plugin_clipboard_manager::ClipboardExt;
+
+        let ocr_ptr = unsafe { perform_screen_ocr() };
+        if ocr_ptr.is_null() {
+            return Ok(String::new());
+        }
+
+        let extracted_text = unsafe {
+            let s = CStr::from_ptr(ocr_ptr).to_string_lossy().into_owned();
+            free_c_string(ocr_ptr);
+            s
+        };
+
+        let trimmed = extracted_text.trim();
+        if !trimmed.is_empty() {
+            let text_val = trimmed.to_string();
+            let _ = app.clipboard().write_text(text_val.clone());
+
+            let word_cnt = text_val.split_whitespace().count();
+            let clip_item = crate::clipboard_listener::ClipboardItemPayload {
+                id: format!("clip-{}", chrono::Utc::now().timestamp_millis()),
+                content: text_val.clone(),
+                category: "text".to_string(),
+                timestamp: "Just now".to_string(),
+                timestamp_raw: chrono::Utc::now().timestamp_millis(),
+                source_app: "Screen OCR".to_string(),
+                char_count: text_val.chars().count(),
+                word_count: word_cnt,
+                is_pinned: false,
+            };
+
+            let mut clips = crate::clipboard_listener::load_saved_clipboard();
+            clips.retain(|c| c.content != clip_item.content);
+            clips.insert(0, clip_item.clone());
+            if clips.len() > 300 {
+                clips.truncate(300);
+            }
+            crate::clipboard_listener::save_clipboard_to_disk(&clips);
+            let _ = app.emit("murmur://clipboard-changed", &clip_item);
+            let _ = app.emit_to("notch", "murmur://clipboard-changed", &clip_item);
+            let _ = app.emit("murmur://clipboard-history-updated", &clips);
+            let _ = app.emit_to("notch", "murmur://clipboard-history-updated", &clips);
+        }
+
+        Ok(trimmed.to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("OCR is currently supported on macOS using Apple Vision Framework".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn check_text_grammar(text: String) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::{CStr, CString};
+
+        let c_text = CString::new(text).map_err(|e| e.to_string())?;
+        let report_ptr = unsafe { check_grammar_native(c_text.as_ptr()) };
+        if report_ptr.is_null() {
+            return Ok("No grammar issues detected. Your text is clean!".to_string());
+        }
+
+        let report = unsafe {
+            let s = CStr::from_ptr(report_ptr).to_string_lossy().into_owned();
+            free_c_string(report_ptr);
+            s
+        };
+
+        Ok(report)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Grammar check is currently supported on macOS".to_string())
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct UserExtension {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub icon: String,
+    pub mode: String, // "clipboard" | "fullOutput" | "silent"
+    pub file_path: String,
+    pub language: String, // "bash" | "python" | "node" | "binary"
+    pub author: Option<String>,
+}
+
+#[tauri::command]
+pub async fn load_user_extensions() -> Result<Vec<UserExtension>, String> {
+    let mut extensions = Vec::new();
+    let home = match dirs::home_dir() {
+        Some(h) => h,
+        None => return Ok(extensions),
+    };
+
+    let ext_dir = home.join(".dopenotch").join("extensions");
+    if !ext_dir.exists() {
+        let _ = std::fs::create_dir_all(&ext_dir);
+    }
+
+    // Starter Raycast-compatible scripts if folder is newly created
+    let sample_sh = ext_dir.join("iso-timestamp.sh");
+    if !sample_sh.exists() {
+        let starter_script = r#"#!/bin/bash
+
+# @raycast.schemaVersion 1
+# @raycast.title Insert ISO Timestamp
+# @raycast.mode clipboard
+# @raycast.icon ⏱️
+# @raycast.description Copies current ISO 8601 UTC timestamp to clipboard
+
+date -u +"%Y-%m-%dT%H:%M:%SZ"
+"#;
+        let _ = std::fs::write(&sample_sh, starter_script);
+    }
+
+    let sample_py = ext_dir.join("generate-uuid.py");
+    if !sample_py.exists() {
+        let py_script = r#"#!/usr/bin/env python3
+
+# @raycast.schemaVersion 1
+# @raycast.title Generate UUID v4
+# @raycast.mode clipboard
+# @raycast.icon 🔑
+# @raycast.description Generates a random UUID v4 and copies it to clipboard
+
+import uuid
+print(str(uuid.uuid4()))
+"#;
+        let _ = std::fs::write(&sample_py, py_script);
+    }
+
+    let entries = match std::fs::read_dir(&ext_dir) {
+        Ok(e) => e,
+        Err(_) => return Ok(extensions),
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if filename.starts_with('.') {
+                continue;
+            }
+
+            let ext = path.extension().unwrap_or_default().to_string_lossy().to_lowercase();
+            let language = match ext.as_str() {
+                "sh" | "bash" | "zsh" => "bash".to_string(),
+                "py" => "python".to_string(),
+                "js" | "mjs" | "ts" => "node".to_string(),
+                _ => "binary".to_string(),
+            };
+
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                let mut title = filename.clone();
+                let mut description = format!("Custom {} script extension", language);
+                let mut icon = "⚡".to_string();
+                let mut mode = "clipboard".to_string();
+                let mut author = None;
+
+                for line in content.lines().take(40) {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("# @raycast.title") || trimmed.starts_with("// @raycast.title") {
+                        title = trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
+                    } else if trimmed.starts_with("# @raycast.description") || trimmed.starts_with("// @raycast.description") {
+                        description = trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
+                    } else if trimmed.starts_with("# @raycast.icon") || trimmed.starts_with("// @raycast.icon") {
+                        icon = trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
+                    } else if trimmed.starts_with("# @raycast.mode") || trimmed.starts_with("// @raycast.mode") {
+                        mode = trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" ");
+                    } else if trimmed.starts_with("# @raycast.author") || trimmed.starts_with("// @raycast.author") {
+                        author = Some(trimmed.split_whitespace().skip(2).collect::<Vec<_>>().join(" "));
+                    }
+                }
+
+                extensions.push(UserExtension {
+                    id: format!("user-ext-{}", filename),
+                    title,
+                    description,
+                    icon,
+                    mode,
+                    file_path: path.to_string_lossy().to_string(),
+                    language,
+                    author,
+                });
+            }
+        } else if path.is_dir() {
+            let manifest_path = path.join("manifest.json");
+            if manifest_path.exists() {
+                if let Ok(manifest_content) = std::fs::read_to_string(&manifest_path) {
+                    if let Ok(val) = serde_json::from_str::<serde_json::Value>(&manifest_content) {
+                        let dir_name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        let title = val["title"].as_str().unwrap_or(&dir_name).to_string();
+                        let description = val["description"].as_str().unwrap_or("Folder extension").to_string();
+                        let icon = val["icon"].as_str().unwrap_or("📦").to_string();
+                        let mode = val["mode"].as_str().unwrap_or("clipboard").to_string();
+                        let entry_file = val["entry"].as_str().unwrap_or("index.js");
+                        let full_entry = path.join(entry_file);
+
+                        extensions.push(UserExtension {
+                            id: format!("user-pkg-{}", dir_name),
+                            title,
+                            description,
+                            icon,
+                            mode,
+                            file_path: full_entry.to_string_lossy().to_string(),
+                            language: "node".to_string(),
+                            author: val["author"].as_str().map(|s| s.to_string()),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(extensions)
+}
+
+#[tauri::command]
+pub async fn execute_user_extension(
+    app: AppHandle,
+    file_path: String,
+    mode: String,
+) -> Result<String, String> {
+    use std::process::Command;
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    let path = std::path::Path::new(&file_path);
+    if !path.exists() {
+        return Err(format!("Extension file not found at: {}", file_path));
+    }
+
+    let ext = path.extension().unwrap_or_default().to_string_lossy().to_lowercase();
+    let mut cmd = match ext.as_str() {
+        "sh" | "bash" | "zsh" => {
+            let mut c = Command::new("/bin/bash");
+            c.arg(&file_path);
+            c
+        }
+        "py" => {
+            let mut c = Command::new("python3");
+            c.arg(&file_path);
+            c
+        }
+        "js" | "mjs" => {
+            let mut c = Command::new("node");
+            c.arg(&file_path);
+            c
+        }
+        _ => {
+            Command::new(&file_path)
+        }
+    };
+
+    let output = cmd.output().map_err(|e| format!("Failed to run extension: {}", e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+
+    if !output.status.success() {
+        return Err(if !stderr.is_empty() { stderr } else { format!("Exited with code: {:?}", output.status.code()) });
+    }
+
+    if (mode == "clipboard" || mode == "silent" || mode == "compact") && !stdout.is_empty() {
+        let _ = app.clipboard().write_text(stdout.clone());
+
+        let clip_item = crate::clipboard_listener::ClipboardItemPayload {
+            id: format!("clip-{}", chrono::Utc::now().timestamp_millis()),
+            content: stdout.clone(),
+            category: "text".to_string(),
+            timestamp: "Just now".to_string(),
+            timestamp_raw: chrono::Utc::now().timestamp_millis(),
+            source_app: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+            char_count: stdout.chars().count(),
+            word_count: stdout.split_whitespace().count(),
+            is_pinned: false,
+        };
+        let mut clips = crate::clipboard_listener::load_saved_clipboard();
+        clips.retain(|c| c.content != clip_item.content);
+        clips.insert(0, clip_item.clone());
+        if clips.len() > 300 {
+            clips.truncate(300);
+        }
+        crate::clipboard_listener::save_clipboard_to_disk(&clips);
+        let _ = app.emit("murmur://clipboard-changed", &clip_item);
+        let _ = app.emit_to("notch", "murmur://clipboard-changed", &clip_item);
+        let _ = app.emit("murmur://clipboard-history-updated", &clips);
+        let _ = app.emit_to("notch", "murmur://clipboard-history-updated", &clips);
+    }
+
+    Ok(stdout)
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

@@ -225,43 +225,43 @@ export const WidgetsView: React.FC = () => {
   );
 
   return (
-    <div className="flex-1 flex gap-3 pt-1 pb-1 overflow-hidden select-none">
+    <div className="flex-1 flex gap-2.5 pt-0.5 pb-0.5 overflow-hidden select-none">
       {/* ===================================================================== */}
       {/* LEFT COLUMN: MONOCHROME MEDIA PLAYER CARD (Apple Music / Spotify)    */}
       {/* ===================================================================== */}
-      <div className="flex-[1.25] bg-[#0c0c0e] border border-white/[0.08] rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden group">
+      <div className="flex-[1.2] bg-[#0c0c0e] border border-white/[0.08] rounded-xl p-2.5 flex flex-col justify-between relative overflow-hidden group">
         {/* Subtle monochrome ambient depth aura */}
         <div className="absolute -top-10 -left-10 w-44 h-44 rounded-full blur-[45px] opacity-15 pointer-events-none bg-white/20" />
 
         {/* Top: Album Art & Track Meta */}
-        <div className="flex items-center gap-3 relative z-10">
+        <div className="flex items-center gap-2.5 relative z-10">
           {/* Monochrome Vinyl Disk Artwork */}
-          <div className="relative w-13 h-13 shrink-0">
+          <div className="relative w-10 h-10 shrink-0">
             <div
-              className={`w-13 h-13 rounded-full bg-[#141418] border border-white/20 shadow-lg flex items-center justify-center relative overflow-hidden ${
+              className={`w-10 h-10 rounded-full bg-[#141418] border border-white/20 shadow-md flex items-center justify-center relative overflow-hidden ${
                 isPlaying ? 'animate-spin' : ''
               }`}
               style={{ animationDuration: '7s' }}
             >
               {/* Vinyl Groove Rings */}
-              <div className="absolute inset-1.5 rounded-full border border-white/[0.08]" />
-              <div className="absolute inset-3 rounded-full border border-white/[0.08]" />
+              <div className="absolute inset-1 rounded-full border border-white/[0.08]" />
+              <div className="absolute inset-2.5 rounded-full border border-white/[0.08]" />
               {/* Center Monochrome Spindle */}
-              <div className="w-4.5 h-4.5 rounded-full bg-white/10 border border-white/30 flex items-center justify-center shadow-inner">
-                <div className="w-1.5 h-1.5 rounded-full bg-black" />
+              <div className="w-3.5 h-3.5 rounded-full bg-white/10 border border-white/30 flex items-center justify-center shadow-inner">
+                <div className="w-1 h-1 rounded-full bg-black" />
               </div>
             </div>
 
             {/* Now Playing Equalizer Pill */}
             {isPlaying && (
-              <div className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-md bg-black/90 border border-white/15 backdrop-blur-md flex items-end gap-0.5 h-3.5">
-                <span className="w-0.5 h-2 bg-white animate-pulse" />
+              <div className="absolute -bottom-1 -right-1 px-1 py-0.2 rounded bg-black/90 border border-white/15 backdrop-blur-md flex items-end gap-0.5 h-3">
+                <span className="w-0.5 h-1.5 bg-white animate-pulse" />
                 <span
-                  className="w-0.5 h-3 bg-white animate-pulse"
+                  className="w-0.5 h-2.5 bg-white animate-pulse"
                   style={{ animationDelay: '150ms' }}
                 />
                 <span
-                  className="w-0.5 h-1.5 bg-white animate-pulse"
+                  className="w-0.5 h-1 bg-white animate-pulse"
                   style={{ animationDelay: '300ms' }}
                 />
               </div>
@@ -270,79 +270,79 @@ export const WidgetsView: React.FC = () => {
 
           {/* Track Meta Details */}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h4 className="text-[13px] font-semibold text-white truncate tracking-tight">
+            <div className="flex items-center gap-1.5">
+              <h4 className="text-[12px] font-semibold text-white truncate tracking-tight">
                 {currentTitle}
               </h4>
               {nativeMedia.active && (
-                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/15 shrink-0">
+                <span className="text-[8.5px] font-mono px-1 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/15 shrink-0">
                   {nativeMedia.app || 'macOS'}
                 </span>
               )}
             </div>
-            <p className="text-[11.5px] text-zinc-400 truncate mt-0.5">{currentArtist}</p>
-            <span className="text-[10px] font-mono text-zinc-500 truncate block mt-0.5">
+            <p className="text-[11px] text-zinc-400 truncate leading-tight mt-0.5">{currentArtist}</p>
+            <span className="text-[9.5px] font-mono text-zinc-500 truncate block mt-0.5">
               {currentAlbum}
             </span>
           </div>
         </div>
 
         {/* Middle: Crisp Monochrome Progress Bar */}
-        <div className="my-2.5 relative z-10">
-          <div className="h-1.5 w-full bg-white/[0.1] hover:bg-white/[0.16] rounded-full relative overflow-hidden transition-all">
+        <div className="my-1.5 relative z-10">
+          <div className="h-1 w-full bg-white/[0.1] hover:bg-white/[0.16] rounded-full relative overflow-hidden transition-all">
             <div
               className="h-full bg-white rounded-full transition-all duration-150"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <div className="flex justify-between items-center text-[10px] font-mono text-zinc-500 mt-1">
+          <div className="flex justify-between items-center text-[9.5px] font-mono text-zinc-500 mt-0.5">
             <span>{formatTime(currentPosition)}</span>
             <span>{formatTime(currentDuration)}</span>
           </div>
         </div>
 
         {/* Bottom: Playback Controls & Volume */}
-        <div className="flex items-center justify-between pt-0.5 relative z-10">
+        <div className="flex items-center justify-between relative z-10">
           {/* Skip & Play Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => handleMediaControl('prev')}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               title="Previous Track"
             >
-              <SkipBack className="w-3.5 h-3.5" />
+              <SkipBack className="w-3 h-3" />
             </button>
             <button
               onClick={() => handleMediaControl('playpause')}
-              className="w-8 h-8 rounded-full bg-white text-black hover:scale-105 active:scale-95 flex items-center justify-center transition-all shadow-md cursor-pointer"
+              className="w-7 h-7 rounded-full bg-white text-black hover:scale-105 active:scale-95 flex items-center justify-center transition-all shadow cursor-pointer"
               title={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
-                <Pause className="w-3.5 h-3.5 fill-current" />
+                <Pause className="w-3 h-3 fill-current" />
               ) : (
-                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                <Play className="w-3 h-3 fill-current ml-0.5" />
               )}
             </button>
             <button
               onClick={() => handleMediaControl('next')}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
               title="Next Track"
             >
-              <SkipForward className="w-3.5 h-3.5" />
+              <SkipForward className="w-3 h-3" />
             </button>
           </div>
 
           {/* Volume Control */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setIsMuted(!isMuted)}
               className="p-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
-                <VolumeX className="w-3.5 h-3.5 text-zinc-500" />
+                <VolumeX className="w-3 h-3 text-zinc-500" />
               ) : (
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3 h-3" />
               )}
             </button>
             <input
@@ -354,7 +354,7 @@ export const WidgetsView: React.FC = () => {
                 setVolume(Number(e.target.value));
                 if (isMuted) setIsMuted(false);
               }}
-              className="w-16 h-1 bg-white/20 accent-white rounded-lg appearance-none cursor-pointer"
+              className="w-14 h-1 bg-white/20 accent-white rounded-lg appearance-none cursor-pointer"
             />
           </div>
         </div>
@@ -363,20 +363,20 @@ export const WidgetsView: React.FC = () => {
       {/* ===================================================================== */}
       {/* RIGHT COLUMN: REAL HARDWARE VITALS & UTILITY TILES (Monochrome)       */}
       {/* ===================================================================== */}
-      <div className="flex-1 flex flex-col justify-between gap-2.5">
+      <div className="flex-1 flex flex-col justify-between gap-1.5">
         {/* Real Hardware Vitals Card */}
-        <div className="bg-[#0c0c0e] border border-white/[0.08] rounded-xl p-3 flex flex-col gap-2.5">
+        <div className="bg-[#0c0c0e] border border-white/[0.08] rounded-xl p-2 flex flex-col gap-1.5">
           {/* CPU Metric */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-400">
-              <Cpu className="w-3.5 h-3.5 text-white" />
-              <span className="font-medium text-[11px] text-zinc-300">CPU Load</span>
+              <Cpu className="w-3 h-3 text-white" />
+              <span className="font-medium text-[10px] text-zinc-300">CPU Load</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-white font-semibold">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-white font-semibold">
                 {Math.round(vitals.cpu_usage)}%
               </span>
-              <div className="w-18 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-14 h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-white transition-all duration-500 rounded-full"
                   style={{ width: `${Math.min(100, vitals.cpu_usage)}%` }}
@@ -388,14 +388,14 @@ export const WidgetsView: React.FC = () => {
           {/* Memory Metric */}
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-400">
-              <HardDrive className="w-3.5 h-3.5 text-white" />
-              <span className="font-medium text-[11px] text-zinc-300">Memory</span>
+              <HardDrive className="w-3 h-3 text-white" />
+              <span className="font-medium text-[10px] text-zinc-300">Memory</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono text-white font-semibold">
-                {vitals.mem_used_gb} / {vitals.mem_total_gb} GB
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-white font-semibold">
+                {vitals.mem_used_gb}/{vitals.mem_total_gb} GB
               </span>
-              <div className="w-18 h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div className="w-14 h-1 bg-white/10 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-white transition-all duration-500 rounded-full"
                   style={{ width: `${vitals.mem_percent}%` }}
@@ -408,35 +408,35 @@ export const WidgetsView: React.FC = () => {
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5 text-zinc-400">
               {vitals.is_charging ? (
-                <BatteryCharging className="w-3.5 h-3.5 text-white" />
+                <BatteryCharging className="w-3 h-3 text-white" />
               ) : (
-                <Battery className="w-3.5 h-3.5 text-white" />
+                <Battery className="w-3 h-3 text-white" />
               )}
-              <span className="font-medium text-[11px] text-zinc-300">Power</span>
+              <span className="font-medium text-[10px] text-zinc-300">Power</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] font-mono text-white font-semibold">
+            <div className="flex items-center gap-1 text-[10px] font-mono text-white font-semibold">
               <span>{vitals.battery_percent}%</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-zinc-200 border border-white/15">
-                {vitals.is_charging ? 'AC Power' : 'Battery'}
+              <span className="text-[8.5px] px-1 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/15">
+                {vitals.is_charging ? 'AC' : 'Batt'}
               </span>
             </div>
           </div>
         </div>
 
         {/* Quick Utility Widgets */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5">
           {/* Pomodoro Focus Timer */}
           <button
             onClick={() => setFocusActive(!focusActive)}
-            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+            className={`p-2 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
               focusActive
                 ? 'bg-white/10 border-white/30 text-white'
                 : 'bg-[#0c0c0e] border-white/[0.08] hover:bg-white/[0.04] text-zinc-300'
             }`}
           >
             <div className="flex items-center justify-between w-full">
-              <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-white" /> Focus
+              <span className="text-[9.5px] font-mono text-zinc-400 flex items-center gap-1">
+                <Clock className="w-2.5 h-2.5 text-white" /> Focus
               </span>
               <span
                 className={`w-1.5 h-1.5 rounded-full ${
@@ -444,22 +444,22 @@ export const WidgetsView: React.FC = () => {
                 }`}
               />
             </div>
-            <div className="text-sm font-mono font-bold mt-1 text-white tracking-tight">
+            <div className="text-xs font-mono font-bold mt-0.5 text-white tracking-tight">
               {formatTime(focusSeconds)}
             </div>
           </button>
 
           {/* Local Speech Engine Status */}
-          <div className="p-2.5 rounded-xl border bg-[#0c0c0e] border-white/[0.08] flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+          <div className="p-2 rounded-xl border bg-[#0c0c0e] border-white/[0.08] flex flex-col justify-between">
+            <div className="flex items-center justify-between text-[9.5px] font-mono text-zinc-400">
               <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-white" /> Speech Engine
+                <Sparkles className="w-2.5 h-2.5 text-white" /> Speech Engine
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-white" />
             </div>
-            <div className="text-[11px] font-medium text-white mt-1 flex items-center justify-between">
-              <span>Local Whisper</span>
-              <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/10">
+            <div className="text-[10px] font-medium text-white mt-0.5 flex items-center justify-between">
+              <span>Whisper</span>
+              <span className="text-[8.5px] font-mono px-1 py-0.2 rounded bg-white/10 text-zinc-300 border border-white/10">
                 ⌥V
               </span>
             </div>

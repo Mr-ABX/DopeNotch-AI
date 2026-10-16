@@ -17,6 +17,11 @@ import {
   LayoutGrid,
   LayoutDashboard,
   Sparkles,
+  ScanText,
+  ZoomIn,
+  Calculator,
+  Wand2,
+  Terminal,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -27,6 +32,18 @@ import {
   ClipboardItem,
 } from '../../stores/appStore';
 import { WidgetsView } from './WidgetsView';
+import { evaluateQuickCalc } from '../../services/quickCalc';
+
+interface UserExtension {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  mode: string;
+  file_path: string;
+  language: string;
+  author?: string;
+}
 
 export const SuperNotch: React.FC = () => {
   const {
@@ -52,6 +69,26 @@ export const SuperNotch: React.FC = () => {
   const [searchSelectedIndex, setSearchSelectedIndex] = useState<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+  const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
+
+  const loadExtensions = useCallback(async () => {
+    try {
+      const list = await invoke<UserExtension[]>('load_user_extensions');
+      if (Array.isArray(list)) {
+        setUserExtensions(list);
+      }
+    } catch (e) {
+      console.error('Failed to load user extensions', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadExtensions();
+  }, [loadExtensions]);
+
+  const quickCalcMatch = useMemo(() => {
+    return evaluateQuickCalc(clipboardSearchQuery);
+  }, [clipboardSearchQuery]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const shelfScrollRef = useRef<HTMLDivElement>(null);
@@ -67,13 +104,12 @@ export const SuperNotch: React.FC = () => {
     setTimeout(() => setStatusFeedback(null), 2000);
   };
 
-  // Target window dimensions for each state (fixed 860px width for all views, only height toggles)
+  // Target window dimensions for each state:
+  // All standard tabs (shelf, widgets, and new tabs) have the EXACT same height (250px).
+  // Only the Extensions tab ('search') expands to 410px to accommodate the command palette list.
   const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets') => {
     if (view === 'search') {
       return { width: 860, height: 410 };
-    }
-    if (view === 'widgets') {
-      return { width: 860, height: 330 };
     }
     return { width: 860, height: 250 };
   }, []);
@@ -120,6 +156,16 @@ export const SuperNotch: React.FC = () => {
       }).catch(() => {});
     }, 250);
   }, [setSuperNotchMode]);
+
+  const handleCopyCalcResult = useCallback(async () => {
+    if (!quickCalcMatch) return;
+    try {
+      await navigator.clipboard.writeText(quickCalcMatch.result);
+      invoke('paste_text_direct', { text: quickCalcMatch.result }).catch(() => {});
+      showStatus(`Copied: ${quickCalcMatch.result}`);
+      closeShelf();
+    } catch {}
+  }, [quickCalcMatch, closeShelf]);
 
   // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
   const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
@@ -175,7 +221,82 @@ export const SuperNotch: React.FC = () => {
   };
 
   // Built-in Extensions & Tools
+  // Built-in Extensions & Tools
   const toolCommands = useMemo(() => [
+    {
+      id: 'cmd-ocr',
+      command: '/ocr',
+      title: 'Screen Text Grabber',
+      subtitle: 'Drag selection box over any screen area or video to copy text (On-Device)',
+      icon: ScanText,
+      action: async () => {
+        try {
+          showStatus('Select area on screen...');
+          closeShelf();
+          const text = await invoke<string>('grab_screen_ocr');
+          if (text && text.trim()) {
+            showStatus(`Copied ${text.trim().split(/\s+/).length} words!`);
+          } else {
+            showStatus('OCR cancelled');
+          }
+        } catch (e: any) {
+          showStatus(e?.toString() || 'OCR failed');
+        }
+      },
+    },
+    {
+      id: 'cmd-loupe',
+      command: '/loupe',
+      title: 'Screen Zoom Loupe',
+      subtitle: '2x–8x magnification loupe to inspect UI layout & typography',
+      icon: ZoomIn,
+      action: async () => {
+        try {
+          showStatus('Pixel Loupe Active...');
+          closeShelf();
+          const hex = await invoke<string>('pick_screen_color');
+          if (hex) {
+            showStatus(`Sampled ${hex}`);
+          }
+        } catch (e: any) {
+          showStatus(e?.toString() || 'Loupe cancelled');
+        }
+      },
+    },
+    {
+      id: 'cmd-calc',
+      command: '/calc',
+      title: 'Quick Unit & Currency Converter',
+      subtitle: 'Inline conversions: 16px to rem, 120 usd to eur, 45*12, 72f to c',
+      icon: Calculator,
+      action: () => {
+        setClipboardSearchQuery('/calc ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-prompt',
+      command: '/prompt',
+      title: 'AI Quick Action Templates & Grammar Polish',
+      subtitle: 'Free on-device grammar check & smart text actions',
+      icon: Wand2,
+      action: async () => {
+        const latestText = clipboardItems.find((i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation')?.content || '';
+        if (!latestText) {
+          showStatus('No text clip found on shelf to polish');
+          return;
+        }
+        showStatus('Checking grammar on-device...');
+        try {
+          const res = await invoke<string>('check_text_grammar', { text: latestText });
+          showStatus(res.slice(0, 45) + (res.length > 45 ? '...' : ''));
+        } catch (e: any) {
+          showStatus(e?.toString() || 'Grammar check failed');
+        }
+      },
+    },
     {
       id: 'cmd-color',
       command: '/color',
@@ -275,7 +396,33 @@ export const SuperNotch: React.FC = () => {
         showStatus('Pruned unpinned items');
       },
     },
-  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording]);
+    // User-Authored Extensions (~/.dopenotch/extensions/)
+    ...userExtensions.map((ext) => ({
+      id: ext.id,
+      command: `/${ext.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+      title: ext.title,
+      subtitle: `${ext.description} • ${ext.language}`,
+      icon: Terminal,
+      isUserExtension: true,
+      userIcon: ext.icon,
+      action: async () => {
+        try {
+          showStatus(`Running ${ext.title}...`);
+          const output = await invoke<string>('execute_user_extension', {
+            filePath: ext.file_path,
+            mode: ext.mode,
+          });
+          if (ext.mode === 'clipboard' || ext.mode === 'silent') {
+            showStatus(`Copied output to shelf!`);
+          } else {
+            showStatus(`Result: ${output.slice(0, 30)}`);
+          }
+        } catch (err: any) {
+          showStatus(`Error: ${err?.toString() || 'Failed'}`);
+        }
+      },
+    })),
+  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions]);
 
   // Combined fast search results
   const searchResults = useMemo(() => {
@@ -454,6 +601,10 @@ export const SuperNotch: React.FC = () => {
           setSearchSelectedIndex((prev) => (prev - 1 + total) % total);
         } else if (e.key === 'Enter') {
           e.preventDefault();
+          if (quickCalcMatch) {
+            handleCopyCalcResult();
+            return;
+          }
           if (searchSelectedIndex < searchResults.commands.length) {
             searchResults.commands[searchSelectedIndex].action();
           } else {
@@ -531,8 +682,6 @@ export const SuperNotch: React.FC = () => {
     activeMode === 'shelf'
       ? superNotchHudView === 'search'
         ? 410
-        : superNotchHudView === 'widgets'
-        ? 330
         : 250
       : 28;
 
@@ -1088,7 +1237,38 @@ export const SuperNotch: React.FC = () => {
                     ref={searchListScrollRef}
                     className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
                   >
-                    {searchResults.totalCount === 0 ? (
+                    {/* Quick Calculator / Unit Converter Live Card */}
+                    {quickCalcMatch && (
+                      <div
+                        onClick={handleCopyCalcResult}
+                        className="mb-2 p-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 transition-all cursor-pointer flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold flex-shrink-0">
+                            <Calculator className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-mono font-bold text-white tracking-tight">
+                                {quickCalcMatch.result}
+                              </span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase">
+                                {quickCalcMatch.category}
+                              </span>
+                            </div>
+                            <p className="text-[10.5px] text-zinc-400 font-mono mt-0.5">
+                              {quickCalcMatch.detail}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-white transition-colors text-[10px] font-mono">
+                          <CornerDownLeft className="w-3 h-3" />
+                          <span>Press ↵ to copy</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {searchResults.totalCount === 0 && !quickCalcMatch ? (
                       <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
                         <Sparkles className="w-4 h-4 text-zinc-600 mb-1" />
                         <p className="font-medium text-zinc-400">No matching commands or clips</p>
@@ -1104,6 +1284,9 @@ export const SuperNotch: React.FC = () => {
                             {searchResults.commands.map((cmd, i) => {
                               const isSelected = searchSelectedIndex === i;
                               const CmdIcon = cmd.icon;
+                              const isUserExt = (cmd as any).isUserExtension;
+                              const userIcon = (cmd as any).userIcon;
+
                               return (
                                 <div
                                   key={cmd.id}
@@ -1116,8 +1299,12 @@ export const SuperNotch: React.FC = () => {
                                   }`}
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0">
-                                      <CmdIcon className="w-3.5 h-3.5" />
+                                    <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0 text-xs">
+                                      {userIcon ? (
+                                        <span>{userIcon}</span>
+                                      ) : (
+                                        <CmdIcon className="w-3.5 h-3.5" />
+                                      )}
                                     </div>
                                     <div className="flex items-center gap-2 truncate">
                                       <span className="font-mono text-[11px] font-semibold text-zinc-200">
@@ -1132,7 +1319,7 @@ export const SuperNotch: React.FC = () => {
                                     </div>
                                   </div>
                                   <span className="text-[10px] font-mono text-zinc-500 px-1.5 py-0.2 rounded bg-white/[0.04]">
-                                    Extension
+                                    {isUserExt ? 'Script' : 'Extension'}
                                   </span>
                                 </div>
                               );

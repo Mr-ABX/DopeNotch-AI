@@ -289,3 +289,110 @@ char* get_pasteboard_image_as_base64() {
 void free_c_string(char *s) {
     if (s) free(s);
 }
+
+#import <Vision/Vision.h>
+
+char* perform_screen_ocr(void) {
+    @autoreleasepool {
+        NSString *tempPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"dopenotch_ocr_grab.png"];
+        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+        
+        NSTask *task = [[NSTask alloc] init];
+        [task setLaunchPath:@"/usr/sbin/screencapture"];
+        [task setArguments:@[@"-i", tempPath]];
+        [task launch];
+        [task waitUntilExit];
+        
+        if (![[NSFileManager defaultManager] fileExistsAtPath:tempPath]) {
+            return NULL;
+        }
+        
+        NSImage *image = [[NSImage alloc] initWithContentsOfFile:tempPath];
+        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+        if (!image) return NULL;
+        
+        CGImageRef cgImage = [image CGImageForProposedRect:NULL context:NULL hints:NULL];
+        if (!cgImage) return NULL;
+        
+        __block NSMutableString *extractedText = [NSMutableString string];
+        
+        VNRecognizeTextRequest *request = [[VNRecognizeTextRequest alloc] initWithCompletionHandler:^(VNRequest * _Nonnull req, NSError * _Nullable error) {
+            if (error) return;
+            for (VNRecognizedTextObservation *obs in req.results) {
+                NSArray<VNRecognizedText *> *topCandidates = [obs topCandidates:1];
+                if (topCandidates.count > 0) {
+                    if (extractedText.length > 0) {
+                        [extractedText appendString:@"\n"];
+                    }
+                    [extractedText appendString:topCandidates.firstObject.string];
+                }
+            }
+        }];
+        request.recognitionLevel = VNRequestTextRecognitionLevelAccurate;
+        request.usesLanguageCorrection = YES;
+        
+        VNImageRequestHandler *handler = [[VNImageRequestHandler alloc] initWithCGImage:cgImage options:@{}];
+        NSError *error = nil;
+        [handler performRequests:@[request] error:&error];
+        
+        if (extractedText.length == 0) return NULL;
+        
+        return strdup([extractedText UTF8String]);
+    }
+}
+
+char* check_grammar_native(const char *input_text) {
+    @autoreleasepool {
+        if (!input_text || strlen(input_text) == 0) return NULL;
+        NSString *text = [NSString stringWithUTF8String:input_text];
+        if (!text) return NULL;
+        
+        NSSpellChecker *checker = [NSSpellChecker sharedSpellChecker];
+        NSInteger length = [text length];
+        if (length == 0) return strdup("No text provided.");
+        
+        NSTextCheckingTypes types = NSTextCheckingTypeGrammar | NSTextCheckingTypeSpelling;
+        NSArray<NSTextCheckingResult *> *results = [checker checkString:text
+                                                                  range:NSMakeRange(0, length)
+                                                                  types:types
+                                                                options:nil
+                                                 inSpellDocumentWithTag:0
+                                                            orthography:nil
+                                                              wordCount:nil];
+        
+        if (!results || results.count == 0) {
+            return strdup("✨ Clean! No spelling or grammar issues detected.");
+        }
+        
+        NSMutableArray *issues = [NSMutableArray array];
+        for (NSTextCheckingResult *res in results) {
+            NSString *snippet = [text substringWithRange:res.range];
+            if (res.resultType == NSTextCheckingTypeGrammar) {
+                NSString *desc = @"Grammar or style suggestion";
+                if (res.grammarDetails && res.grammarDetails.count > 0) {
+                    NSDictionary *det = res.grammarDetails.firstObject;
+                    desc = det[@"NSGrammarUserDescription"] ?: desc;
+                    NSArray *corr = det[@"NSGrammarCorrections"];
+                    if (corr && corr.count > 0) {
+                        desc = [desc stringByAppendingFormat:@" (Try: %@)", [corr componentsJoinedByString:@", "]];
+                    }
+                }
+                [issues addObject:[NSString stringWithFormat:@"• \"%@\" — %@", snippet, desc]];
+            } else if (res.resultType == NSTextCheckingTypeSpelling) {
+                NSArray *guesses = [checker guessesForWordRange:res.range inString:text language:nil inSpellDocumentWithTag:0];
+                NSString *corrStr = (guesses && guesses.count > 0) 
+                    ? [NSString stringWithFormat:@"(Suggestions: %@)", [[guesses subarrayWithRange:NSMakeRange(0, MIN(guesses.count, (NSUInteger)3))] componentsJoinedByString:@", "]]
+                    : @"";
+                [issues addObject:[NSString stringWithFormat:@"• Spelling: \"%@\" %@", snippet, corrStr]];
+            }
+        }
+        
+        if (issues.count == 0) {
+            return strdup("✨ Clean! No spelling or grammar issues detected.");
+        }
+        
+        NSString *report = [issues componentsJoinedByString:@"\n"];
+        return strdup([report UTF8String]);
+    }
+}
+
