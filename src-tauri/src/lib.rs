@@ -273,9 +273,11 @@ pub fn setup_global_shortcut(app: &AppHandle, primary_hotkey: &str) {
 
     // Register shortcuts to toggle the SuperNotch HUD (Search & Shelf)
     let hud_aliases = [
+        "CommandOrControl+Shift+V",
+        "Option+C",
+        "Alt+C",
         "Option+V",
         "Alt+V",
-        "CommandOrControl+Shift+V",
     ];
 
     for hud_sc in hud_aliases {

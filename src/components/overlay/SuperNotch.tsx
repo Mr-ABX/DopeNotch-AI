@@ -22,6 +22,7 @@ import {
   Calculator,
   Wand2,
   Terminal,
+  RefreshCw,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -70,6 +71,13 @@ export const SuperNotch: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
+
+  // AI & Grammar Polish Studio State
+  const [isPromptStudioOpen, setIsPromptStudioOpen] = useState<boolean>(false);
+  const [promptText, setPromptText] = useState<string>('');
+  const [promptResult, setPromptResult] = useState<string>('');
+  const [promptAnalysis, setPromptAnalysis] = useState<string | null>(null);
+  const [isProcessingPrompt, setIsProcessingPrompt] = useState<boolean>(false);
 
   const loadExtensions = useCallback(async () => {
     try {
@@ -147,6 +155,7 @@ export const SuperNotch: React.FC = () => {
   // Smooth shelf close: animate container collapse first, then shrink window
   const closeShelf = useCallback(() => {
     setSuperNotchMode('idle');
+    setIsPromptStudioOpen(false);
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
       invoke('set_notch_expanded', {
@@ -169,6 +178,9 @@ export const SuperNotch: React.FC = () => {
 
   // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
   const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
+    if (newView !== 'search') {
+      setIsPromptStudioOpen(false);
+    }
     setSuperNotchHudView(newView);
     const dims = getExpandedDimensions(newView);
     invoke('set_notch_expanded', {
@@ -220,7 +232,154 @@ export const SuperNotch: React.FC = () => {
     closeShelf();
   };
 
-  // Built-in Extensions & Tools
+  // AI & Grammar Polish Studio Handlers
+  const openPromptStudio = useCallback((initialText?: string) => {
+    let textToUse = initialText;
+    if (textToUse === undefined) {
+      const latestClip = clipboardItems.find(
+        (i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation'
+      );
+      textToUse = latestClip ? latestClip.content : promptText || '';
+    }
+    setPromptText(textToUse);
+    setPromptResult('');
+    setPromptAnalysis(null);
+    setIsPromptStudioOpen(true);
+    setSuperNotchHudView('search');
+    invoke('set_notch_expanded', {
+      expanded: true,
+      width: 860,
+      height: 410,
+    }).catch(() => {});
+  }, [clipboardItems, promptText, setSuperNotchHudView]);
+
+  const closePromptStudio = useCallback(() => {
+    setIsPromptStudioOpen(false);
+  }, []);
+
+  const runGrammarCheck = useCallback(async () => {
+    if (!promptText.trim()) {
+      showStatus('Please enter text to check');
+      return;
+    }
+    setIsProcessingPrompt(true);
+    try {
+      const res = await invoke<string>('check_text_grammar', { text: promptText });
+      setPromptAnalysis(res);
+      showStatus('Grammar check completed');
+    } catch (e: any) {
+      setPromptAnalysis(`Error: ${e?.toString() || 'Grammar check failed'}`);
+    } finally {
+      setIsProcessingPrompt(false);
+    }
+  }, [promptText]);
+
+  const runProfessionalRewrite = useCallback(() => {
+    if (!promptText.trim()) return;
+    let text = promptText.trim();
+    text = text.replace(/[ \t]+/g, ' ');
+    text = text.replace(/\s+([.,!?;:])/g, '$1');
+    text = text.replace(/(^\s*|\.\s+|\?\s+|!\s+)([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
+    const fixes: Record<string, string> = {
+      teh: 'the',
+      recieve: 'receive',
+      seperate: 'separate',
+      definately: 'definitely',
+      occured: 'occurred',
+      untill: 'until',
+      alot: 'a lot',
+      dont: "don't",
+      cant: "can't",
+      wont: "won't",
+      didnt: "didn't",
+      isnt: "isn't",
+      arent: "aren't",
+      im: "I'm",
+      ive: "I've",
+      id: "I'd",
+    };
+    for (const [bad, good] of Object.entries(fixes)) {
+      text = text.replace(new RegExp(`\\b${bad}\\b`, 'gi'), (match) => {
+        if (match[0] === match[0].toUpperCase()) {
+          return good.charAt(0).toUpperCase() + good.slice(1);
+        }
+        return good;
+      });
+    }
+    setPromptResult(text);
+    setPromptAnalysis('Applied professional tone, casing, and punctuation fixes');
+    showStatus('Polished text');
+  }, [promptText]);
+
+  const runCleanText = useCallback(() => {
+    if (!promptText) return;
+    const text = promptText
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .join('\n')
+      .trim();
+    setPromptResult(text);
+    setPromptAnalysis('Normalized whitespace, line breaks, and smart quotes');
+    showStatus('Cleaned text');
+  }, [promptText]);
+
+  const runPrettifyJson = useCallback(() => {
+    if (!promptText.trim()) return;
+    try {
+      const parsed = JSON.parse(promptText);
+      const formatted = JSON.stringify(parsed, null, 2);
+      setPromptResult(formatted);
+      setPromptAnalysis('Valid JSON syntax (formatted with 2 spaces)');
+      showStatus('Prettified JSON');
+    } catch (e: any) {
+      setPromptAnalysis(`JSON Parse Error: ${e?.message || 'Invalid JSON'}`);
+      showStatus('Invalid JSON');
+    }
+  }, [promptText]);
+
+  const runTitleCase = useCallback(() => {
+    if (!promptText.trim()) return;
+    const smallWords = /^(a|an|and|as|at|but|by|en|for|if|in|nor|of|on|or|per|the|to|v.?|vs.?|via)$/i;
+    const text = promptText
+      .toLowerCase()
+      .split(' ')
+      .map((word, i, arr) => {
+        if (i > 0 && i < arr.length - 1 && smallWords.test(word)) {
+          return word;
+        }
+        return word.charAt(0).toUpperCase() + word.slice(1);
+      })
+      .join(' ');
+    setPromptResult(text);
+    setPromptAnalysis('Converted all words to Title Case');
+    showStatus('Converted to Title Case');
+  }, [promptText]);
+
+  const handleAutoPastePrompt = useCallback(async () => {
+    const textToPaste = promptResult || promptText;
+    if (!textToPaste) return;
+    try {
+      await invoke('paste_text_direct', { text: textToPaste });
+    } catch {
+      await navigator.clipboard.writeText(textToPaste);
+    }
+    showStatus('Pasted to active app!');
+    setIsPromptStudioOpen(false);
+    closeShelf();
+  }, [promptResult, promptText, closeShelf]);
+
+  const handleCopyPrompt = useCallback(async () => {
+    const textToCopy = promptResult || promptText;
+    if (!textToCopy) return;
+    await navigator.clipboard.writeText(textToCopy);
+    showStatus('Copied to clipboard!');
+  }, [promptResult, promptText]);
+
   // Built-in Extensions & Tools
   const toolCommands = useMemo(() => [
     {
@@ -280,21 +439,10 @@ export const SuperNotch: React.FC = () => {
       id: 'cmd-prompt',
       command: '/prompt',
       title: 'AI Quick Action Templates & Grammar Polish',
-      subtitle: 'Free on-device grammar check & smart text actions',
+      subtitle: 'Free on-device grammar check & smart text actions studio',
       icon: Wand2,
-      action: async () => {
-        const latestText = clipboardItems.find((i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation')?.content || '';
-        if (!latestText) {
-          showStatus('No text clip found on shelf to polish');
-          return;
-        }
-        showStatus('Checking grammar on-device...');
-        try {
-          const res = await invoke<string>('check_text_grammar', { text: latestText });
-          showStatus(res.slice(0, 45) + (res.length > 45 ? '...' : ''));
-        } catch (e: any) {
-          showStatus(e?.toString() || 'Grammar check failed');
-        }
+      action: () => {
+        openPromptStudio();
       },
     },
     {
@@ -526,12 +674,21 @@ export const SuperNotch: React.FC = () => {
       }
     });
 
+    const unlistenHud = listen('murmur://toggle-hud', () => {
+      if (activeMode === 'shelf') {
+        closeShelf();
+      } else {
+        openShelf();
+      }
+    });
+
     const unlistenOpen = listen('murmur://open-shelf', () => {
       openShelf();
     });
 
     return () => {
       unlistenToggle.then((f) => f());
+      unlistenHud.then((f) => f());
       unlistenOpen.then((f) => f());
     };
   }, [activeMode, closeShelf, openShelf]);
@@ -575,7 +732,20 @@ export const SuperNotch: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (isPromptStudioOpen) {
+          setIsPromptStudioOpen(false);
+          return;
+        }
         closeShelf();
+        return;
+      }
+
+      // Inside Prompt Studio: handle Cmd+Enter / Ctrl+Enter to auto-paste without hijacking normal typing
+      if (isPromptStudioOpen) {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          handleAutoPastePrompt();
+        }
         return;
       }
 
@@ -650,8 +820,12 @@ export const SuperNotch: React.FC = () => {
     activeMode,
     closeShelf,
     filteredShelfItems,
+    handleAutoPastePrompt,
+    handleCopyCalcResult,
     handlePaste,
     handleToggleView,
+    isPromptStudioOpen,
+    quickCalcMatch,
     searchResults,
     searchSelectedIndex,
     shelfSelectedIndex,
@@ -1231,209 +1405,452 @@ export const SuperNotch: React.FC = () => {
               {/* VIEW B: RAYCAST SEARCH VIEW (1:1 with Screenshots 2 & 3)         */}
               {/* ================================================================= */}
               {superNotchHudView === 'search' && (
-                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
-                  {/* Results List */}
-                  <div
-                    ref={searchListScrollRef}
-                    className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
-                  >
-                    {/* Quick Calculator / Unit Converter Live Card */}
-                    {quickCalcMatch && (
-                      <div
-                        onClick={handleCopyCalcResult}
-                        className="mb-2 p-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 transition-all cursor-pointer flex items-center justify-between group"
+                isPromptStudioOpen ? (
+                  <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                    {/* Studio Header Bar */}
+                    <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] px-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                          <Wand2 className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-white">AI & Grammar Studio</span>
+                            <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                              On-Device • 100% Free
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-zinc-500 font-mono">Native macOS NSSpellChecker • Zero cloud tokens needed</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={closePromptStudio}
+                        className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] transition-colors cursor-pointer"
+                        title="Back to Extensions List"
                       >
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold flex-shrink-0">
-                            <Calculator className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-mono font-bold text-white tracking-tight">
-                                {quickCalcMatch.result}
-                              </span>
-                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase">
-                                {quickCalcMatch.category}
-                              </span>
-                            </div>
-                            <p className="text-[10.5px] text-zinc-400 font-mono mt-0.5">
-                              {quickCalcMatch.detail}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-white transition-colors text-[10px] font-mono">
-                          <CornerDownLeft className="w-3 h-3" />
-                          <span>Press ↵ to copy</span>
-                        </div>
-                      </div>
-                    )}
+                        <span>← Back (Esc)</span>
+                      </button>
+                    </div>
 
-                    {searchResults.totalCount === 0 && !quickCalcMatch ? (
-                      <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
-                        <Sparkles className="w-4 h-4 text-zinc-600 mb-1" />
-                        <p className="font-medium text-zinc-400">No matching commands or clips</p>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Section: Extensions & Tools */}
-                        {searchResults.commands.length > 0 && (
-                          <div className="mb-2">
-                            <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
-                              Extensions & Tools
-                            </div>
-                            {searchResults.commands.map((cmd, i) => {
-                              const isSelected = searchSelectedIndex === i;
-                              const CmdIcon = cmd.icon;
-                              const isUserExt = (cmd as any).isUserExtension;
-                              const userIcon = (cmd as any).userIcon;
-
-                              return (
-                                <div
-                                  key={cmd.id}
-                                  onClick={() => cmd.action()}
-                                  onMouseEnter={() => setSearchSelectedIndex(i)}
-                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'bg-white/[0.1] text-white shadow-sm'
-                                      : 'hover:bg-white/[0.04] text-zinc-300'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2.5 min-w-0">
-                                    <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0 text-xs">
-                                      {userIcon ? (
-                                        <span>{userIcon}</span>
-                                      ) : (
-                                        <CmdIcon className="w-3.5 h-3.5" />
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-2 truncate">
-                                      <span className="font-mono text-[11px] font-semibold text-zinc-200">
-                                        {cmd.command}
-                                      </span>
-                                      <span className="text-xs font-medium text-white truncate">
-                                        {cmd.title}
-                                      </span>
-                                      <span className="text-[11px] text-zinc-500 truncate hidden md:inline">
-                                        {cmd.subtitle}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <span className="text-[10px] font-mono text-zinc-500 px-1.5 py-0.2 rounded bg-white/[0.04]">
-                                    {isUserExt ? 'Script' : 'Extension'}
-                                  </span>
-                                </div>
+                    {/* Split View: Source Input & Output / Analysis */}
+                    <div className="grid grid-cols-2 gap-2 flex-1 py-1.5 overflow-hidden min-h-0">
+                      {/* Left Side: Source Text Input */}
+                      <div className="flex flex-col bg-[#121215] rounded-xl border border-white/[0.08] p-2 overflow-hidden">
+                        <div className="flex items-center justify-between pb-1 text-[10.5px] text-zinc-400 font-mono">
+                          <span>Source ({promptText.length} chars)</span>
+                          <button
+                            onClick={() => {
+                              const latestClip = clipboardItems.find(
+                                (i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation'
                               );
-                            })}
-                          </div>
-                        )}
+                              if (latestClip) {
+                                setPromptText(latestClip.content);
+                                showStatus('Loaded latest shelf clip');
+                              }
+                            }}
+                            className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
+                          >
+                            Paste Shelf Clip
+                          </button>
+                        </div>
+                        <textarea
+                          value={promptText}
+                          onChange={(e) => setPromptText(e.target.value)}
+                          placeholder="Type or paste any text, sentence, or JSON here to polish..."
+                          className="w-full flex-1 bg-transparent border-none text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none resize-none font-mono custom-slim-scrollbar leading-relaxed"
+                          autoFocus
+                        />
+                      </div>
 
-                        {/* Section: Clips & Dictations */}
-                        {searchResults.clips.length > 0 && (
-                          <div>
-                            <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
-                              Clipboard & Dictations
+                      {/* Right Side: Processed Output & Analysis */}
+                      <div className="flex flex-col bg-[#121215] rounded-xl border border-white/[0.08] p-2 overflow-hidden">
+                        <div className="flex items-center justify-between pb-1 text-[10.5px] text-zinc-400 font-mono">
+                          <span>Result & Suggestions</span>
+                          {promptResult && (
+                            <span className="text-[10px] text-emerald-400 font-medium">Ready</span>
+                          )}
+                        </div>
+                        <div className="flex-1 overflow-y-auto custom-slim-scrollbar text-xs font-mono leading-relaxed select-text pr-1">
+                          {promptResult ? (
+                            <div className="text-white whitespace-pre-wrap">{promptResult}</div>
+                          ) : promptAnalysis ? (
+                            <div className="text-zinc-300 whitespace-pre-wrap p-2 bg-white/[0.03] rounded-lg border border-white/[0.06]">
+                              {promptAnalysis}
                             </div>
-                            {searchResults.clips.map((item, idx) => {
-                              const overallIndex = searchResults.commands.length + idx;
-                              const isSelected = searchSelectedIndex === overallIndex;
-                              const isColor = item.category === 'color';
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 gap-1.5 py-6">
+                              <Sparkles className="w-5 h-5 text-zinc-600 mb-0.5" />
+                              <span className="text-[11px] text-zinc-400">Click any action below to polish or check grammar</span>
+                              <span className="text-[10px] text-zinc-600">Uses local macOS spell & syntax intelligence</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-                              return (
-                                <div
-                                  key={item.id}
-                                  draggable={true}
-                                  onDragStart={(e) => {
-                                    e.dataTransfer.setData('text/plain', item.content);
-                                    if (item.category === 'image') {
-                                      e.dataTransfer.setData('text/uri-list', item.content);
-                                    }
-                                  }}
-                                  onClick={() => handlePaste(item)}
-                                  onMouseEnter={() => setSearchSelectedIndex(overallIndex)}
-                                  className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
-                                    isSelected
-                                      ? 'bg-white/[0.1] text-white shadow-sm'
-                                      : 'hover:bg-white/[0.04] text-zinc-300'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                    {item.category === 'image' ? (
-                                      <div className="w-6 h-6 rounded-md overflow-hidden bg-white/[0.06] flex-shrink-0">
-                                        <img
-                                          src={item.content}
-                                          alt="clip thumbnail"
-                                          className="w-full h-full object-cover pointer-events-none"
-                                        />
-                                      </div>
-                                    ) : (
-                                      <div
-                                        className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-white/[0.06] text-zinc-400"
-                                        style={isColor ? { backgroundColor: item.content } : undefined}
-                                      >
-                                        {item.category === 'dictation' ? (
-                                          <Mic className="w-3 h-3 text-amber-400" />
-                                        ) : item.category === 'code' ? (
-                                          <Code className="w-3 h-3" />
-                                        ) : item.category === 'link' ? (
-                                          <Link2 className="w-3 h-3" />
-                                        ) : isColor ? null : (
-                                          <Copy className="w-3 h-3" />
+                    {/* Action Buttons Toolbar & Auto-Paste */}
+                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] gap-2">
+                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                        <button
+                          onClick={runGrammarCheck}
+                          disabled={isProcessingPrompt || !promptText.trim()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.08] hover:bg-white/[0.14] text-white disabled:opacity-40 transition-all font-medium cursor-pointer"
+                        >
+                          {isProcessingPrompt ? (
+                            <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
+                          ) : (
+                            <ScanText className="w-3 h-3 text-emerald-400" />
+                          )}
+                          <span>Check Grammar</span>
+                        </button>
+
+                        <button
+                          onClick={runProfessionalRewrite}
+                          disabled={!promptText.trim()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.08] hover:bg-white/[0.14] text-white disabled:opacity-40 transition-all font-medium cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          <span>Professional Polish</span>
+                        </button>
+
+                        <button
+                          onClick={runCleanText}
+                          disabled={!promptText.trim()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
+                        >
+                          <span>Clean Whitespace</span>
+                        </button>
+
+                        <button
+                          onClick={runPrettifyJson}
+                          disabled={!promptText.trim()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
+                        >
+                          <Code className="w-3 h-3 text-cyan-400" />
+                          <span>Prettify JSON</span>
+                        </button>
+
+                        <button
+                          onClick={runTitleCase}
+                          disabled={!promptText.trim()}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
+                        >
+                          <span>Title Case</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          onClick={handleCopyPrompt}
+                          disabled={!promptResult && !promptText}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.08] hover:bg-white/[0.14] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
+                          title="Copy to Clipboard"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </button>
+
+                        <button
+                          onClick={handleAutoPastePrompt}
+                          disabled={!promptResult && !promptText}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] bg-white text-black font-semibold hover:bg-zinc-200 disabled:opacity-40 shadow-sm transition-all cursor-pointer"
+                          title="Auto-Paste directly into your previous active app (Cmd+Enter)"
+                        >
+                          <CornerDownLeft className="w-3 h-3" />
+                          <span>Auto-Paste (↵)</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                    {/* Quick Interactive Tool Pills (0 Learning Curve) */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1.5 px-0.5 border-b border-white/[0.05] mb-1">
+                      <button
+                        onClick={() => {
+                          setClipboardSearchQuery('122 usd to eur');
+                          searchInputRef.current?.focus();
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer group"
+                        title="Try Currency Conversion"
+                      >
+                        <span>💵</span>
+                        <span className="font-mono font-medium">122 usd to eur</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setClipboardSearchQuery('16px to rem');
+                          searchInputRef.current?.focus();
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer group"
+                        title="Try CSS px to rem conversion"
+                      >
+                        <span>📐</span>
+                        <span className="font-mono font-medium">16px to rem</span>
+                      </button>
+
+                      <button
+                        onClick={() => openPromptStudio()}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 transition-all whitespace-nowrap cursor-pointer font-medium"
+                        title="Open AI & Grammar Studio"
+                      >
+                        <Wand2 className="w-3 h-3 text-indigo-400" />
+                        <span>/prompt Studio</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          closeShelf();
+                          try {
+                            const text = await invoke<string>('grab_screen_ocr');
+                            if (text && text.trim()) {
+                              showStatus(`OCR: Copied ${text.trim().split(/\s+/).length} words!`);
+                            }
+                          } catch (e: any) {
+                            showStatus(e?.toString() || 'OCR failed');
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer"
+                        title="Grab text from screen"
+                      >
+                        <ScanText className="w-3 h-3 text-emerald-400" />
+                        <span>/ocr Grabber</span>
+                      </button>
+
+                      <button
+                        onClick={async () => {
+                          closeShelf();
+                          try {
+                            const hex = await invoke<string>('pick_screen_color');
+                            if (hex) showStatus(`Sampled ${hex}`);
+                          } catch (e: any) {
+                            showStatus(e?.toString() || 'Loupe cancelled');
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer"
+                        title="Screen Color Loupe"
+                      >
+                        <Pipette className="w-3 h-3 text-amber-400" />
+                        <span>/loupe Zoom</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          closeShelf();
+                          setTimeout(() => invoke('open_ruler').catch(() => {}), 120);
+                        }}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer"
+                        title="Pixel Distance Ruler"
+                      >
+                        <Ruler className="w-3 h-3 text-cyan-400" />
+                        <span>/ruler</span>
+                      </button>
+                    </div>
+
+                    {/* Results List */}
+                    <div
+                      ref={searchListScrollRef}
+                      className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[265px]"
+                    >
+                      {/* Quick Calculator / Unit Converter Live Card */}
+                      {quickCalcMatch && (
+                        <div
+                          onClick={handleCopyCalcResult}
+                          className="mb-2 p-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 transition-all cursor-pointer flex items-center justify-between group"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold flex-shrink-0">
+                              <Calculator className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-mono font-bold text-white tracking-tight">
+                                  {quickCalcMatch.result}
+                                </span>
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase">
+                                  {quickCalcMatch.category}
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] text-zinc-400 font-mono mt-0.5">
+                                {quickCalcMatch.detail}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-white transition-colors text-[10px] font-mono">
+                            <CornerDownLeft className="w-3 h-3" />
+                            <span>Press ↵ to copy</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {searchResults.totalCount === 0 && !quickCalcMatch ? (
+                        <div className="py-12 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
+                          <Sparkles className="w-4 h-4 text-zinc-600 mb-1" />
+                          <p className="font-medium text-zinc-400">No matching commands or clips</p>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Section: Extensions & Tools */}
+                          {searchResults.commands.length > 0 && (
+                            <div className="mb-2">
+                              <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
+                                Extensions & Tools
+                              </div>
+                              {searchResults.commands.map((cmd, i) => {
+                                const isSelected = searchSelectedIndex === i;
+                                const CmdIcon = cmd.icon;
+                                const isUserExt = (cmd as any).isUserExtension;
+                                const userIcon = (cmd as any).userIcon;
+
+                                return (
+                                  <div
+                                    key={cmd.id}
+                                    onClick={() => cmd.action()}
+                                    onMouseEnter={() => setSearchSelectedIndex(i)}
+                                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'bg-white/[0.1] text-white shadow-sm'
+                                        : 'hover:bg-white/[0.04] text-zinc-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0 text-xs">
+                                        {userIcon ? (
+                                          <span>{userIcon}</span>
+                                        ) : (
+                                          <CmdIcon className="w-3.5 h-3.5" />
                                         )}
                                       </div>
-                                    )}
-
-                                    <span
-                                      className={`text-xs truncate max-w-[420px] ${
-                                        item.category === 'code'
-                                          ? 'font-mono text-zinc-200'
-                                          : 'text-zinc-200'
-                                      }`}
-                                    >
-                                      {item.category === 'image'
-                                        ? 'Image preview'
-                                        : item.content.replace(/\n+/g, ' ')}
+                                      <div className="flex items-center gap-2 truncate">
+                                        <span className="font-mono text-[11px] font-semibold text-zinc-200">
+                                          {cmd.command}
+                                        </span>
+                                        <span className="text-xs font-medium text-white truncate">
+                                          {cmd.title}
+                                        </span>
+                                        <span className="text-[11px] text-zinc-500 truncate hidden md:inline">
+                                          {cmd.subtitle}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-zinc-500 px-1.5 py-0.2 rounded bg-white/[0.04]">
+                                      {isUserExt ? 'Script' : 'Extension'}
                                     </span>
                                   </div>
+                                );
+                              })}
+                            </div>
+                          )}
 
-                                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                                    {item.isPinned && (
-                                      <Pin className="w-2.5 h-2.5 text-amber-400 fill-current" />
-                                    )}
-                                    <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[70px]">
-                                      {item.sourceApp || 'Clip'}
-                                    </span>
+                          {/* Section: Clips & Dictations */}
+                          {searchResults.clips.length > 0 && (
+                            <div>
+                              <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
+                                Clipboard & Dictations
+                              </div>
+                              {searchResults.clips.map((item, idx) => {
+                                const overallIndex = searchResults.commands.length + idx;
+                                const isSelected = searchSelectedIndex === overallIndex;
+                                const isColor = item.category === 'color';
+
+                                return (
+                                  <div
+                                    key={item.id}
+                                    draggable={true}
+                                    onDragStart={(e) => {
+                                      e.dataTransfer.setData('text/plain', item.content);
+                                      if (item.category === 'image') {
+                                        e.dataTransfer.setData('text/uri-list', item.content);
+                                      }
+                                    }}
+                                    onClick={() => handlePaste(item)}
+                                    onMouseEnter={() => setSearchSelectedIndex(overallIndex)}
+                                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'bg-white/[0.1] text-white shadow-sm'
+                                        : 'hover:bg-white/[0.04] text-zinc-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                      {item.category === 'image' ? (
+                                        <div className="w-6 h-6 rounded-md overflow-hidden bg-white/[0.06] flex-shrink-0">
+                                          <img
+                                            src={item.content}
+                                            alt="clip thumbnail"
+                                            className="w-full h-full object-cover pointer-events-none"
+                                          />
+                                        </div>
+                                      ) : (
+                                        <div
+                                          className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 bg-white/[0.06] text-zinc-400"
+                                          style={isColor ? { backgroundColor: item.content } : undefined}
+                                        >
+                                          {item.category === 'dictation' ? (
+                                            <Mic className="w-3 h-3 text-amber-400" />
+                                          ) : item.category === 'code' ? (
+                                            <Code className="w-3 h-3" />
+                                          ) : item.category === 'link' ? (
+                                            <Link2 className="w-3 h-3" />
+                                          ) : isColor ? null : (
+                                            <Copy className="w-3 h-3" />
+                                          )}
+                                        </div>
+                                      )}
+
+                                      <span
+                                        className={`text-xs truncate max-w-[420px] ${
+                                          item.category === 'code'
+                                            ? 'font-mono text-zinc-200'
+                                            : 'text-zinc-200'
+                                        }`}
+                                      >
+                                        {item.category === 'image'
+                                          ? 'Image preview'
+                                          : item.content.replace(/\n+/g, ' ')}
+                                      </span>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                      {item.isPinned && (
+                                        <Pin className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                                      )}
+                                      <span className="text-[10px] text-zinc-500 font-mono truncate max-w-[70px]">
+                                        {item.sourceApp || 'Clip'}
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
 
-                  {/* Raycast Keyboard Footer (1:1 with Images 2 & 3) */}
-                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-transparent font-mono">
-                    <div className="flex items-center gap-3">
+                    {/* Raycast Keyboard Footer (1:1 with Images 2 & 3) */}
+                    <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-transparent font-mono">
+                      <div className="flex items-center gap-3">
+                        <span className="flex items-center gap-1">
+                          <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↵</kbd>
+                          <span>Open</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↑↓</kbd>
+                          <span>Navigate</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
+                          <span>Next Tab</span>
+                        </span>
+                      </div>
                       <span className="flex items-center gap-1">
-                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↵</kbd>
-                        <span>Open</span>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↑↓</kbd>
-                        <span>Navigate</span>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
-                        <span>Next Tab</span>
+                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
+                        <span>Close</span>
                       </span>
                     </div>
-                    <span className="flex items-center gap-1">
-                      <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
-                      <span>Close</span>
-                    </span>
                   </div>
-                </div>
+                )
               )}
 
               {/* ================================================================= */}
