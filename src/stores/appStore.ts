@@ -202,6 +202,20 @@ interface AppState {
   selectedInputDevice: string;
   setInputDevices: (devices: Array<{ id: string; name: string }>) => void;
   setSelectedInputDevice: (id: string) => void;
+
+  // Focus Mode / Pomodoro Live Activity
+  focusTimerRunning: boolean;
+  focusTimerRemaining: number;
+  focusTimerDuration: number;
+  focusTaskName: string;
+  setFocusTimerRunning: (running: boolean) => void;
+  setFocusTimerRemaining: (secs: number) => void;
+  setFocusTimerDuration: (secs: number) => void;
+  setFocusTaskName: (task: string) => void;
+  startFocusTimer: (durationMinutes?: number, task?: string) => void;
+  pauseFocusTimer: () => void;
+  resetFocusTimer: (newDurationMinutes?: number) => void;
+  tickFocusTimer: () => void;
 }
 
 const INITIAL_MODELS: SpeechModelInfo[] = [
@@ -574,4 +588,47 @@ export const useAppStore = create<AppState>((set) => ({
   selectedInputDevice: 'default',
   setInputDevices: (inputDevices) => set({ inputDevices }),
   setSelectedInputDevice: (selectedInputDevice) => set({ selectedInputDevice }),
+
+  // Focus Mode / Pomodoro Live Activity
+  focusTimerRunning: false,
+  focusTimerRemaining: 25 * 60,
+  focusTimerDuration: 25 * 60,
+  focusTaskName: 'Deep Focus',
+  setFocusTimerRunning: (focusTimerRunning) => set({ focusTimerRunning }),
+  setFocusTimerRemaining: (focusTimerRemaining) => set({ focusTimerRemaining }),
+  setFocusTimerDuration: (focusTimerDuration) => set({ focusTimerDuration }),
+  setFocusTaskName: (focusTaskName) => set({ focusTaskName }),
+  startFocusTimer: (durationMinutes, task) =>
+    set((state) => {
+      const dur = durationMinutes ? durationMinutes * 60 : state.focusTimerDuration;
+      return {
+        focusTimerRunning: true,
+        focusTimerDuration: dur,
+        focusTimerRemaining: dur,
+        focusTaskName: task || state.focusTaskName,
+      };
+    }),
+  pauseFocusTimer: () => set({ focusTimerRunning: false }),
+  resetFocusTimer: (newDurationMinutes) =>
+    set((state) => {
+      const dur = newDurationMinutes ? newDurationMinutes * 60 : state.focusTimerDuration;
+      return {
+        focusTimerRunning: false,
+        focusTimerDuration: dur,
+        focusTimerRemaining: dur,
+      };
+    }),
+  tickFocusTimer: () =>
+    set((state) => {
+      if (!state.focusTimerRunning) return state;
+      if (state.focusTimerRemaining <= 1) {
+        return {
+          focusTimerRunning: false,
+          focusTimerRemaining: state.focusTimerDuration,
+        };
+      }
+      return {
+        focusTimerRemaining: state.focusTimerRemaining - 1,
+      };
+    }),
 }));

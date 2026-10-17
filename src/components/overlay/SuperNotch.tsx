@@ -23,6 +23,7 @@ import {
   Wand2,
   Terminal,
   FolderOpen,
+  Clock,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -65,6 +66,12 @@ export const SuperNotch: React.FC = () => {
     togglePinClipboardItem,
     deleteClipboardItem,
     setClipboardItems,
+    focusTimerRunning,
+    focusTimerRemaining,
+    focusTaskName,
+    startFocusTimer,
+    pauseFocusTimer,
+    tickFocusTimer,
   } = useAppStore();
 
   const [shelfSelectedIndex, setShelfSelectedIndex] = useState<number>(0);
@@ -114,19 +121,34 @@ export const SuperNotch: React.FC = () => {
 
   const activeMode = isRecording ? 'recording' : superNotchMode;
 
+  // Active Focus Timer Interval
+  useEffect(() => {
+    if (!focusTimerRunning) return;
+    const interval = setInterval(() => {
+      tickFocusTimer();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [focusTimerRunning, tickFocusTimer]);
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   const showStatus = (msg: string) => {
     setStatusFeedback(msg);
     setTimeout(() => setStatusFeedback(null), 2000);
   };
 
   // Target window dimensions for each state:
-  // All standard tabs (shelf, widgets, and new tabs) have the EXACT same height (250px).
+  // All standard tabs (shelf, widgets, and new tabs) have the EXACT same height (260px).
   // Only the Extensions tab ('search') expands to 410px to accommodate the command palette list.
   const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets') => {
     if (view === 'search') {
       return { width: 860, height: 410 };
     }
-    return { width: 860, height: 250 };
+    return { width: 860, height: 260 };
   }, []);
 
   // Smooth shelf open: expand window first, then animate container
@@ -327,6 +349,35 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-focus',
+      command: '/focus',
+      title: 'Focus Mode & Pomodoro',
+      subtitle: focusTimerRunning
+        ? `Pause or reset session (${formatTime(focusTimerRemaining)} left)`
+        : 'Start 25-min focus session with Dynamic Island countdown (or /focus 45)',
+      icon: Clock,
+      action: () => {
+        const query = clipboardSearchQuery.trim();
+        const customMatch = query.match(/^\/focus\s+(\d+)(?:\s+(.*))?$/i);
+        if (customMatch) {
+          const mins = parseInt(customMatch[1], 10);
+          const task = customMatch[2]?.trim() || 'Focus';
+          startFocusTimer(mins, task);
+          showStatus(`Started ${mins}m Focus Session!`);
+          closeShelf();
+          return;
+        }
+
+        if (focusTimerRunning) {
+          pauseFocusTimer();
+          showStatus('Focus session paused');
+        } else {
+          startFocusTimer(25, 'Deep Focus');
+          showStatus('Started 25m Focus Session!');
+        }
+      },
+    },
+    {
       id: 'cmd-extensions',
       command: '/extensions',
       title: 'Open Extensions Folder',
@@ -460,7 +511,7 @@ export const SuperNotch: React.FC = () => {
         }
       },
     })),
-  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions]);
+  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer]);
 
   // Combined fast search results
   const searchResults = useMemo(() => {
@@ -469,6 +520,7 @@ export const SuperNotch: React.FC = () => {
 
     const matchingCommands = toolCommands.filter((cmd) => {
       if (isSlash) {
+        if (q.startsWith('/focus') && cmd.command === '/focus') return true;
         return (
           cmd.command.toLowerCase().includes(q) ||
           cmd.title.toLowerCase().includes(q.slice(1))
@@ -745,13 +797,15 @@ export const SuperNotch: React.FC = () => {
       ? 860
       : activeMode === 'recording'
       ? 220
+      : focusTimerRunning
+      ? 220
       : 160;
 
   const targetHeight =
     activeMode === 'shelf'
       ? superNotchHudView === 'search'
         ? 410
-        : 250
+        : 260
       : 28;
 
   const targetRadius =
@@ -874,17 +928,38 @@ export const SuperNotch: React.FC = () => {
             </>
           )}
           <AnimatePresence mode="wait">
-          {/* 1. IDLE NOTCH VIEW (Pure Hardware Bezel - ZERO TEXT, ZERO DOTS) */}
+          {/* 1. IDLE NOTCH VIEW (Pure Hardware Bezel - ZERO TEXT by default, or Live Focus Activity) */}
           {activeMode === 'idle' && (
             <motion.div
               key="idle-view"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-              className="w-full h-full cursor-pointer bg-black"
-              title="Click or press ⌥V to open SuPaste shelf"
-            />
+              transition={{ duration: 0.15 }}
+              className="w-full h-full cursor-pointer bg-black flex items-center justify-between px-3"
+              title={
+                focusTimerRunning
+                  ? `Focus session active: ${formatTime(focusTimerRemaining)} remaining (Click to open)`
+                  : 'Click or press ⌥V to open SuPaste shelf'
+              }
+            >
+              {focusTimerRunning ? (
+                <div className="w-full flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="relative w-3 h-3 flex items-center justify-center shrink-0">
+                      <span className="absolute inset-0 rounded-full bg-amber-500/40 animate-ping opacity-75" />
+                      <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    </div>
+                    <span className="text-[10px] font-sans font-semibold text-zinc-300 truncate max-w-[95px] tracking-tight">
+                      {focusTaskName || 'Deep Focus'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-amber-400 tracking-tight shrink-0">
+                    <span>{formatTime(focusTimerRemaining)}</span>
+                  </div>
+                </div>
+              ) : null}
+            </motion.div>
           )}
 
           {/* 2. RECORDING NOTCH VIEW (Siri-Style Liquid Orb - Locked 28px height, 220px width, zero text) */}
