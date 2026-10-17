@@ -14,10 +14,23 @@ export type SidebarTab =
   | 'customDictionary'
   | 'stats'
   | 'history'
+  | 'notes'
   | 'extensions'
   | 'preferences'
   | 'changelog'
   | 'feedback';
+
+export interface NoteItem {
+  id: string;
+  title: string;
+  content: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+  char_count: number;
+  word_count: number;
+  is_pinned: boolean;
+}
 
 export type OverlayStyle = 'notch' | 'minimal' | 'hidden';
 export type RecordingMode = 'dictate' | 'prompt' | 'rewrite' | 'command';
@@ -216,6 +229,13 @@ interface AppState {
   pauseFocusTimer: () => void;
   resetFocusTimer: (newDurationMinutes?: number) => void;
   tickFocusTimer: () => void;
+
+  // Notes State
+  notes: NoteItem[];
+  setNotes: (notes: NoteItem[]) => void;
+  addNote: (note: NoteItem) => void;
+  deleteNote: (id: string) => void;
+  updateNote: (id: string, updates: Partial<NoteItem>) => void;
 }
 
 const INITIAL_MODELS: SpeechModelInfo[] = [
@@ -631,4 +651,14 @@ export const useAppStore = create<AppState>((set) => ({
         focusTimerRemaining: state.focusTimerRemaining - 1,
       };
     }),
+
+  // Notes State
+  notes: [],
+  setNotes: (notes) => set({ notes }),
+  addNote: (note) => set((state) => ({ notes: [note, ...state.notes] })),
+  deleteNote: (id) => set((state) => ({ notes: state.notes.filter((n) => n.id !== id) })),
+  updateNote: (id, updates) =>
+    set((state) => ({
+      notes: state.notes.map((n) => (n.id === id ? { ...n, ...updates } : n)),
+    })),
 }));

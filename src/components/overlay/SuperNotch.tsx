@@ -24,10 +24,13 @@ import {
   Terminal,
   FolderOpen,
   Clock,
-  Flame,
   Play,
   Pause,
   RotateCcw,
+  CheckSquare,
+  FileText,
+  Smile,
+  Palette,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -36,10 +39,13 @@ import {
   useAppStore,
   ClipboardCategory,
   ClipboardItem,
+  NoteItem,
 } from '../../stores/appStore';
 import { WidgetsView } from './WidgetsView';
 import { evaluateQuickCalc } from '../../services/quickCalc';
-import { polishTextForChat } from '../../services/quickPrompt';
+import { polishTextForChat, convertToMarkdownChecklist } from '../../services/quickPrompt';
+import { searchUnicodeSymbols } from '../../services/emojiFinder';
+import { analyzeColor, extractHexColors } from '../../services/colorPaletteService';
 
 interface UserExtension {
   id: string;
@@ -51,6 +57,18 @@ interface UserExtension {
   language: string;
   author?: string;
 }
+
+const FocusReticleIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" strokeDasharray="6 2" />
+    <circle cx="8" cy="8" r="2" fill="currentColor" />
+  </svg>
+);
 
 export const SuperNotch: React.FC = () => {
   const {
@@ -77,13 +95,22 @@ export const SuperNotch: React.FC = () => {
     pauseFocusTimer,
     resetFocusTimer,
     tickFocusTimer,
+    addNote,
   } = useAppStore();
 
   const [shelfSelectedIndex, setShelfSelectedIndex] = useState<number>(0);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+  const [noteSavedFeedback, setNoteSavedFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
+
+  const triggerNoteSavedAnimation = useCallback((msg: string = 'Saved to Notes') => {
+    setNoteSavedFeedback(msg);
+    setTimeout(() => {
+      setNoteSavedFeedback(null);
+    }, 2200);
+  }, []);
 
   // In-Place /prompt & /fix live match (direct to chat box, zero friction)
   const promptLiveMatch = useMemo(() => {
@@ -97,6 +124,43 @@ export const SuperNotch: React.FC = () => {
       polished,
     };
   }, [clipboardSearchQuery]);
+
+  // /checklist & /todo Live Match (intelligent Markdown tasks converter)
+  const checklistLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    const match = query.match(/^\/(?:checklist|todo|tasks)\s+(.+)$/i);
+    if (!match) return null;
+    const raw = match[1];
+    const checklist = convertToMarkdownChecklist(raw);
+    return { raw, checklist };
+  }, [clipboardSearchQuery]);
+
+  // /emoji & /symbol Live Match (offline instant Unicode glyphs)
+  const emojiLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    const match = query.match(/^\/(?:emoji|symbol)(?:\s+(.*))?$/i);
+    if (!match) return null;
+    const searchParam = match[1]?.trim() || '';
+    const results = searchUnicodeSymbols(searchParam, 12);
+    return { query: searchParam, results };
+  }, [clipboardSearchQuery]);
+
+  // /color & /palette Live Match (WCAG contrast & format extraction)
+  const colorLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    const match = query.match(/^\/(?:color|palette)(?:\s+(.*))?$/i);
+    if (!match) return null;
+    const colorParam = match[1]?.trim();
+    if (colorParam) {
+      const details = analyzeColor(colorParam);
+      return { type: 'single' as const, details };
+    }
+    const hexes = clipboardItems
+      .filter((c) => c.category === 'color' || c.content.includes('#'))
+      .flatMap((c) => extractHexColors(c.content));
+    const unique = Array.from(new Set(hexes)).slice(0, 10);
+    return { type: 'palette' as const, colors: unique };
+  }, [clipboardSearchQuery, clipboardItems]);
 
   const loadExtensions = useCallback(async () => {
     try {
@@ -229,10 +293,42 @@ export const SuperNotch: React.FC = () => {
 
   const handleStartFocusSession = useCallback((minutes: number, task?: string) => {
     startFocusTimer(minutes, task || 'Deep Focus');
-    showStatus(`Started ${minutes}m Focus Session! 🔥`);
+    showStatus(`Started ${minutes}m Focus Session`);
     setClipboardSearchQuery('');
     closeShelf();
   }, [startFocusTimer, closeShelf, setClipboardSearchQuery]);
+
+  const handleSaveNoteDirect = useCallback(
+    async (content: string, asChecklist: boolean = false) => {
+      try {
+        const finalContent = asChecklist ? convertToMarkdownChecklist(content) : content;
+        const tags = asChecklist ? ['checklist'] : ['quick-note'];
+        const saved = await invoke<NoteItem>('save_note', {
+          title: '',
+          content: finalContent,
+          tags,
+        });
+        addNote(saved);
+        triggerNoteSavedAnimation(asChecklist ? 'Checklist Saved' : 'Saved to Notes');
+        setClipboardSearchQuery('');
+        closeShelf();
+      } catch (e) {
+        console.error('Failed to save note from notch', e);
+      }
+    },
+    [addNote, triggerNoteSavedAnimation, closeShelf, setClipboardSearchQuery]
+  );
+
+  useEffect(() => {
+    const unlisten = listen('dopenotch://trigger-voice-note', async () => {
+      try {
+        await invoke('toggle_recording');
+      } catch {}
+    });
+    return () => {
+      unlisten.then((f) => f());
+    };
+  }, []);
 
   // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
   const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
@@ -741,6 +837,18 @@ export const SuperNotch: React.FC = () => {
           }
         } else if (e.key === 'Enter') {
           e.preventDefault();
+          if (checklistLiveMatch) {
+            handlePaste(checklistLiveMatch.checklist);
+            return;
+          }
+          if (emojiLiveMatch && emojiLiveMatch.results.length > 0) {
+            handlePaste(emojiLiveMatch.results[0].char);
+            return;
+          }
+          if (colorLiveMatch && colorLiveMatch.type === 'single' && colorLiveMatch.details) {
+            handlePaste(colorLiveMatch.details.hex);
+            return;
+          }
           if (promptLiveMatch) {
             handlePaste(promptLiveMatch.polished);
             return;
@@ -803,6 +911,9 @@ export const SuperNotch: React.FC = () => {
     handlePaste,
     handleToggleView,
     promptLiveMatch,
+    checklistLiveMatch,
+    emojiLiveMatch,
+    colorLiveMatch,
     quickCalcMatch,
     focusLiveMatch,
     handleStartFocusSession,
@@ -830,6 +941,8 @@ export const SuperNotch: React.FC = () => {
       ? 860
       : activeMode === 'recording'
       ? 220
+      : noteSavedFeedback
+      ? 200
       : 160;
 
   const targetHeight =
@@ -974,11 +1087,21 @@ export const SuperNotch: React.FC = () => {
                   : 'Click or press ⌥V to open SuPaste shelf'
               }
             >
-              {focusTimerRunning ? (
+              {noteSavedFeedback ? (
+                <div className="flex items-center justify-center gap-1.5 text-amber-300">
+                  <div className="w-3.5 h-3.5 rounded-full bg-amber-400/20 flex items-center justify-center text-amber-400">
+                    <FileText className="w-2.5 h-2.5" />
+                  </div>
+                  <span className="text-[10px] font-sans font-semibold tracking-tight text-white flex items-center gap-1">
+                    {noteSavedFeedback}
+                    <Sparkles className="w-2.5 h-2.5 text-amber-400 fill-amber-400/50" />
+                  </span>
+                </div>
+              ) : focusTimerRunning ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="relative w-3.5 h-3.5 flex items-center justify-center shrink-0">
-                    <span className="absolute inset-0 rounded-full bg-amber-500/40 animate-ping opacity-75" />
-                    <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400/80 shrink-0" />
+                    <span className="absolute inset-0 rounded-full bg-amber-400/30 animate-ping opacity-60" />
+                    <FocusReticleIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                   </div>
                   <span className="font-mono text-[11px] font-bold text-amber-300 tracking-wider">
                     {formatTime(focusTimerRemaining)}
@@ -1415,8 +1538,8 @@ export const SuperNotch: React.FC = () => {
                       <div className="mb-2 p-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/[0.14] border border-amber-500/25 transition-all flex flex-col gap-2.5">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0">
-                              <Flame className="w-4 h-4 fill-amber-400/80" />
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/15 text-amber-400 flex items-center justify-center font-bold shrink-0 border border-amber-500/20">
+                              <FocusReticleIcon className="w-4 h-4" />
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
@@ -1537,6 +1660,162 @@ export const SuperNotch: React.FC = () => {
                           <CornerDownLeft className="w-3 h-3" />
                           <span>Press ↵ to paste to chat</span>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Checklist & Markdown Tasks Live Card */}
+                    {checklistLiveMatch && (
+                      <div className="mb-2 p-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/[0.14] border border-emerald-500/25 transition-all flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
+                              <CheckSquare className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-white tracking-tight">
+                                  Markdown Checklist
+                                </span>
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase font-semibold">
+                                  Formatted
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] text-zinc-400 font-mono mt-0.5">
+                                Converted into interactive checkboxes
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleSaveNoteDirect(checklistLiveMatch.raw, true)}
+                              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-medium transition-all"
+                            >
+                              Save to Notes
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePaste(checklistLiveMatch.checklist)}
+                              className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black text-[11px] font-semibold flex items-center gap-1 transition-all"
+                            >
+                              <CornerDownLeft className="w-3 h-3" />
+                              <span>Paste ↵</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Checklist Preview */}
+                        <div className="p-2 rounded-lg bg-black/40 border border-white/[0.06] text-xs font-mono text-zinc-300 space-y-1 max-h-32 overflow-y-auto custom-slim-scrollbar">
+                          {checklistLiveMatch.checklist.split('\n').map((item, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-emerald-400 font-bold">[ ]</span>
+                              <span>{item.replace(/^\-\s*\[\s*\]\s*/, '')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Emoji & Unicode Instant Finder Live Card */}
+                    {emojiLiveMatch && (
+                      <div className="mb-2 p-3 rounded-xl bg-white/[0.06] border border-white/10 flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-xs text-zinc-400 font-mono">
+                          <span className="flex items-center gap-1.5 text-white font-semibold">
+                            <Smile className="w-3.5 h-3.5 text-amber-400" />
+                            Unicode & Emoji Finder
+                          </span>
+                          <span>Click to copy & paste</span>
+                        </div>
+                        <div className="grid grid-cols-6 sm:grid-cols-8 gap-1.5 pt-1">
+                          {emojiLiveMatch.results.map((sym, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => handlePaste(sym.char)}
+                              title={`${sym.name} (${sym.category})`}
+                              className="h-10 rounded-lg bg-white/[0.04] hover:bg-white/[0.12] hover:scale-110 active:scale-95 border border-white/[0.06] hover:border-white/20 flex flex-col items-center justify-center transition-all cursor-pointer group"
+                            >
+                              <span className="text-base select-none">{sym.char}</span>
+                              <span className="text-[8.5px] text-zinc-500 truncate max-w-[42px] font-mono group-hover:text-zinc-300">
+                                {sym.name.split(' ')[0]}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Color Palette & Contrast Live Card */}
+                    {colorLiveMatch && (
+                      <div className="mb-2 p-3 rounded-xl bg-white/[0.06] border border-white/10 flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Palette className="w-4 h-4 text-pink-400" />
+                            <span className="text-xs font-semibold text-white font-mono">
+                              {colorLiveMatch.type === 'single' ? 'Color Analysis & Tokens' : 'Recent Color Swatches'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-zinc-400 font-mono">Click swatch to copy</span>
+                        </div>
+
+                        {colorLiveMatch.type === 'single' && colorLiveMatch.details ? (
+                          <div className="flex items-center justify-between gap-3 p-2 rounded-lg bg-black/40 border border-white/[0.06]">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-lg border border-white/20 shadow-inner shrink-0"
+                                style={{ backgroundColor: colorLiveMatch.details.hex }}
+                              />
+                              <div>
+                                <div className="text-xs font-mono font-bold text-white flex items-center gap-2">
+                                  <span>{colorLiveMatch.details.hex}</span>
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-zinc-300 font-normal">
+                                    {colorLiveMatch.details.tailwind}
+                                  </span>
+                                </div>
+                                <div className="text-[10.5px] font-mono text-zinc-400 mt-0.5">
+                                  {colorLiveMatch.details.rgb} • {colorLiveMatch.details.hsl}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[10px] font-mono">
+                              <div className="text-right">
+                                <div className="text-zinc-500">WCAG AA</div>
+                                <div className={colorLiveMatch.details.wcagWhiteRating === 'Fail' ? 'text-red-400' : 'text-emerald-400'}>
+                                  on White: {colorLiveMatch.details.wcagWhiteRating}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handlePaste(colorLiveMatch.details!.hex)}
+                                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-all"
+                              >
+                                <Copy className="w-3 h-3" />
+                                <span>Copy</span>
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 overflow-x-auto py-1 custom-slim-scrollbar">
+                            {colorLiveMatch.colors?.map((c, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => handlePaste(c)}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/40 hover:bg-white/10 border border-white/10 transition-all shrink-0 cursor-pointer group"
+                              >
+                                <span
+                                  className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
+                                  style={{ backgroundColor: c }}
+                                />
+                                <span className="text-[11px] font-mono text-zinc-300 group-hover:text-white">
+                                  {c}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
 

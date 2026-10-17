@@ -1644,3 +1644,47 @@ function run(argv) {
     }
 }
 
+// ============================================================================
+// Notes & Checklists Persistence Commands (~/.dopenotch/notes.json)
+// ============================================================================
+
+#[tauri::command]
+pub async fn get_notes() -> Result<Vec<crate::notes::NoteItem>, String> {
+    crate::notes::load_notes_from_disk()
+}
+
+#[tauri::command]
+pub async fn save_note(
+    title: String,
+    content: String,
+    tags: Vec<String>,
+) -> Result<crate::notes::NoteItem, String> {
+    crate::notes::add_note(title, content, tags)
+}
+
+#[tauri::command]
+pub async fn delete_note(id: String) -> Result<(), String> {
+    crate::notes::delete_note(&id)
+}
+
+#[tauri::command]
+pub async fn update_note(
+    id: String,
+    title: Option<String>,
+    content: Option<String>,
+    tags: Option<Vec<String>>,
+    is_pinned: Option<bool>,
+) -> Result<crate::notes::NoteItem, String> {
+    crate::notes::update_note(&id, title, content, tags, is_pinned)
+}
+
+#[tauri::command]
+pub fn toggle_voice_note(app: AppHandle) {
+    if let Some(notch_win) = app.get_webview_window("notch") {
+        let _ = notch_win.show();
+        let _ = notch_win.set_focus();
+        let _ = app.emit("dopenotch://trigger-voice-note", ());
+    }
+}
+
+

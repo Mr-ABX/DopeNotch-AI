@@ -8,6 +8,7 @@ import { CommandModeView } from '../views/CommandModeView';
 import { TranscriptionHistoryView } from '../views/TranscriptionHistoryView';
 import { PreferencesView } from '../views/PreferencesView';
 import { ExtensionsView } from '../views/ExtensionsView';
+import { NotesView } from '../views/NotesView';
 import { SettingsModal } from '../settings/SettingsModal';
 
 export const Dashboard: React.FC = () => {
@@ -25,6 +26,8 @@ export const Dashboard: React.FC = () => {
       case 'fileTranscription':
       case 'meetingTools':
         return <TranscriptionHistoryView />;
+      case 'notes':
+        return <NotesView />;
       case 'extensions':
         return <ExtensionsView />;
       case 'commandMode':

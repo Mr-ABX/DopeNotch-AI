@@ -83,3 +83,45 @@ export function polishTextForChat(input: string): string {
 
   return text;
 }
+
+/**
+ * Convert any unstructured spoken text or list into a clean Markdown checklist.
+ * E.g.: "first buy groceries then review the PR and also call mom"
+ * ->
+ * - [ ] Buy groceries
+ * - [ ] Review the PR
+ * - [ ] Call mom
+ */
+export function convertToMarkdownChecklist(input: string): string {
+  if (!input || !input.trim()) return input;
+  const text = input.trim();
+
+  // If already contains newlines, process line by line
+  let rawItems: string[] = [];
+  if (text.includes('\n')) {
+    rawItems = text.split('\n');
+  } else {
+    // Split on typical spoken transitions and list delimiters:
+    const delimiterRegex = /(?:;\s*|(?:\s|^)(?:firstly|secondly|first|then|next|also|and then|and also|finally)\s+|(?:\s|^)\d+[\.\)]\s+|(?:\s|^)[•\-\*]\s+)/i;
+    rawItems = text.split(delimiterRegex);
+  }
+
+  const items = rawItems
+    .map((item) => {
+      // Strip leading bullet points, numbers, dashes, punctuation
+      let cleaned = item.trim().replace(/^[\d\.\-\*\•\)\:\s]+/, '').trim();
+      // Remove trailing commas/semicolons
+      cleaned = cleaned.replace(/[,;]+$/, '').trim();
+      if (!cleaned) return '';
+      // Capitalize first letter
+      return `- [ ] ${cleaned.charAt(0).toUpperCase() + cleaned.slice(1)}`;
+    })
+    .filter(Boolean);
+
+  if (items.length === 0) {
+    return `- [ ] ${text.charAt(0).toUpperCase() + text.slice(1)}`;
+  }
+
+  return items.join('\n');
+}
+

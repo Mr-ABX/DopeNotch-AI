@@ -9,6 +9,7 @@ mod settings;
 mod transcriber;
 mod voxcoder;
 pub mod clipboard_listener;
+pub mod notes;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -177,6 +178,11 @@ pub fn run() {
             commands::load_user_extensions,
             commands::execute_user_extension,
             commands::open_extensions_folder,
+            commands::get_notes,
+            commands::save_note,
+            commands::delete_note,
+            commands::update_note,
+            commands::toggle_voice_note,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")
@@ -342,6 +348,30 @@ pub fn setup_global_shortcut(app: &AppHandle, primary_hotkey: &str) {
         match result {
             Ok(_) => log::info!("Successfully registered Ruler global shortcut: '{}'", r_sc),
             Err(e) => log::debug!("Could not register Ruler shortcut '{}': {}", r_sc, e),
+        }
+    }
+
+    // Register shortcuts to trigger Voice Note (Option+N / Alt+N)
+    let note_aliases = [
+        "Option+N",
+        "Alt+N",
+    ];
+
+    for n_sc in note_aliases {
+        let app_h = app_clone.clone();
+        let sc_name = n_sc.to_string();
+        let result = app.global_shortcut().on_shortcut(n_sc, move |_app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                log::info!("[global_shortcut] Toggle Voice Note shortcut triggered: '{}'", sc_name);
+                let app_inner = app_h.clone();
+                tauri::async_runtime::spawn(async move {
+                    commands::toggle_voice_note(app_inner);
+                });
+            }
+        });
+        match result {
+            Ok(_) => log::info!("Successfully registered Voice Note global shortcut: '{}'", n_sc),
+            Err(e) => log::debug!("Could not register Voice Note shortcut '{}': {}", n_sc, e),
         }
     }
 }
