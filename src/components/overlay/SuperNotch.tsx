@@ -24,6 +24,10 @@ import {
   Terminal,
   FolderOpen,
   Clock,
+  Flame,
+  Play,
+  Pause,
+  RotateCcw,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -71,6 +75,7 @@ export const SuperNotch: React.FC = () => {
     focusTaskName,
     startFocusTimer,
     pauseFocusTimer,
+    resetFocusTimer,
     tickFocusTimer,
   } = useAppStore();
 
@@ -110,6 +115,21 @@ export const SuperNotch: React.FC = () => {
 
   const quickCalcMatch = useMemo(() => {
     return evaluateQuickCalc(clipboardSearchQuery);
+  }, [clipboardSearchQuery]);
+
+  // /focus Live Match (handles `/focus`, `/focus 14`, `/focus 46`, etc.)
+  const focusLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    if (!query.toLowerCase().startsWith('/focus')) return null;
+    const match = query.match(/^\/focus(?:\s+(\d+))?(?:\s+(.*))?$/i);
+    if (!match) return null;
+    const mins = match[1] ? parseInt(match[1], 10) : 25;
+    const task = match[2]?.trim() || 'Deep Focus';
+    return {
+      minutes: mins,
+      task,
+      hasExplicitMins: Boolean(match[1]),
+    };
   }, [clipboardSearchQuery]);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -206,6 +226,13 @@ export const SuperNotch: React.FC = () => {
       closeShelf();
     } catch {}
   }, [quickCalcMatch, closeShelf]);
+
+  const handleStartFocusSession = useCallback((minutes: number, task?: string) => {
+    startFocusTimer(minutes, task || 'Deep Focus');
+    showStatus(`Started ${minutes}m Focus Session! 🔥`);
+    setClipboardSearchQuery('');
+    closeShelf();
+  }, [startFocusTimer, closeShelf, setClipboardSearchQuery]);
 
   // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
   const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
@@ -722,6 +749,10 @@ export const SuperNotch: React.FC = () => {
             handleCopyCalcResult();
             return;
           }
+          if (focusLiveMatch) {
+            handleStartFocusSession(focusLiveMatch.minutes, focusLiveMatch.task);
+            return;
+          }
           if (total === 0) return;
           if (searchSelectedIndex < searchResults.commands.length) {
             searchResults.commands[searchSelectedIndex].action();
@@ -773,6 +804,8 @@ export const SuperNotch: React.FC = () => {
     handleToggleView,
     promptLiveMatch,
     quickCalcMatch,
+    focusLiveMatch,
+    handleStartFocusSession,
     searchResults,
     searchSelectedIndex,
     shelfSelectedIndex,
@@ -796,8 +829,6 @@ export const SuperNotch: React.FC = () => {
     activeMode === 'shelf'
       ? 860
       : activeMode === 'recording'
-      ? 220
-      : focusTimerRunning
       ? 220
       : 160;
 
@@ -936,27 +967,22 @@ export const SuperNotch: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
-              className="w-full h-full cursor-pointer bg-black flex items-center justify-between px-3"
+              className="w-full h-full cursor-pointer bg-black flex items-center justify-center px-3"
               title={
                 focusTimerRunning
-                  ? `Focus session active: ${formatTime(focusTimerRemaining)} remaining (Click to open)`
+                  ? `Focus session: ${formatTime(focusTimerRemaining)} remaining (Click to open)`
                   : 'Click or press ⌥V to open SuPaste shelf'
               }
             >
               {focusTimerRunning ? (
-                <div className="w-full flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <div className="relative w-3 h-3 flex items-center justify-center shrink-0">
-                      <span className="absolute inset-0 rounded-full bg-amber-500/40 animate-ping opacity-75" />
-                      <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    </div>
-                    <span className="text-[10px] font-sans font-semibold text-zinc-300 truncate max-w-[95px] tracking-tight">
-                      {focusTaskName || 'Deep Focus'}
-                    </span>
+                <div className="flex items-center justify-center gap-2">
+                  <div className="relative w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                    <span className="absolute inset-0 rounded-full bg-amber-500/40 animate-ping opacity-75" />
+                    <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400/80 shrink-0" />
                   </div>
-                  <div className="flex items-center gap-1 font-mono text-[11px] font-bold text-amber-400 tracking-tight shrink-0">
-                    <span>{formatTime(focusTimerRemaining)}</span>
-                  </div>
+                  <span className="font-mono text-[11px] font-bold text-amber-300 tracking-wider">
+                    {formatTime(focusTimerRemaining)}
+                  </span>
                 </div>
               ) : null}
             </motion.div>
@@ -1384,6 +1410,107 @@ export const SuperNotch: React.FC = () => {
                     ref={searchListScrollRef}
                     className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
                   >
+                    {/* Deep Focus Session Live Card (/focus, /focus 14, /focus 46) */}
+                    {focusLiveMatch && (
+                      <div className="mb-2 p-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/[0.14] border border-amber-500/25 transition-all flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0">
+                              <Flame className="w-4 h-4 fill-amber-400/80" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-white tracking-tight">
+                                  {focusTimerRunning
+                                    ? `Focus Active: ${formatTime(focusTimerRemaining)} left`
+                                    : `Deep Focus Session (${focusLiveMatch.minutes}m)`}
+                                </span>
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 uppercase font-semibold">
+                                  {focusTimerRunning ? 'In Progress' : 'Ready'}
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] text-zinc-400 font-mono mt-0.5">
+                                Task: {focusTimerRunning ? focusTaskName : focusLiveMatch.task} • Countdown shows in hardware notch
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {focusTimerRunning ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    pauseFocusTimer();
+                                    showStatus('Focus session paused ⏸');
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-medium text-white flex items-center gap-1 transition-all"
+                                  title="Pause Session"
+                                >
+                                  <Pause className="w-3 h-3" />
+                                  <span>Pause</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    resetFocusTimer();
+                                    showStatus('Focus session reset');
+                                  }}
+                                  className="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-[11px] font-medium text-red-300 flex items-center gap-1 transition-all"
+                                  title="Cancel/Reset Session"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Reset</span>
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartFocusSession(focusLiveMatch.minutes, focusLiveMatch.task);
+                                }}
+                                className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-[11px] flex items-center gap-1 shadow-sm transition-all"
+                              >
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>Start ↵</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick Preset Chips [15m] [25m] [45m] [60m] */}
+                        <div className="flex items-center gap-1.5 pt-1 border-t border-amber-500/15">
+                          <span className="text-[10px] text-zinc-400 font-mono mr-1">Presets:</span>
+                          {[15, 25, 45, 60].map((mins) => {
+                            const isCurrent = focusLiveMatch.minutes === mins;
+                            return (
+                              <button
+                                key={mins}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartFocusSession(mins, focusLiveMatch.task);
+                                }}
+                                className={`px-2 py-0.5 rounded-md text-[10.5px] font-mono transition-all ${
+                                  isCurrent
+                                    ? 'bg-amber-400 text-black font-bold shadow-sm'
+                                    : 'bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300'
+                                }`}
+                              >
+                                {mins}m
+                              </button>
+                            );
+                          })}
+                          <span className="ml-auto text-[10px] text-zinc-500 font-mono">
+                            Type /focus &lt;minutes&gt;
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* In-Place /prompt & /fix Live Card (Auto-Pastes directly to active chat) */}
                     {promptLiveMatch && (
                       <div
