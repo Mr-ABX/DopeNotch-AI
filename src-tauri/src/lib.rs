@@ -10,6 +10,7 @@ mod transcriber;
 mod voxcoder;
 pub mod clipboard_listener;
 pub mod notes;
+pub mod web_inspector;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -27,6 +28,7 @@ pub struct MurmurState {
     pub settings: Arc<Mutex<AppSettings>>,
     pub transcriber: Arc<Mutex<TranscriberState>>,
     pub is_recording: Arc<Mutex<bool>>,
+    pub recording_purpose: Arc<Mutex<Option<String>>>,
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -54,6 +56,7 @@ pub fn run() {
                 settings: Arc::new(Mutex::new(settings.clone())),
                 transcriber: Arc::new(Mutex::new(transcriber_state)),
                 is_recording: Arc::new(Mutex::new(false)),
+                recording_purpose: Arc::new(Mutex::new(None)),
             };
 
             app.manage(murmur_state);
@@ -183,6 +186,9 @@ pub fn run() {
             commands::delete_note,
             commands::update_note,
             commands::toggle_voice_note,
+            commands::start_voice_note_recording,
+            commands::start_meeting_recording,
+            commands::inspect_website,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

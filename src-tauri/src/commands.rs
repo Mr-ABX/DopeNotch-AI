@@ -221,8 +221,28 @@ async fn handle_transcription_result(
     let _ = app.emit("murmur://clipboard-changed", &clip_item);
     let _ = app.emit_to("notch", "murmur://clipboard-changed", &clip_item);
 
-    // If operating mode is Assistant, route transcript into Notch Assistant workspace
-    if settings.operating_mode == crate::settings::OperatingMode::Assistant {
+    let state = app.state::<MurmurState>();
+    let purpose = state.recording_purpose.lock().unwrap().take();
+
+    if purpose.as_deref() == Some("voice_note") {
+        overlay::hide_visualizers(&app, &settings);
+        let title = format!("Voice Note • {}", chrono::Local::now().format("%b %d, %I:%M %p"));
+        let _ = crate::notes::add_note(
+            title,
+            text.clone(),
+            vec!["voice".to_string(), "quick-note".to_string()],
+        );
+        let _ = app.emit("dopenotch://note-saved", "Saved to Notes");
+        let _ = app.emit_to("notch", "dopenotch://note-saved", "Saved to Notes");
+        let _ = app.emit("dopenotch://notes-updated", ());
+        let _ = app.emit_to("settings", "dopenotch://notes-updated", ());
+        // Never auto-paste voice notes
+    } else if purpose.as_deref() == Some("meeting") {
+        overlay::hide_visualizers(&app, &settings);
+        let _ = app.emit("dopenotch://meeting-chunk", &text);
+        let _ = app.emit_to("notch", "dopenotch://meeting-chunk", &text);
+        // Never auto-paste meeting transcripts
+    } else if settings.operating_mode == crate::settings::OperatingMode::Assistant {
         overlay::show_visualizer(&app, &settings);
         overlay::resize_notch(&app, true, None, None);
         let _ = app.emit("murmur://assistant-voice-input", &text);
@@ -1679,12 +1699,44 @@ pub async fn update_note(
 }
 
 #[tauri::command]
+pub async fn start_voice_note_recording(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<MurmurState>();
+    *state.recording_purpose.lock().unwrap() = Some("voice_note".to_string());
+    start_recording_internal(&app).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn start_meeting_recording(app: AppHandle) -> Result<(), String> {
+    let state = app.state::<MurmurState>();
+    *state.recording_purpose.lock().unwrap() = Some("meeting".to_string());
+    start_recording_internal(&app).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn toggle_voice_note(app: AppHandle) {
-    if let Some(notch_win) = app.get_webview_window("notch") {
-        let _ = notch_win.show();
-        let _ = notch_win.set_focus();
-        let _ = app.emit("dopenotch://trigger-voice-note", ());
+    let state = app.state::<MurmurState>();
+    let is_rec = *state.is_recording.lock().unwrap();
+    if is_rec {
+        let app_clone = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = stop_recording_internal(&app_clone).await;
+        });
+    } else {
+        *state.recording_purpose.lock().unwrap() = Some("voice_note".to_string());
+        if let Some(notch_win) = app.get_webview_window("notch") {
+            let _ = notch_win.show();
+        }
+        let app_clone = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _ = start_recording_internal(&app_clone).await;
+        });
     }
 }
+
+#[tauri::command]
+pub async fn inspect_website(url: String) -> Result<crate::web_inspector::WebInspectionResult, String> {
+    crate::web_inspector::inspect_url(&url).await
+}
+
 
 

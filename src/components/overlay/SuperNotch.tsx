@@ -31,6 +31,11 @@ import {
   FileText,
   Smile,
   Palette,
+  Globe,
+  ExternalLink,
+  Radio,
+  Layers,
+  Type,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -56,6 +61,18 @@ interface UserExtension {
   file_path: string;
   language: string;
   author?: string;
+}
+
+export interface WebInspectionResult {
+  url: string;
+  title: string;
+  description: string;
+  og_image?: string;
+  colors: string[];
+  images: string[];
+  svgs: string[];
+  fonts: string[];
+  total_assets_count: number;
 }
 
 const FocusReticleIcon: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
@@ -95,7 +112,10 @@ export const SuperNotch: React.FC = () => {
     pauseFocusTimer,
     resetFocusTimer,
     tickFocusTimer,
+    setNotes,
     addNote,
+    updateNote,
+    setActiveTab,
   } = useAppStore();
 
   const [shelfSelectedIndex, setShelfSelectedIndex] = useState<number>(0);
@@ -105,12 +125,81 @@ export const SuperNotch: React.FC = () => {
   const [noteSavedFeedback, setNoteSavedFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const shelfScrollRef = useRef<HTMLDivElement>(null);
+  const searchListScrollRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openedAtRef = useRef<number>(0);
+  const isDraggingRef = useRef(false);
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
+  const showStatus = useCallback((msg: string) => {
+    setStatusFeedback(msg);
+    setTimeout(() => setStatusFeedback(null), 2000);
+  }, []);
+
   const triggerNoteSavedAnimation = useCallback((msg: string = 'Saved to Notes') => {
     setNoteSavedFeedback(msg);
     setTimeout(() => {
       setNoteSavedFeedback(null);
     }, 2200);
   }, []);
+
+  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets') => {
+    if (view === 'search') {
+      return { width: 860, height: 410 };
+    }
+    return { width: 860, height: 260 };
+  }, []);
+
+  const closeShelf = useCallback(() => {
+    setSuperNotchMode('idle');
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      invoke('set_notch_expanded', {
+        expanded: false,
+        width: 160,
+        height: 28,
+      }).catch(() => {});
+    }, 250);
+  }, [setSuperNotchMode]);
+
+  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets') => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+
+    openedAtRef.current = Date.now();
+    const view = targetView || superNotchHudView;
+    if (targetView) {
+      setSuperNotchHudView(targetView);
+    }
+    const dims = getExpandedDimensions(view);
+
+    invoke('set_notch_expanded', {
+      expanded: true,
+      width: dims.width,
+      height: dims.height,
+    }).catch(() => {});
+
+    setSuperNotchMode('shelf');
+    getCurrentWindow().setFocus().catch(() => {});
+
+    const focusSearch = () => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    };
+    setTimeout(focusSearch, 50);
+    setTimeout(focusSearch, 150);
+    setTimeout(focusSearch, 280);
+  }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView, setSuperNotchHudView]);
 
   // In-Place /prompt & /fix live match (direct to chat box, zero friction)
   const promptLiveMatch = useMemo(() => {
@@ -162,6 +251,104 @@ export const SuperNotch: React.FC = () => {
     return { type: 'palette' as const, colors: unique };
   }, [clipboardSearchQuery, clipboardItems]);
 
+  const [inspectedWebData, setInspectedWebData] = useState<WebInspectionResult | null>(null);
+  const [isInspectingWeb, setIsInspectingWeb] = useState(false);
+  const [webInspectorTab, setWebInspectorTab] = useState<'palette' | 'media' | 'fonts' | 'meta'>('palette');
+
+  // /inspect & /web Live Match (DOM & design asset extractor)
+  const inspectLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    const match = query.match(/^\/(?:inspect|web|assets)\s+(.+)$/i);
+    if (!match) return null;
+    return { url: match[1].trim() };
+  }, [clipboardSearchQuery]);
+
+  const handleRunWebInspection = useCallback(async (url: string) => {
+    setIsInspectingWeb(true);
+    try {
+      const res = await invoke<WebInspectionResult>('inspect_website', { url });
+      setInspectedWebData(res);
+      showStatus(`Extracted ${res.total_assets_count} web assets`);
+    } catch (e) {
+      showStatus(`Failed to inspect website: ${e}`);
+    } finally {
+      setIsInspectingWeb(false);
+    }
+  }, [showStatus]);
+
+  // Ambient Meeting & Lecture Scribe (/meeting or /listen)
+  const [isMeetingScribeActive, setIsMeetingScribeActive] = useState(false);
+  const [meetingStartTime, setMeetingStartTime] = useState<number>(0);
+  const [meetingNoteId, setMeetingNoteId] = useState<string | null>(null);
+  const [meetingElapsedSecs, setMeetingElapsedSecs] = useState<number>(0);
+
+  const isMeetingScribeActiveRef = useRef(false);
+  const meetingNoteIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    isMeetingScribeActiveRef.current = isMeetingScribeActive;
+  }, [isMeetingScribeActive]);
+
+  useEffect(() => {
+    meetingNoteIdRef.current = meetingNoteId;
+  }, [meetingNoteId]);
+
+  useEffect(() => {
+    if (!isMeetingScribeActive) return;
+    const interval = setInterval(() => {
+      setMeetingElapsedSecs(Math.floor((Date.now() - meetingStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isMeetingScribeActive, meetingStartTime]);
+
+  const meetingLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    if (!query.toLowerCase().startsWith('/meeting') && !query.toLowerCase().startsWith('/listen')) return null;
+    const match = query.match(/^\/(?:meeting|listen)(?:\s+(.*))?$/i);
+    return {
+      arg: match ? match[1]?.trim() : '',
+    };
+  }, [clipboardSearchQuery]);
+
+  const handleToggleMeetingScribe = useCallback(async () => {
+    if (isMeetingScribeActiveRef.current) {
+      setIsMeetingScribeActive(false);
+      isMeetingScribeActiveRef.current = false;
+      try {
+        await invoke('stop_recording');
+      } catch {}
+      setIsRecording(false);
+      showStatus('Meeting scribe completed & saved to Notes!');
+      triggerNoteSavedAnimation('Meeting Saved');
+    } else {
+      try {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const title = `Meeting • ${dateStr} at ${timeStr}`;
+        const saved = await invoke<NoteItem>('save_note', {
+          title,
+          content: `### 🎙️ Ambient Meeting Transcript\n**Started:** ${timeStr} • ${dateStr}\n\n---\n`,
+          tags: ['meeting', 'scribe'],
+        });
+        setMeetingNoteId(saved.id);
+        meetingNoteIdRef.current = saved.id;
+        addNote(saved);
+        setIsMeetingScribeActive(true);
+        isMeetingScribeActiveRef.current = true;
+        setMeetingStartTime(Date.now());
+        setMeetingElapsedSecs(0);
+        showStatus('Ambient Meeting Scribe Started');
+        closeShelf();
+        await invoke('start_meeting_recording');
+        setIsRecording(true);
+      } catch (e) {
+        console.error('Failed to start meeting scribe', e);
+        showStatus('Failed to start meeting scribe');
+      }
+    }
+  }, [addNote, closeShelf, showStatus, triggerNoteSavedAnimation, setIsRecording]);
+
   const loadExtensions = useCallback(async () => {
     try {
       const list = await invoke<UserExtension[]>('load_user_extensions');
@@ -196,13 +383,6 @@ export const SuperNotch: React.FC = () => {
     };
   }, [clipboardSearchQuery]);
 
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const shelfScrollRef = useRef<HTMLDivElement>(null);
-  const searchListScrollRef = useRef<HTMLDivElement>(null);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const openedAtRef = useRef<number>(0);
-  const isDraggingRef = useRef(false);
-
   const activeMode = isRecording ? 'recording' : superNotchMode;
 
   // Active Focus Timer Interval
@@ -213,73 +393,6 @@ export const SuperNotch: React.FC = () => {
     }, 1000);
     return () => clearInterval(interval);
   }, [focusTimerRunning, tickFocusTimer]);
-
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
-
-  const showStatus = (msg: string) => {
-    setStatusFeedback(msg);
-    setTimeout(() => setStatusFeedback(null), 2000);
-  };
-
-  // Target window dimensions for each state:
-  // All standard tabs (shelf, widgets, and new tabs) have the EXACT same height (260px).
-  // Only the Extensions tab ('search') expands to 410px to accommodate the command palette list.
-  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets') => {
-    if (view === 'search') {
-      return { width: 860, height: 410 };
-    }
-    return { width: 860, height: 260 };
-  }, []);
-
-  // Smooth shelf open: expand window first, then animate container
-  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets') => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-
-    openedAtRef.current = Date.now();
-    const view = targetView || superNotchHudView;
-    if (targetView) {
-      setSuperNotchHudView(targetView);
-    }
-    const dims = getExpandedDimensions(view);
-
-    invoke('set_notch_expanded', {
-      expanded: true,
-      width: dims.width,
-      height: dims.height,
-    }).catch(() => {});
-
-    setSuperNotchMode('shelf');
-    getCurrentWindow().setFocus().catch(() => {});
-
-    const focusSearch = () => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    };
-    setTimeout(focusSearch, 50);
-    setTimeout(focusSearch, 150);
-    setTimeout(focusSearch, 280);
-  }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView, setSuperNotchHudView]);
-
-  // Smooth shelf close: animate container collapse first, then shrink window
-  const closeShelf = useCallback(() => {
-    setSuperNotchMode('idle');
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    closeTimerRef.current = setTimeout(() => {
-      invoke('set_notch_expanded', {
-        expanded: false,
-        width: 160,
-        height: 28,
-      }).catch(() => {});
-    }, 250);
-  }, [setSuperNotchMode]);
 
   const handleCopyCalcResult = useCallback(async () => {
     if (!quickCalcMatch) return;
@@ -320,15 +433,60 @@ export const SuperNotch: React.FC = () => {
   );
 
   useEffect(() => {
-    const unlisten = listen('dopenotch://trigger-voice-note', async () => {
+    const unlistenSaved = listen<string>('dopenotch://note-saved', (event) => {
+      const label = event.payload || 'Saved to Notes';
+      triggerNoteSavedAnimation(label);
+      invoke<NoteItem[]>('get_notes')
+        .then((loaded) => {
+          if (Array.isArray(loaded)) setNotes(loaded);
+        })
+        .catch(() => {});
+    });
+
+    const unlistenChunk = listen<string>('dopenotch://meeting-chunk', async (event) => {
+      const chunkText = event.payload?.trim();
+      if (!chunkText || !meetingNoteIdRef.current) return;
+
       try {
-        await invoke('toggle_recording');
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const allNotes = await invoke<NoteItem[]>('get_notes');
+        const target = allNotes.find((n) => n.id === meetingNoteIdRef.current);
+        const baseContent = target?.content || '### 🎙️ Ambient Meeting Transcript\n';
+        const updated = await invoke<NoteItem>('update_note', {
+          id: meetingNoteIdRef.current,
+          content: `${baseContent}\n**[${timestamp}]** ${chunkText}\n`,
+        });
+        updateNote(meetingNoteIdRef.current, { content: updated.content, updated_at: updated.updated_at });
+        triggerNoteSavedAnimation('Transcript Added');
+
+        // Continuous chunking loop if meeting is still active
+        if (isMeetingScribeActiveRef.current) {
+          setTimeout(async () => {
+            if (isMeetingScribeActiveRef.current) {
+              try {
+                await invoke('start_meeting_recording');
+                setIsRecording(true);
+              } catch {}
+            }
+          }, 400);
+        }
+      } catch (e) {
+        console.error('Failed to append meeting chunk', e);
+      }
+    });
+
+    const unlistenVoice = listen('dopenotch://trigger-voice-note', async () => {
+      try {
+        await invoke('toggle_voice_note');
       } catch {}
     });
+
     return () => {
-      unlisten.then((f) => f());
+      unlistenSaved.then((f) => f());
+      unlistenChunk.then((f) => f());
+      unlistenVoice.then((f) => f());
     };
-  }, []);
+  }, [triggerNoteSavedAnimation, setNotes, updateNote, setIsRecording]);
 
   // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
   const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
@@ -501,6 +659,68 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-meeting',
+      command: '/meeting',
+      title: 'Ambient Meeting & Lecture Scribe',
+      subtitle: isMeetingScribeActive
+        ? `Stop active meeting scribe session (${formatTime(meetingElapsedSecs)})`
+        : 'Continuous background transcription logged directly to Notes (/listen)',
+      icon: Radio,
+      action: () => {
+        handleToggleMeetingScribe();
+      },
+    },
+    {
+      id: 'cmd-inspect',
+      command: '/inspect',
+      title: 'Web Asset & Palette Inspector',
+      subtitle: 'Extract colors, SVGs, images, typography & OpenGraph metadata (/web <url>)',
+      icon: Globe,
+      action: () => {
+        setClipboardSearchQuery('/inspect ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-checklist',
+      command: '/checklist',
+      title: 'Markdown Checklist Generator',
+      subtitle: 'Convert unstructured thoughts or copied text into interactive - [ ] tasks (/todo)',
+      icon: CheckSquare,
+      action: () => {
+        setClipboardSearchQuery('/checklist ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-emoji',
+      command: '/emoji',
+      title: 'Developer Glyphs & Unicode Finder',
+      subtitle: 'Instant offline finder for arrows, math symbols, macOS keys & emojis (/symbol)',
+      icon: Smile,
+      action: () => {
+        setClipboardSearchQuery('/emoji ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-notes',
+      command: '/notes',
+      title: 'Voice Notes & Task Lists',
+      subtitle: 'Open Notes tab in DopeNotch dashboard • Global hotkey: ⌥N',
+      icon: FileText,
+      action: () => {
+        setActiveTab('notes');
+        handleOpenDashboard();
+      },
+    },
+    {
       id: 'cmd-extensions',
       command: '/extensions',
       title: 'Open Extensions Folder',
@@ -634,7 +854,7 @@ export const SuperNotch: React.FC = () => {
         }
       },
     })),
-  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer]);
+  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer, isMeetingScribeActive, meetingElapsedSecs, handleToggleMeetingScribe, setActiveTab]);
 
   // Combined fast search results
   const searchResults = useMemo(() => {
@@ -837,6 +1057,14 @@ export const SuperNotch: React.FC = () => {
           }
         } else if (e.key === 'Enter') {
           e.preventDefault();
+          if (inspectLiveMatch) {
+            handleRunWebInspection(inspectLiveMatch.url);
+            return;
+          }
+          if (meetingLiveMatch) {
+            handleToggleMeetingScribe();
+            return;
+          }
           if (checklistLiveMatch) {
             handlePaste(checklistLiveMatch.checklist);
             return;
@@ -943,6 +1171,10 @@ export const SuperNotch: React.FC = () => {
       ? 220
       : noteSavedFeedback
       ? 200
+      : isMeetingScribeActive
+      ? 190
+      : inspectedWebData
+      ? 180
       : 160;
 
   const targetHeight =
@@ -1095,6 +1327,31 @@ export const SuperNotch: React.FC = () => {
                   <span className="text-[10px] font-sans font-semibold tracking-tight text-white flex items-center gap-1">
                     {noteSavedFeedback}
                     <Sparkles className="w-2.5 h-2.5 text-amber-400 fill-amber-400/50" />
+                  </span>
+                </div>
+              ) : isMeetingScribeActive ? (
+                <div className="flex items-center justify-center gap-1.5 text-emerald-400">
+                  <div className="relative w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                    <span className="absolute inset-0 rounded-full bg-emerald-400/40 animate-ping opacity-60" />
+                    <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  </div>
+                  <span className="font-mono text-[10.5px] font-bold text-emerald-300 tracking-wider">
+                    REC {formatTime(meetingElapsedSecs)}
+                  </span>
+                </div>
+              ) : inspectedWebData ? (
+                <div
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openShelf('search');
+                    setClipboardSearchQuery('/inspect ');
+                  }}
+                  className="flex items-center justify-center gap-1.5 text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer"
+                  title={`${inspectedWebData.total_assets_count} extracted assets (Click to view)`}
+                >
+                  <Globe className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                  <span className="font-mono text-[10.5px] font-bold tracking-tight text-white">
+                    {inspectedWebData.total_assets_count} Assets
                   </span>
                 </div>
               ) : focusTimerRunning ? (
@@ -1814,6 +2071,213 @@ export const SuperNotch: React.FC = () => {
                                 </span>
                               </button>
                             ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Ambient Meeting Scribe Live Card */}
+                    {(meetingLiveMatch || isMeetingScribeActive) && (
+                      <div className="mb-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                            <Radio className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-white tracking-tight">
+                                Ambient Meeting & Lecture Scribe
+                              </span>
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 uppercase font-semibold">
+                                {isMeetingScribeActive ? `Active (${formatTime(meetingElapsedSecs)})` : 'Standby'}
+                              </span>
+                            </div>
+                            <p className="text-[10.5px] text-zinc-400 font-mono mt-0.5">
+                              {isMeetingScribeActive
+                                ? 'Continuous background chunking • Transcripts auto-logged into Notes'
+                                : 'Transcribes Zoom, lectures, or ambient discussions directly to Notes'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleToggleMeetingScribe}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                            isMeetingScribeActive
+                              ? 'bg-red-500 hover:bg-red-400 text-white'
+                              : 'bg-emerald-500 hover:bg-emerald-400 text-black'
+                          }`}
+                        >
+                          {isMeetingScribeActive ? (
+                            <>
+                              <Pause className="w-3.5 h-3.5" />
+                              <span>Stop Scribe</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3.5 h-3.5" />
+                              <span>Start Scribe ↵</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Web Asset & Palette Inspector Live Card */}
+                    {(inspectLiveMatch || inspectedWebData) && (
+                      <div className="mb-2 p-3 rounded-xl bg-white/[0.06] border border-cyan-500/25 flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Globe className="w-4 h-4 text-cyan-400" />
+                            <span className="text-xs font-semibold text-white font-mono">
+                              Web Asset & Palette Inspector
+                            </span>
+                            {inspectedWebData && (
+                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold">
+                                {inspectedWebData.total_assets_count} Items
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {inspectLiveMatch && !isInspectingWeb && (
+                              <button
+                                type="button"
+                                onClick={() => handleRunWebInspection(inspectLiveMatch.url)}
+                                className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-semibold flex items-center gap-1 transition-all"
+                              >
+                                <Search className="w-3 h-3" />
+                                <span>Inspect ↵</span>
+                              </button>
+                            )}
+                            {inspectedWebData && (
+                              <button
+                                type="button"
+                                onClick={() => setInspectedWebData(null)}
+                                className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {isInspectingWeb ? (
+                          <div className="p-4 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-center gap-2 text-xs font-mono text-cyan-300">
+                            <span className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                            <span>Scraping DOM colors, SVGs, images & OpenGraph tags...</span>
+                          </div>
+                        ) : inspectedWebData ? (
+                          <div className="space-y-2">
+                            {/* Tab switcher */}
+                            <div className="flex items-center gap-1 border-b border-white/[0.08] pb-1.5">
+                              {[
+                                { id: 'palette', label: `Palette (${inspectedWebData.colors.length})`, icon: Palette },
+                                { id: 'media', label: `SVGs & Images (${inspectedWebData.svgs.length + inspectedWebData.images.length})`, icon: Layers },
+                                { id: 'fonts', label: `Typography (${inspectedWebData.fonts.length})`, icon: Type },
+                                { id: 'meta', label: 'Meta & OG', icon: ExternalLink },
+                              ].map((tab) => {
+                                const Icon = tab.icon;
+                                const isTabActive = webInspectorTab === tab.id;
+                                return (
+                                  <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setWebInspectorTab(tab.id as any)}
+                                    className={`px-2.5 py-1 rounded-md text-[11px] font-mono flex items-center gap-1.5 transition-all ${
+                                      isTabActive
+                                        ? 'bg-cyan-500/20 text-cyan-300 font-semibold'
+                                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
+                                    }`}
+                                  >
+                                    <Icon className="w-3 h-3" />
+                                    <span>{tab.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Tab 1: Palette */}
+                            {webInspectorTab === 'palette' && (
+                              <div className="flex items-center gap-2 overflow-x-auto py-1 custom-slim-scrollbar">
+                                {inspectedWebData.colors.length === 0 ? (
+                                  <span className="text-[11px] font-mono text-zinc-500">No color swatches extracted</span>
+                                ) : (
+                                  inspectedWebData.colors.map((c, i) => (
+                                    <button
+                                      key={i}
+                                      type="button"
+                                      onClick={() => handlePaste(c)}
+                                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/40 hover:bg-white/10 border border-white/10 transition-all shrink-0 cursor-pointer group"
+                                    >
+                                      <span
+                                        className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
+                                        style={{ backgroundColor: c }}
+                                      />
+                                      <span className="text-[11px] font-mono text-zinc-300 group-hover:text-white">
+                                        {c}
+                                      </span>
+                                    </button>
+                                  ))
+                                )}
+                              </div>
+                            )}
+
+                            {/* Tab 2: Media & SVGs */}
+                            {webInspectorTab === 'media' && (
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto custom-slim-scrollbar p-1">
+                                {inspectedWebData.images.concat(inspectedWebData.svgs).slice(0, 10).map((img, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex items-center justify-between p-1.5 rounded-lg bg-black/40 border border-white/[0.06] text-xs font-mono"
+                                  >
+                                    <span className="text-zinc-300 truncate max-w-[420px]">{img}</span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePaste(img)}
+                                        className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] text-white"
+                                      >
+                                        Copy URL
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Tab 3: Typography */}
+                            {webInspectorTab === 'fonts' && (
+                              <div className="flex flex-wrap gap-1.5 p-1">
+                                {inspectedWebData.fonts.length === 0 ? (
+                                  <span className="text-[11px] font-mono text-zinc-500">No custom fonts detected</span>
+                                ) : (
+                                  inspectedWebData.fonts.map((f, i) => (
+                                    <span
+                                      key={i}
+                                      onClick={() => handlePaste(f)}
+                                      className="px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 text-[11px] font-mono text-zinc-300 hover:text-white cursor-pointer hover:border-cyan-500/40"
+                                    >
+                                      {f}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            )}
+
+                            {/* Tab 4: Meta */}
+                            {webInspectorTab === 'meta' && (
+                              <div className="p-2 rounded-lg bg-black/40 border border-white/[0.06] space-y-1 text-xs">
+                                <div className="font-semibold text-white truncate">{inspectedWebData.title || 'No Title'}</div>
+                                <div className="text-zinc-400 text-[11px] line-clamp-2">{inspectedWebData.description || 'No description meta tag'}</div>
+                                <div className="text-cyan-400 font-mono text-[10px] truncate">{inspectedWebData.url}</div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="p-2 rounded-lg bg-black/40 border border-white/[0.06] text-xs font-mono text-zinc-400">
+                            Type <span className="text-cyan-300 font-bold">/inspect &lt;url&gt;</span> (e.g. /inspect https://linear.app) and press ↵ to extract design assets.
                           </div>
                         )}
                       </div>
