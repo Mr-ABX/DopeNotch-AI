@@ -163,6 +163,8 @@ pub fn run() {
             commands::open_ruler,
             commands::close_ruler,
             commands::toggle_ruler,
+            commands::open_loupe,
+            commands::close_loupe,
             commands::check_system_permissions,
             commands::request_system_permissions,
             commands::get_system_vitals,

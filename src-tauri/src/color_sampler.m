@@ -396,3 +396,27 @@ char* check_grammar_native(const char *input_text) {
     }
 }
 
+char* capture_screen_as_base64(void) {
+    @autoreleasepool {
+        NSString *tempPath = [NSTemporaryDirectory() stringByAppendingPathComponent:@"dopenotch_loupe_frame.jpg"];
+        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+        
+        NSTask *task = [[NSTask alloc] init];
+        [task setLaunchPath:@"/usr/sbin/screencapture"];
+        [task setArguments:@[@"-x", @"-t", @"jpg", tempPath]];
+        [task launch];
+        [task waitUntilExit];
+        
+        NSData *data = [NSData dataWithContentsOfFile:tempPath];
+        [[NSFileManager defaultManager] removeItemAtPath:tempPath error:nil];
+        if (!data || [data length] == 0) return NULL;
+        
+        NSString *b64 = [data base64EncodedStringWithOptions:0];
+        if (!b64) return NULL;
+        
+        NSString *dataUrl = [NSString stringWithFormat:@"data:image/jpeg;base64,%@", b64];
+        return strdup([dataUrl UTF8String]);
+    }
+}
+
+

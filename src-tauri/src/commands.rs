@@ -752,6 +752,7 @@ extern "C" {
     );
     fn perform_screen_ocr() -> *mut std::os::raw::c_char;
     fn check_grammar_native(input: *const std::os::raw::c_char) -> *mut std::os::raw::c_char;
+    fn capture_screen_as_base64() -> *mut std::os::raw::c_char;
     fn free_c_string(ptr: *mut std::os::raw::c_char);
 }
 
@@ -1218,6 +1219,37 @@ pub async fn close_ruler(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn toggle_ruler(app: AppHandle) -> Result<(), String> {
     overlay::toggle_ruler_overlay(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn open_loupe(app: AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::ffi::CStr;
+        let b64_ptr = unsafe { capture_screen_as_base64() };
+        let data_url = if !b64_ptr.is_null() {
+            let s = unsafe { CStr::from_ptr(b64_ptr).to_string_lossy().into_owned() };
+            unsafe { free_c_string(b64_ptr) };
+            s
+        } else {
+            String::new()
+        };
+
+        overlay::show_ruler_overlay(&app);
+        let _ = app.emit("dopenotch://activate-loupe", data_url);
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Screen Loupe is currently supported on macOS".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn close_loupe(app: AppHandle) -> Result<(), String> {
+    overlay::hide_ruler_overlay(&app);
+    let _ = app.emit("dopenotch://deactivate-loupe", ());
     Ok(())
 }
 

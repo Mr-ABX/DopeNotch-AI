@@ -3,9 +3,12 @@ import { AnimatePresence } from 'framer-motion';
 import { Dashboard } from './components/layout/Dashboard';
 import { SuperNotch } from './components/overlay/SuperNotch';
 import { PixelRulerOverlay } from './components/overlay/PixelRulerOverlay';
+import { ScreenLoupeOverlay } from './components/overlay/ScreenLoupeOverlay';
 import { TrayMenu } from './components/TrayMenu';
 import { useLiquidSync } from './hooks/useLiquidSync';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 
 // Determine which view to show based on window label
 const windowLabel = getCurrentWindow().label;
@@ -19,6 +22,29 @@ function App() {
     windowLabel === 'tray' ? 'tray' :
     'dashboard'
   );
+
+  const [overlayTool, setOverlayTool] = useState<'ruler' | 'loupe'>('ruler');
+  const [loupeScreenshot, setLoupeScreenshot] = useState<string>('');
+
+  useEffect(() => {
+    if (view !== 'ruler') return;
+
+    const unlistenLoupe = listen<string>('dopenotch://activate-loupe', (event) => {
+      setOverlayTool('loupe');
+      if (event.payload) {
+        setLoupeScreenshot(event.payload);
+      }
+    });
+
+    const unlistenRuler = listen('dopenotch://ruler-activated', () => {
+      setOverlayTool('ruler');
+    });
+
+    return () => {
+      unlistenLoupe.then((f) => f());
+      unlistenRuler.then((f) => f());
+    };
+  }, [view]);
 
   // Global scroll listener: shows sleek scrollbar only while actively scrolling
   useEffect(() => {
@@ -51,6 +77,14 @@ function App() {
   }
 
   if (view === 'ruler') {
+    if (overlayTool === 'loupe') {
+      return (
+        <ScreenLoupeOverlay
+          screenshotUrl={loupeScreenshot}
+          onClose={() => invoke('close_loupe')}
+        />
+      );
+    }
     return <PixelRulerOverlay />;
   }
 

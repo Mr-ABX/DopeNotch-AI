@@ -22,7 +22,6 @@ import {
   Calculator,
   Wand2,
   Terminal,
-  RefreshCw,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -34,6 +33,7 @@ import {
 } from '../../stores/appStore';
 import { WidgetsView } from './WidgetsView';
 import { evaluateQuickCalc } from '../../services/quickCalc';
+import { polishTextForChat } from '../../services/quickPrompt';
 
 interface UserExtension {
   id: string;
@@ -72,12 +72,18 @@ export const SuperNotch: React.FC = () => {
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
 
-  // AI & Grammar Polish Studio State
-  const [isPromptStudioOpen, setIsPromptStudioOpen] = useState<boolean>(false);
-  const [promptText, setPromptText] = useState<string>('');
-  const [promptResult, setPromptResult] = useState<string>('');
-  const [promptAnalysis, setPromptAnalysis] = useState<string | null>(null);
-  const [isProcessingPrompt, setIsProcessingPrompt] = useState<boolean>(false);
+  // In-Place /prompt & /fix live match (direct to chat box, zero friction)
+  const promptLiveMatch = useMemo(() => {
+    const query = clipboardSearchQuery.trim();
+    const match = query.match(/^\/(?:prompt|fix|grammar)\s+(.+)$/i);
+    if (!match) return null;
+    const rawText = match[1];
+    const polished = polishTextForChat(rawText);
+    return {
+      raw: rawText,
+      polished,
+    };
+  }, [clipboardSearchQuery]);
 
   const loadExtensions = useCallback(async () => {
     try {
@@ -155,7 +161,6 @@ export const SuperNotch: React.FC = () => {
   // Smooth shelf close: animate container collapse first, then shrink window
   const closeShelf = useCallback(() => {
     setSuperNotchMode('idle');
-    setIsPromptStudioOpen(false);
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
       invoke('set_notch_expanded', {
@@ -178,9 +183,6 @@ export const SuperNotch: React.FC = () => {
 
   // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
   const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
-    if (newView !== 'search') {
-      setIsPromptStudioOpen(false);
-    }
     setSuperNotchHudView(newView);
     const dims = getExpandedDimensions(newView);
     invoke('set_notch_expanded', {
@@ -232,153 +234,34 @@ export const SuperNotch: React.FC = () => {
     closeShelf();
   };
 
-  // AI & Grammar Polish Studio Handlers
-  const openPromptStudio = useCallback((initialText?: string) => {
-    let textToUse = initialText;
-    if (textToUse === undefined) {
-      const latestClip = clipboardItems.find(
-        (i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation'
-      );
-      textToUse = latestClip ? latestClip.content : promptText || '';
-    }
-    setPromptText(textToUse);
-    setPromptResult('');
-    setPromptAnalysis(null);
-    setIsPromptStudioOpen(true);
-    setSuperNotchHudView('search');
-    invoke('set_notch_expanded', {
-      expanded: true,
-      width: 860,
-      height: 410,
-    }).catch(() => {});
-  }, [clipboardItems, promptText, setSuperNotchHudView]);
-
-  const closePromptStudio = useCallback(() => {
-    setIsPromptStudioOpen(false);
-  }, []);
-
-  const runGrammarCheck = useCallback(async () => {
-    if (!promptText.trim()) {
-      showStatus('Please enter text to check');
-      return;
-    }
-    setIsProcessingPrompt(true);
+  // Instant In-Place Chat Text & Grammar Polish Handler (Zero friction, auto-pastes to chat)
+  const handleInstantPromptPolish = useCallback(async (sourceText?: string) => {
     try {
-      const res = await invoke<string>('check_text_grammar', { text: promptText });
-      setPromptAnalysis(res);
-      showStatus('Grammar check completed');
+      let text = sourceText;
+      if (!text) {
+        try {
+          const cb = await navigator.clipboard.readText();
+          if (cb && cb.trim()) text = cb.trim();
+        } catch {}
+      }
+      if (!text) {
+        const latestClip = clipboardItems.find(
+          (i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation'
+        );
+        if (latestClip) text = latestClip.content;
+      }
+      if (!text || !text.trim()) {
+        showStatus('Copy text first or type /prompt <text>');
+        return;
+      }
+      const polished = polishTextForChat(text);
+      closeShelf();
+      await invoke('paste_text_direct', { text: polished });
+      showStatus('Fixed & pasted to chat!');
     } catch (e: any) {
-      setPromptAnalysis(`Error: ${e?.toString() || 'Grammar check failed'}`);
-    } finally {
-      setIsProcessingPrompt(false);
+      showStatus(e?.toString() || 'Polish failed');
     }
-  }, [promptText]);
-
-  const runProfessionalRewrite = useCallback(() => {
-    if (!promptText.trim()) return;
-    let text = promptText.trim();
-    text = text.replace(/[ \t]+/g, ' ');
-    text = text.replace(/\s+([.,!?;:])/g, '$1');
-    text = text.replace(/(^\s*|\.\s+|\?\s+|!\s+)([a-z])/g, (_, p1, p2) => p1 + p2.toUpperCase());
-    const fixes: Record<string, string> = {
-      teh: 'the',
-      recieve: 'receive',
-      seperate: 'separate',
-      definately: 'definitely',
-      occured: 'occurred',
-      untill: 'until',
-      alot: 'a lot',
-      dont: "don't",
-      cant: "can't",
-      wont: "won't",
-      didnt: "didn't",
-      isnt: "isn't",
-      arent: "aren't",
-      im: "I'm",
-      ive: "I've",
-      id: "I'd",
-    };
-    for (const [bad, good] of Object.entries(fixes)) {
-      text = text.replace(new RegExp(`\\b${bad}\\b`, 'gi'), (match) => {
-        if (match[0] === match[0].toUpperCase()) {
-          return good.charAt(0).toUpperCase() + good.slice(1);
-        }
-        return good;
-      });
-    }
-    setPromptResult(text);
-    setPromptAnalysis('Applied professional tone, casing, and punctuation fixes');
-    showStatus('Polished text');
-  }, [promptText]);
-
-  const runCleanText = useCallback(() => {
-    if (!promptText) return;
-    const text = promptText
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2013\u2014]/g, '-')
-      .replace(/\r\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .split('\n')
-      .map((line) => line.trimEnd())
-      .join('\n')
-      .trim();
-    setPromptResult(text);
-    setPromptAnalysis('Normalized whitespace, line breaks, and smart quotes');
-    showStatus('Cleaned text');
-  }, [promptText]);
-
-  const runPrettifyJson = useCallback(() => {
-    if (!promptText.trim()) return;
-    try {
-      const parsed = JSON.parse(promptText);
-      const formatted = JSON.stringify(parsed, null, 2);
-      setPromptResult(formatted);
-      setPromptAnalysis('Valid JSON syntax (formatted with 2 spaces)');
-      showStatus('Prettified JSON');
-    } catch (e: any) {
-      setPromptAnalysis(`JSON Parse Error: ${e?.message || 'Invalid JSON'}`);
-      showStatus('Invalid JSON');
-    }
-  }, [promptText]);
-
-  const runTitleCase = useCallback(() => {
-    if (!promptText.trim()) return;
-    const smallWords = /^(a|an|and|as|at|but|by|en|for|if|in|nor|of|on|or|per|the|to|v.?|vs.?|via)$/i;
-    const text = promptText
-      .toLowerCase()
-      .split(' ')
-      .map((word, i, arr) => {
-        if (i > 0 && i < arr.length - 1 && smallWords.test(word)) {
-          return word;
-        }
-        return word.charAt(0).toUpperCase() + word.slice(1);
-      })
-      .join(' ');
-    setPromptResult(text);
-    setPromptAnalysis('Converted all words to Title Case');
-    showStatus('Converted to Title Case');
-  }, [promptText]);
-
-  const handleAutoPastePrompt = useCallback(async () => {
-    const textToPaste = promptResult || promptText;
-    if (!textToPaste) return;
-    try {
-      await invoke('paste_text_direct', { text: textToPaste });
-    } catch {
-      await navigator.clipboard.writeText(textToPaste);
-    }
-    showStatus('Pasted to active app!');
-    setIsPromptStudioOpen(false);
-    closeShelf();
-  }, [promptResult, promptText, closeShelf]);
-
-  const handleCopyPrompt = useCallback(async () => {
-    const textToCopy = promptResult || promptText;
-    if (!textToCopy) return;
-    await navigator.clipboard.writeText(textToCopy);
-    showStatus('Copied to clipboard!');
-  }, [promptResult, promptText]);
+  }, [clipboardItems, closeShelf]);
 
   // Built-in Extensions & Tools
   const toolCommands = useMemo(() => [
@@ -407,19 +290,13 @@ export const SuperNotch: React.FC = () => {
       id: 'cmd-loupe',
       command: '/loupe',
       title: 'Screen Zoom Loupe',
-      subtitle: '2x–8x magnification loupe to inspect UI layout & typography',
+      subtitle: 'Pinch-to-zoom (1.5x–8x) lens with live RGB & HEX sampler',
       icon: ZoomIn,
-      action: async () => {
-        try {
-          showStatus('Pixel Loupe Active...');
-          closeShelf();
-          const hex = await invoke<string>('pick_screen_color');
-          if (hex) {
-            showStatus(`Sampled ${hex}`);
-          }
-        } catch (e: any) {
-          showStatus(e?.toString() || 'Loupe cancelled');
-        }
+      action: () => {
+        closeShelf();
+        setTimeout(() => {
+          invoke('open_loupe').catch(() => {});
+        }, 120);
       },
     },
     {
@@ -438,30 +315,24 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'cmd-prompt',
       command: '/prompt',
-      title: 'AI Quick Action Templates & Grammar Polish',
-      subtitle: 'Free on-device grammar check & smart text actions studio',
+      title: 'Instant Fix & Paste to Chat',
+      subtitle: 'Auto-corrects typos & grammar, then pastes directly into active chat',
       icon: Wand2,
       action: () => {
-        openPromptStudio();
+        handleInstantPromptPolish();
       },
     },
     {
       id: 'cmd-color',
       command: '/color',
       title: 'Screen Color Eyedropper',
-      subtitle: 'Native macOS pixel magnifying loupe • copies hex',
+      subtitle: 'Zoom loupe eyedropper • copies hex & adds to shelf',
       icon: Pipette,
-      action: async () => {
-        try {
-          showStatus('Pixel Loupe Active...');
-          closeShelf();
-          const hex = await invoke<string>('pick_screen_color');
-          if (hex) {
-            showStatus(`Sampled ${hex}`);
-          }
-        } catch (e: any) {
-          showStatus(e?.toString() || 'Picker cancelled');
-        }
+      action: () => {
+        closeShelf();
+        setTimeout(() => {
+          invoke('open_loupe').catch(() => {});
+        }, 120);
       },
     },
     {
@@ -732,20 +603,7 @@ export const SuperNotch: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (isPromptStudioOpen) {
-          setIsPromptStudioOpen(false);
-          return;
-        }
         closeShelf();
-        return;
-      }
-
-      // Inside Prompt Studio: handle Cmd+Enter / Ctrl+Enter to auto-paste without hijacking normal typing
-      if (isPromptStudioOpen) {
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          handleAutoPastePrompt();
-        }
         return;
       }
 
@@ -761,20 +619,28 @@ export const SuperNotch: React.FC = () => {
 
       if (superNotchHudView === 'search') {
         const total = searchResults.commands.length + searchResults.clips.length;
-        if (total === 0) return;
 
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          setSearchSelectedIndex((prev) => (prev + 1) % total);
+          if (total > 0) {
+            setSearchSelectedIndex((prev) => (prev + 1) % total);
+          }
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
-          setSearchSelectedIndex((prev) => (prev - 1 + total) % total);
+          if (total > 0) {
+            setSearchSelectedIndex((prev) => (prev - 1 + total) % total);
+          }
         } else if (e.key === 'Enter') {
           e.preventDefault();
+          if (promptLiveMatch) {
+            handlePaste(promptLiveMatch.polished);
+            return;
+          }
           if (quickCalcMatch) {
             handleCopyCalcResult();
             return;
           }
+          if (total === 0) return;
           if (searchSelectedIndex < searchResults.commands.length) {
             searchResults.commands[searchSelectedIndex].action();
           } else {
@@ -820,11 +686,10 @@ export const SuperNotch: React.FC = () => {
     activeMode,
     closeShelf,
     filteredShelfItems,
-    handleAutoPastePrompt,
     handleCopyCalcResult,
     handlePaste,
     handleToggleView,
-    isPromptStudioOpen,
+    promptLiveMatch,
     quickCalcMatch,
     searchResults,
     searchSelectedIndex,
@@ -1404,257 +1269,47 @@ export const SuperNotch: React.FC = () => {
               {/* ================================================================= */}
               {/* VIEW B: RAYCAST SEARCH VIEW (1:1 with Screenshots 2 & 3)         */}
               {/* ================================================================= */}
+              {/* ================================================================= */}
+              {/* VIEW B: RAYCAST SEARCH VIEW (Clean & Minimal, 0 Clutter)          */}
+              {/* ================================================================= */}
               {superNotchHudView === 'search' && (
-                isPromptStudioOpen ? (
-                  <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
-                    {/* Studio Header Bar */}
-                    <div className="flex items-center justify-between pb-1.5 border-b border-white/[0.08] px-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                          <Wand2 className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-white">AI & Grammar Studio</span>
-                            <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
-                              On-Device • 100% Free
-                            </span>
+                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                  {/* Results List */}
+                  <div
+                    ref={searchListScrollRef}
+                    className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
+                  >
+                    {/* In-Place /prompt & /fix Live Card (Auto-Pastes directly to active chat) */}
+                    {promptLiveMatch && (
+                      <div
+                        onClick={() => handlePaste(promptLiveMatch.polished)}
+                        className="mb-2 p-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/25 transition-all cursor-pointer flex items-center justify-between group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0 text-indigo-400">
+                            <Sparkles className="w-4 h-4" />
                           </div>
-                          <p className="text-[10px] text-zinc-500 font-mono">Native macOS NSSpellChecker • Zero cloud tokens needed</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={closePromptStudio}
-                        className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-white px-2 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] transition-colors cursor-pointer"
-                        title="Back to Extensions List"
-                      >
-                        <span>← Back (Esc)</span>
-                      </button>
-                    </div>
-
-                    {/* Split View: Source Input & Output / Analysis */}
-                    <div className="grid grid-cols-2 gap-2 flex-1 py-1.5 overflow-hidden min-h-0">
-                      {/* Left Side: Source Text Input */}
-                      <div className="flex flex-col bg-[#121215] rounded-xl border border-white/[0.08] p-2 overflow-hidden">
-                        <div className="flex items-center justify-between pb-1 text-[10.5px] text-zinc-400 font-mono">
-                          <span>Source ({promptText.length} chars)</span>
-                          <button
-                            onClick={() => {
-                              const latestClip = clipboardItems.find(
-                                (i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation'
-                              );
-                              if (latestClip) {
-                                setPromptText(latestClip.content);
-                                showStatus('Loaded latest shelf clip');
-                              }
-                            }}
-                            className="text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer"
-                          >
-                            Paste Shelf Clip
-                          </button>
-                        </div>
-                        <textarea
-                          value={promptText}
-                          onChange={(e) => setPromptText(e.target.value)}
-                          placeholder="Type or paste any text, sentence, or JSON here to polish..."
-                          className="w-full flex-1 bg-transparent border-none text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none resize-none font-mono custom-slim-scrollbar leading-relaxed"
-                          autoFocus
-                        />
-                      </div>
-
-                      {/* Right Side: Processed Output & Analysis */}
-                      <div className="flex flex-col bg-[#121215] rounded-xl border border-white/[0.08] p-2 overflow-hidden">
-                        <div className="flex items-center justify-between pb-1 text-[10.5px] text-zinc-400 font-mono">
-                          <span>Result & Suggestions</span>
-                          {promptResult && (
-                            <span className="text-[10px] text-emerald-400 font-medium">Ready</span>
-                          )}
-                        </div>
-                        <div className="flex-1 overflow-y-auto custom-slim-scrollbar text-xs font-mono leading-relaxed select-text pr-1">
-                          {promptResult ? (
-                            <div className="text-white whitespace-pre-wrap">{promptResult}</div>
-                          ) : promptAnalysis ? (
-                            <div className="text-zinc-300 whitespace-pre-wrap p-2 bg-white/[0.03] rounded-lg border border-white/[0.06]">
-                              {promptAnalysis}
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-mono text-zinc-400 flex items-center gap-1.5">
+                              <span>In-Place Polish</span>
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-semibold uppercase">
+                                Auto-Paste
+                              </span>
                             </div>
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center text-zinc-500 gap-1.5 py-6">
-                              <Sparkles className="w-5 h-5 text-zinc-600 mb-0.5" />
-                              <span className="text-[11px] text-zinc-400">Click any action below to polish or check grammar</span>
-                              <span className="text-[10px] text-zinc-600">Uses local macOS spell & syntax intelligence</span>
+                            <div className="text-xs font-semibold text-white truncate mt-0.5">
+                              {promptLiveMatch.polished}
                             </div>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons Toolbar & Auto-Paste */}
-                    <div className="flex items-center justify-between pt-1 border-t border-white/[0.06] gap-2">
-                      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                        <button
-                          onClick={runGrammarCheck}
-                          disabled={isProcessingPrompt || !promptText.trim()}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.08] hover:bg-white/[0.14] text-white disabled:opacity-40 transition-all font-medium cursor-pointer"
-                        >
-                          {isProcessingPrompt ? (
-                            <RefreshCw className="w-3 h-3 animate-spin text-indigo-400" />
-                          ) : (
-                            <ScanText className="w-3 h-3 text-emerald-400" />
-                          )}
-                          <span>Check Grammar</span>
-                        </button>
-
-                        <button
-                          onClick={runProfessionalRewrite}
-                          disabled={!promptText.trim()}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.08] hover:bg-white/[0.14] text-white disabled:opacity-40 transition-all font-medium cursor-pointer"
-                        >
-                          <Sparkles className="w-3 h-3 text-amber-400" />
-                          <span>Professional Polish</span>
-                        </button>
-
-                        <button
-                          onClick={runCleanText}
-                          disabled={!promptText.trim()}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
-                        >
-                          <span>Clean Whitespace</span>
-                        </button>
-
-                        <button
-                          onClick={runPrettifyJson}
-                          disabled={!promptText.trim()}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
-                        >
-                          <Code className="w-3 h-3 text-cyan-400" />
-                          <span>Prettify JSON</span>
-                        </button>
-
-                        <button
-                          onClick={runTitleCase}
-                          disabled={!promptText.trim()}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.05] hover:bg-white/[0.1] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
-                        >
-                          <span>Title Case</span>
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          onClick={handleCopyPrompt}
-                          disabled={!promptResult && !promptText}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.08] hover:bg-white/[0.14] text-zinc-300 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
-                          title="Copy to Clipboard"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy</span>
-                        </button>
-
-                        <button
-                          onClick={handleAutoPastePrompt}
-                          disabled={!promptResult && !promptText}
-                          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] bg-white text-black font-semibold hover:bg-zinc-200 disabled:opacity-40 shadow-sm transition-all cursor-pointer"
-                          title="Auto-Paste directly into your previous active app (Cmd+Enter)"
-                        >
+                        <div className="flex items-center gap-1.5 text-zinc-400 group-hover:text-white transition-colors text-[10px] font-mono shrink-0">
                           <CornerDownLeft className="w-3 h-3" />
-                          <span>Auto-Paste (↵)</span>
-                        </button>
+                          <span>Press ↵ to paste to chat</span>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
-                    {/* Quick Interactive Tool Pills (0 Learning Curve) */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1.5 px-0.5 border-b border-white/[0.05] mb-1">
-                      <button
-                        onClick={() => {
-                          setClipboardSearchQuery('122 usd to eur');
-                          searchInputRef.current?.focus();
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer group"
-                        title="Try Currency Conversion"
-                      >
-                        <span>💵</span>
-                        <span className="font-mono font-medium">122 usd to eur</span>
-                      </button>
+                    )}
 
-                      <button
-                        onClick={() => {
-                          setClipboardSearchQuery('16px to rem');
-                          searchInputRef.current?.focus();
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer group"
-                        title="Try CSS px to rem conversion"
-                      >
-                        <span>📐</span>
-                        <span className="font-mono font-medium">16px to rem</span>
-                      </button>
-
-                      <button
-                        onClick={() => openPromptStudio()}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 hover:text-indigo-200 border border-indigo-500/30 transition-all whitespace-nowrap cursor-pointer font-medium"
-                        title="Open AI & Grammar Studio"
-                      >
-                        <Wand2 className="w-3 h-3 text-indigo-400" />
-                        <span>/prompt Studio</span>
-                      </button>
-
-                      <button
-                        onClick={async () => {
-                          closeShelf();
-                          try {
-                            const text = await invoke<string>('grab_screen_ocr');
-                            if (text && text.trim()) {
-                              showStatus(`OCR: Copied ${text.trim().split(/\s+/).length} words!`);
-                            }
-                          } catch (e: any) {
-                            showStatus(e?.toString() || 'OCR failed');
-                          }
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer"
-                        title="Grab text from screen"
-                      >
-                        <ScanText className="w-3 h-3 text-emerald-400" />
-                        <span>/ocr Grabber</span>
-                      </button>
-
-                      <button
-                        onClick={async () => {
-                          closeShelf();
-                          try {
-                            const hex = await invoke<string>('pick_screen_color');
-                            if (hex) showStatus(`Sampled ${hex}`);
-                          } catch (e: any) {
-                            showStatus(e?.toString() || 'Loupe cancelled');
-                          }
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer"
-                        title="Screen Color Loupe"
-                      >
-                        <Pipette className="w-3 h-3 text-amber-400" />
-                        <span>/loupe Zoom</span>
-                      </button>
-
-                      <button
-                        onClick={() => {
-                          closeShelf();
-                          setTimeout(() => invoke('open_ruler').catch(() => {}), 120);
-                        }}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] bg-white/[0.06] hover:bg-white/[0.12] text-zinc-300 hover:text-white border border-white/[0.08] transition-all whitespace-nowrap cursor-pointer"
-                        title="Pixel Distance Ruler"
-                      >
-                        <Ruler className="w-3 h-3 text-cyan-400" />
-                        <span>/ruler</span>
-                      </button>
-                    </div>
-
-                    {/* Results List */}
-                    <div
-                      ref={searchListScrollRef}
-                      className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[265px]"
-                    >
-                      {/* Quick Calculator / Unit Converter Live Card */}
-                      {quickCalcMatch && (
+                    {/* Quick Calculator / Unit Converter Live Card */}
+                    {quickCalcMatch && (
                         <div
                           onClick={handleCopyCalcResult}
                           className="mb-2 p-2.5 rounded-xl bg-white/[0.08] hover:bg-white/[0.12] border border-white/15 transition-all cursor-pointer flex items-center justify-between group"
@@ -1850,7 +1505,6 @@ export const SuperNotch: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                )
               )}
 
               {/* ================================================================= */}
