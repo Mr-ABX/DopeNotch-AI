@@ -950,6 +950,44 @@ pub async fn load_user_extensions() -> Result<Vec<UserExtension>, String> {
         let _ = std::fs::create_dir_all(&ext_dir);
     }
 
+    let readme_path = ext_dir.join("README.md");
+    if !readme_path.exists() {
+        let readme_content = r#"# DopeNotch Custom Extensions & Scripts
+
+Welcome to your DopeNotch extensions folder! Any script placed here is automatically discovered, indexed, and made executable from the DopeNotch Notch and Command Palette.
+
+## Supported Script Formats
+- **Bash / Shell** (`.sh`, `.bash`, `.zsh`)
+- **Python** (`.py`)
+- **Node.js** (`.js`, `.mjs`)
+- **Folder Extensions** (a subfolder containing a `manifest.json` and entry file)
+
+## Raycast-Compatible Metadata Headers
+Add comments at the top of your script to configure its title, icon, and output mode:
+
+```bash
+#!/bin/bash
+
+# @raycast.schemaVersion 1
+# @raycast.title My Custom Tool
+# @raycast.mode clipboard
+# @raycast.icon 🚀
+# @raycast.description Copies custom generated data to your clipboard
+# @raycast.author YourName
+
+echo "Hello from my custom extension!"
+```
+
+### Modes:
+- `clipboard` (Default): Output of stdout is automatically copied to clipboard and added to your SuPaste shelf history.
+- `silent`: Runs in the background without modifying clipboard.
+
+## How to Trigger
+Drop any script in this folder and press `⇧⌘K` in DopeNotch to see it instantly!
+"#;
+        let _ = std::fs::write(&readme_path, readme_content);
+    }
+
     // Starter Raycast-compatible scripts if folder is newly created
     let sample_sh = ext_dir.join("iso-timestamp.sh");
     if !sample_sh.exists() {
@@ -991,7 +1029,7 @@ print(str(uuid.uuid4()))
         let path = entry.path();
         if path.is_file() {
             let filename = path.file_name().unwrap_or_default().to_string_lossy().to_string();
-            if filename.starts_with('.') {
+            if filename.starts_with('.') || filename.eq_ignore_ascii_case("readme.md") {
                 continue;
             }
 
@@ -1066,6 +1104,77 @@ print(str(uuid.uuid4()))
     }
 
     Ok(extensions)
+}
+
+#[tauri::command]
+pub async fn open_extensions_folder() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or_else(|| "Failed to find home directory".to_string())?;
+    let ext_dir = home.join(".dopenotch").join("extensions");
+    if !ext_dir.exists() {
+        let _ = std::fs::create_dir_all(&ext_dir);
+    }
+
+    let readme_path = ext_dir.join("README.md");
+    if !readme_path.exists() {
+        let readme_content = r#"# DopeNotch Custom Extensions & Scripts
+
+Welcome to your DopeNotch extensions folder! Any script placed here is automatically discovered, indexed, and made executable from the DopeNotch Notch and Command Palette.
+
+## Supported Script Formats
+- **Bash / Shell** (`.sh`, `.bash`, `.zsh`)
+- **Python** (`.py`)
+- **Node.js** (`.js`, `.mjs`)
+- **Folder Extensions** (a subfolder containing a `manifest.json` and entry file)
+
+## Raycast-Compatible Metadata Headers
+Add comments at the top of your script to configure its title, icon, and output mode:
+
+```bash
+#!/bin/bash
+
+# @raycast.schemaVersion 1
+# @raycast.title My Custom Tool
+# @raycast.mode clipboard
+# @raycast.icon 🚀
+# @raycast.description Copies custom generated data to your clipboard
+# @raycast.author YourName
+
+echo "Hello from my custom extension!"
+```
+
+### Modes:
+- `clipboard` (Default): Output of stdout is automatically copied to clipboard and added to your SuPaste shelf history.
+- `silent`: Runs in the background without modifying clipboard.
+
+## How to Trigger
+Drop any script in this folder and press `⇧⌘K` in DopeNotch to see it instantly!
+"#;
+        let _ = std::fs::write(&readme_path, readme_content);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&ext_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open extensions folder in Finder: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&ext_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open extensions folder in Explorer: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&ext_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open extensions folder: {}", e))?;
+    }
+
+    Ok(ext_dir.to_string_lossy().to_string())
 }
 
 #[tauri::command]

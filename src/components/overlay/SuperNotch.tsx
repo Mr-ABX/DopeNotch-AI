@@ -22,6 +22,7 @@ import {
   Calculator,
   Wand2,
   Terminal,
+  FolderOpen,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -323,6 +324,21 @@ export const SuperNotch: React.FC = () => {
       icon: Wand2,
       action: () => {
         handleInstantPromptPolish();
+      },
+    },
+    {
+      id: 'cmd-extensions',
+      command: '/extensions',
+      title: 'Open Extensions Folder',
+      subtitle: 'Create & manage custom Bash, Python & Node scripts (~/.dopenotch/extensions)',
+      icon: FolderOpen,
+      action: async () => {
+        try {
+          await invoke('open_extensions_folder');
+          showStatus('Opened ~/.dopenotch/extensions in Finder');
+        } catch (e: any) {
+          showStatus(e?.toString() || 'Failed to open extensions folder');
+        }
       },
     },
     {
@@ -1363,8 +1379,11 @@ export const SuperNotch: React.FC = () => {
                           {/* Section: Extensions & Tools */}
                           {searchResults.commands.length > 0 && (
                             <div className="mb-2">
-                              <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
-                                Extensions & Tools
+                              <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold text-zinc-400 font-sans tracking-normal">
+                                <span>Extensions & Commands</span>
+                                <span className="text-[10px] font-mono text-zinc-500 font-normal">
+                                  {searchResults.commands.length}
+                                </span>
                               </div>
                               {searchResults.commands.map((cmd, i) => {
                                 const isSelected = searchSelectedIndex === i;
@@ -1377,7 +1396,7 @@ export const SuperNotch: React.FC = () => {
                                     key={cmd.id}
                                     onClick={() => cmd.action()}
                                     onMouseEnter={() => setSearchSelectedIndex(i)}
-                                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
                                       isSelected
                                         ? 'bg-white/[0.1] text-white shadow-sm'
                                         : 'hover:bg-white/[0.04] text-zinc-300'
@@ -1392,13 +1411,25 @@ export const SuperNotch: React.FC = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-2 truncate">
-                                        <span className="font-mono text-[11px] font-semibold text-zinc-200">
-                                          {cmd.command}
-                                        </span>
-                                        <span className="text-xs font-medium text-white truncate">
+                                        {/* Refined Command Badge: Dark Gray Pill with Warm Amber Slash */}
+                                        <div
+                                          className={`inline-flex items-center px-1.5 py-0.5 rounded-md border font-mono text-[11px] font-medium tracking-tight shadow-sm flex-shrink-0 transition-colors ${
+                                            isSelected
+                                              ? 'bg-black/60 border-amber-500/30 text-white'
+                                              : 'bg-[#16161a] border-white/[0.08] text-zinc-300'
+                                          }`}
+                                        >
+                                          <span className="text-amber-400 font-bold mr-0.5">/</span>
+                                          <span>
+                                            {cmd.command.startsWith('/')
+                                              ? cmd.command.slice(1)
+                                              : cmd.command}
+                                          </span>
+                                        </div>
+                                        <span className="text-xs font-medium text-white truncate font-sans">
                                           {cmd.title}
                                         </span>
-                                        <span className="text-[11px] text-zinc-500 truncate hidden md:inline">
+                                        <span className="text-[11px] text-zinc-400 truncate hidden md:inline font-sans">
                                           {cmd.subtitle}
                                         </span>
                                       </div>
@@ -1415,8 +1446,11 @@ export const SuperNotch: React.FC = () => {
                           {/* Section: Clips & Dictations */}
                           {searchResults.clips.length > 0 && (
                             <div>
-                              <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1">
-                                Clipboard & Dictations
+                              <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold text-zinc-400 font-sans tracking-normal">
+                                <span>Clipboard & Dictations</span>
+                                <span className="text-[10px] font-mono text-zinc-500 font-normal">
+                                  {searchResults.clips.length}
+                                </span>
                               </div>
                               {searchResults.clips.map((item, idx) => {
                                 const overallIndex = searchResults.commands.length + idx;
@@ -1497,25 +1531,36 @@ export const SuperNotch: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Raycast Keyboard Footer (1:1 with Images 2 & 3) */}
-                    <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-transparent font-mono">
+                    {/* Raycast Keyboard Footer with 1-Click Extensions Access */}
+                    <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-white/[0.04] font-sans">
                       <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-mono">
                           <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↵</kbd>
-                          <span>Open</span>
+                          <span className="font-sans">Open</span>
                         </span>
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 font-mono">
                           <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">↑↓</kbd>
-                          <span>Navigate</span>
+                          <span className="font-sans">Navigate</span>
                         </span>
-                        <span className="flex items-center gap-1">
-                          <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
-                          <span>Next Tab</span>
-                        </span>
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await invoke('open_extensions_folder');
+                              showStatus('Opened ~/.dopenotch/extensions');
+                            } catch {}
+                          }}
+                          className="flex items-center gap-1 text-zinc-400 hover:text-amber-400 transition-colors ml-1 cursor-pointer group"
+                          title="Open extensions folder in Finder to add your own scripts"
+                        >
+                          <FolderOpen className="w-3 h-3 text-amber-400/80 group-hover:text-amber-400" />
+                          <span>Custom Scripts (~/.dopenotch)</span>
+                        </button>
                       </div>
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1 font-mono">
                         <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
-                        <span>Close</span>
+                        <span className="font-sans">Close</span>
                       </span>
                     </div>
                   </div>

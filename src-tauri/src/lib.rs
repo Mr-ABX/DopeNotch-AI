@@ -176,6 +176,7 @@ pub fn run() {
             commands::check_text_grammar,
             commands::load_user_extensions,
             commands::execute_user_extension,
+            commands::open_extensions_folder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")
