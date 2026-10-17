@@ -159,6 +159,8 @@ pub fn run() {
             commands::paste_text_direct,
             commands::paste_image_direct,
             commands::toggle_hud,
+            commands::toggle_shelf,
+            commands::toggle_search,
             commands::pick_screen_color,
             commands::open_ruler,
             commands::close_ruler,
@@ -198,12 +200,11 @@ pub fn setup_global_shortcut(app: &AppHandle, primary_hotkey: &str) {
         shortcuts.push(clean_primary.clone());
     }
 
-    // Always register standard aliases so user can trigger via Option+Space or Control+Option+Space or Cmd+Shift+Space
+    // Always register standard aliases so user can trigger voice dictation
     let aliases = [
         "Option+Space",
         "Alt+Space",
         "Control+Option+Space",
-        "CommandOrControl+Shift+Space",
     ];
     for alias in &aliases {
         if !shortcuts.iter().any(|s| s.eq_ignore_ascii_case(alias)) {
@@ -273,30 +274,49 @@ pub fn setup_global_shortcut(app: &AppHandle, primary_hotkey: &str) {
         }
     }
 
-    // Register shortcuts to toggle the SuperNotch HUD (Search & Shelf)
-    let hud_aliases = [
+    // 1. Dedicated Shortcut: Open SuPaste Clipboard Shelf (Cmd+Shift+V / Ctrl+Shift+V)
+    let shelf_shortcuts = [
         "CommandOrControl+Shift+V",
-        "Option+C",
-        "Alt+C",
-        "Option+V",
-        "Alt+V",
     ];
 
-    for hud_sc in hud_aliases {
+    for shelf_sc in shelf_shortcuts {
         let app_h = app_clone.clone();
-        let sc_name = hud_sc.to_string();
-        let result = app.global_shortcut().on_shortcut(hud_sc, move |_app, _shortcut, event| {
+        let sc_name = shelf_sc.to_string();
+        let result = app.global_shortcut().on_shortcut(shelf_sc, move |_app, _shortcut, event| {
             if event.state() == ShortcutState::Pressed {
-                log::info!("[global_shortcut] Toggle HUD shortcut triggered: '{}'", sc_name);
+                log::info!("[global_shortcut] Toggle Shelf shortcut triggered: '{}'", sc_name);
                 let app_inner = app_h.clone();
                 tauri::async_runtime::spawn(async move {
-                    commands::toggle_hud(app_inner);
+                    commands::toggle_shelf(app_inner);
                 });
             }
         });
         match result {
-            Ok(_) => log::info!("Successfully registered HUD global shortcut: '{}'", hud_sc),
-            Err(e) => log::debug!("Could not register HUD shortcut '{}': {}", hud_sc, e),
+            Ok(_) => log::info!("Successfully registered Shelf global shortcut: '{}'", shelf_sc),
+            Err(e) => log::debug!("Could not register Shelf shortcut '{}': {}", shelf_sc, e),
+        }
+    }
+
+    // 2. Dedicated Shortcut: Open Search & Mini-Tools / Extensions (Cmd+Shift+K / Ctrl+Shift+K)
+    let search_shortcuts = [
+        "CommandOrControl+Shift+K",
+    ];
+
+    for search_sc in search_shortcuts {
+        let app_h = app_clone.clone();
+        let sc_name = search_sc.to_string();
+        let result = app.global_shortcut().on_shortcut(search_sc, move |_app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                log::info!("[global_shortcut] Toggle Search shortcut triggered: '{}'", sc_name);
+                let app_inner = app_h.clone();
+                tauri::async_runtime::spawn(async move {
+                    commands::toggle_search(app_inner);
+                });
+            }
+        });
+        match result {
+            Ok(_) => log::info!("Successfully registered Search global shortcut: '{}'", search_sc),
+            Err(e) => log::debug!("Could not register Search shortcut '{}': {}", search_sc, e),
         }
     }
 

@@ -137,6 +137,9 @@ export const SuperNotch: React.FC = () => {
 
     openedAtRef.current = Date.now();
     const view = targetView || superNotchHudView;
+    if (targetView) {
+      setSuperNotchHudView(targetView);
+    }
     const dims = getExpandedDimensions(view);
 
     invoke('set_notch_expanded', {
@@ -156,7 +159,7 @@ export const SuperNotch: React.FC = () => {
     setTimeout(focusSearch, 50);
     setTimeout(focusSearch, 150);
     setTimeout(focusSearch, 280);
-  }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView]);
+  }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView, setSuperNotchHudView]);
 
   // Smooth shelf close: animate container collapse first, then shrink window
   const closeShelf = useCallback(() => {
@@ -535,13 +538,23 @@ export const SuperNotch: React.FC = () => {
     ];
   }, [clipboardItems]);
 
-  // Listen for backend toggle events
+  // Listen for backend toggle events:
+  // - murmur://toggle-shelf (Cmd+Shift+V): Directly toggles/opens SuPaste Clipboard Shelf
+  // - murmur://toggle-search (Cmd+Shift+K): Directly toggles/opens Search & Mini-Tools
   useEffect(() => {
     const unlistenToggle = listen('murmur://toggle-shelf', () => {
-      if (activeMode === 'shelf') {
+      if (activeMode === 'shelf' && superNotchHudView === 'shelf') {
         closeShelf();
       } else {
-        openShelf();
+        openShelf('shelf');
+      }
+    });
+
+    const unlistenSearch = listen('murmur://toggle-search', () => {
+      if (activeMode === 'shelf' && superNotchHudView === 'search') {
+        closeShelf();
+      } else {
+        openShelf('search');
       }
     });
 
@@ -549,20 +562,21 @@ export const SuperNotch: React.FC = () => {
       if (activeMode === 'shelf') {
         closeShelf();
       } else {
-        openShelf();
+        openShelf('shelf');
       }
     });
 
     const unlistenOpen = listen('murmur://open-shelf', () => {
-      openShelf();
+      openShelf('shelf');
     });
 
     return () => {
       unlistenToggle.then((f) => f());
+      unlistenSearch.then((f) => f());
       unlistenHud.then((f) => f());
       unlistenOpen.then((f) => f());
     };
-  }, [activeMode, closeShelf, openShelf]);
+  }, [activeMode, closeShelf, openShelf, superNotchHudView]);
 
   // Click-outside listener: Auto-close expanded notch when losing focus to another window or desktop
   useEffect(() => {

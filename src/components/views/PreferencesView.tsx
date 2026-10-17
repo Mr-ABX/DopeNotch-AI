@@ -293,20 +293,30 @@ export const PreferencesView: React.FC = () => {
               </div>
             </div>
 
-            {/* SuperNotch HUD Shortcut */}
+            {/* Clipboard Shelf Shortcut */}
             <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-white">SuperNotch HUD</p>
-                <p className="text-[11px] text-zinc-500">Search tools and clipboard shelf</p>
+                <p className="text-xs font-medium text-white">Clipboard Shelf</p>
+                <p className="text-[11px] text-zinc-500">Open SuPaste horizontal clipboard history directly</p>
               </div>
 
               <div className="flex items-center gap-1.5">
-                <kbd className="px-2 py-1 rounded bg-[#09090b] text-zinc-300 border border-[#2a2a32] font-mono text-xs">
-                  ⌥V
-                </kbd>
-                <span className="text-[10px] text-zinc-600">or</span>
-                <kbd className="px-2 py-1 rounded bg-[#09090b] text-zinc-300 border border-[#2a2a32] font-mono text-xs">
+                <kbd className="px-2.5 py-1 rounded bg-[#09090b] text-amber-400 border border-[#2a2a32] font-mono text-xs font-semibold">
                   ⇧⌘V
+                </kbd>
+              </div>
+            </div>
+
+            {/* Search & Mini-Tools Shortcut */}
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-white">Search & Mini-Tools</p>
+                <p className="text-[11px] text-zinc-500">Command palette, currency conversion & extensions</p>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-2.5 py-1 rounded bg-[#09090b] text-emerald-400 border border-[#2a2a32] font-mono text-xs font-semibold">
+                  ⇧⌘K
                 </kbd>
               </div>
             </div>

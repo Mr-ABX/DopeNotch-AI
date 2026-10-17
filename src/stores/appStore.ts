@@ -382,7 +382,7 @@ export const useAppStore = create<AppState>((set) => ({
   hotkey: 'Option+Space',
   secondaryHotkey: 'Control+Option+Space',
   rewriteHotkey: 'Option+R',
-  commandHotkey: 'Option+C',
+  commandHotkey: 'CommandOrControl+Shift+K',
   pushToTalk: false,
   autoPaste: true,
   soundEffects: true,

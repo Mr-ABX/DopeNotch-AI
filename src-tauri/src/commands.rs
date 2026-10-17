@@ -717,7 +717,7 @@ pub fn preview_notch(app: tauri::AppHandle, state: State<'_, MurmurState>) {
 }
 
 #[tauri::command]
-pub fn toggle_hud(app: tauri::AppHandle) {
+pub fn toggle_shelf(app: tauri::AppHandle) {
     #[cfg(target_os = "macos")]
     {
         extern "C" {
@@ -732,7 +732,29 @@ pub fn toggle_hud(app: tauri::AppHandle) {
         let _ = window.set_focus();
     }
     let _ = app.emit("murmur://toggle-shelf", ());
-    let _ = app.emit("murmur://toggle-hud", ());
+}
+
+#[tauri::command]
+pub fn toggle_search(app: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        extern "C" {
+            fn record_target_application();
+        }
+        unsafe {
+            record_target_application();
+        }
+    }
+    if let Some(window) = app.get_webview_window("notch") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    let _ = app.emit("murmur://toggle-search", ());
+}
+
+#[tauri::command]
+pub fn toggle_hud(app: tauri::AppHandle) {
+    toggle_shelf(app);
 }
 
 // ============================================================
