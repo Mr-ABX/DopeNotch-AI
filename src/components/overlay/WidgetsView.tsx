@@ -40,34 +40,6 @@ interface MediaPlaybackStatus {
   position: number;
 }
 
-interface AmbientTrack {
-  title: string;
-  artist: string;
-  album: string;
-  duration: number;
-}
-
-const AMBIENT_TRACKS: AmbientTrack[] = [
-  {
-    title: 'Slow Tide',
-    artist: 'Mira Vale',
-    album: 'Sunset Drift EP',
-    duration: 215,
-  },
-  {
-    title: 'Midnight Coding Flow',
-    artist: 'DopeNotch Lo-Fi',
-    album: 'Deep Focus Sessions',
-    duration: 195,
-  },
-  {
-    title: 'Silicon Nocturne',
-    artist: 'Neural Beats',
-    album: 'Whisper Waves',
-    duration: 240,
-  },
-];
-
 interface ReminderTask {
   id: string;
   text: string;
@@ -100,11 +72,6 @@ export const WidgetsView: React.FC = () => {
     duration: 0,
     position: 0,
   });
-
-  // Ambient Fallback Track State
-  const [ambientIndex, setAmbientIndex] = useState(0);
-  const [ambientPlaying, setAmbientPlaying] = useState(false);
-  const [ambientTime, setAmbientTime] = useState(72);
 
   // Live System Vitals
   const [vitals, setVitals] = useState<SystemVitals>({
@@ -197,37 +164,12 @@ export const WidgetsView: React.FC = () => {
     };
   }, [fetchMedia, fetchVitals]);
 
-  // Ambient fallback ticker
-  useEffect(() => {
-    if (nativeMedia.active || !ambientPlaying) return;
-    const interval = setInterval(() => {
-      setAmbientTime((prev) => {
-        const dur = AMBIENT_TRACKS[ambientIndex].duration;
-        if (prev >= dur) return 0;
-        return prev + 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [ambientPlaying, ambientIndex, nativeMedia.active]);
-
   const handleMediaControl = async (action: 'playpause' | 'next' | 'prev') => {
-    if (nativeMedia.active) {
-      try {
-        await invoke('control_media_playback', { action });
-        setTimeout(fetchMedia, 250);
-      } catch (e) {
-        console.error('Media control failed:', e);
-      }
-    } else {
-      if (action === 'playpause') {
-        setAmbientPlaying(!ambientPlaying);
-      } else if (action === 'next') {
-        setAmbientIndex((prev) => (prev + 1) % AMBIENT_TRACKS.length);
-        setAmbientTime(0);
-      } else if (action === 'prev') {
-        setAmbientIndex((prev) => (prev - 1 + AMBIENT_TRACKS.length) % AMBIENT_TRACKS.length);
-        setAmbientTime(0);
-      }
+    try {
+      await invoke('control_media_playback', { action });
+      setTimeout(fetchMedia, 300);
+    } catch (e) {
+      console.error('Media control failed:', e);
     }
   };
 
@@ -237,12 +179,12 @@ export const WidgetsView: React.FC = () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const currentAmbient = AMBIENT_TRACKS[ambientIndex];
-  const isPlaying = nativeMedia.active ? nativeMedia.state === 'playing' : ambientPlaying;
-  const currentTitle = nativeMedia.active ? nativeMedia.title || 'Slow Tide' : currentAmbient.title;
-  const currentArtist = nativeMedia.active ? nativeMedia.artist || 'Mira Vale' : currentAmbient.artist;
-  const currentDuration = nativeMedia.active ? nativeMedia.duration || 215 : currentAmbient.duration;
-  const currentPosition = nativeMedia.active ? nativeMedia.position || 0 : ambientTime;
+  const isMediaActive = nativeMedia.active;
+  const isPlaying = isMediaActive ? nativeMedia.state === 'playing' : false;
+  const currentTitle = isMediaActive ? nativeMedia.title || 'Unknown Track' : 'No Media Playing';
+  const currentArtist = isMediaActive ? nativeMedia.artist || (nativeMedia.app ? `${nativeMedia.app}` : 'macOS Media') : 'System Audio Idle';
+  const currentDuration = isMediaActive ? nativeMedia.duration || 0 : 0;
+  const currentPosition = isMediaActive ? nativeMedia.position || 0 : 0;
 
   const progressPercent = Math.min(
     100,
@@ -263,21 +205,28 @@ export const WidgetsView: React.FC = () => {
       {/* ROW 1: Music Player (50%) + Weather Card (25%) + Calendar Card (25%) */}
       {/* ===================================================================== */}
       <div className="grid grid-cols-12 gap-2 h-[96px]">
-        {/* 1. MUSIC PLAYER CARD (1:1 with Reference Screenshot) */}
-        <div className="col-span-6 bg-gradient-to-r from-[#24101e] via-[#1a1226] to-[#12121a] border border-white/[0.08] rounded-2xl p-2.5 flex flex-col justify-between relative overflow-hidden group">
-          {/* Subtle warm sunset glow */}
-          <div className="absolute -top-8 -left-8 w-36 h-36 rounded-full blur-[40px] opacity-25 pointer-events-none bg-rose-500/30" />
+        {/* 1. MUSIC PLAYER CARD (Clean, Real Media Only, No Mockup Data) */}
+        <div className="col-span-6 bg-[#16161a] border border-white/[0.08] rounded-2xl p-2.5 flex flex-col justify-between relative overflow-hidden group">
+          {/* Subtle audio playing glow when active */}
+          {isPlaying && (
+            <div className="absolute -top-8 -left-8 w-36 h-36 rounded-full blur-[40px] opacity-20 pointer-events-none bg-emerald-500/30" />
+          )}
 
           {/* Top: Album Art + Song & Artist + Controls */}
           <div className="flex items-center justify-between relative z-10">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              {/* Sunset Album Cover Artwork */}
-              <div className="w-11 h-11 rounded-xl overflow-hidden shadow-md shrink-0 relative bg-gradient-to-b from-[#ff7e5f] to-[#feb47b] flex items-center justify-center">
-                {/* Stylized Sunset Art */}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#200020]/90 via-[#701040]/50 to-transparent" />
-                <div className="w-4 h-4 rounded-full bg-amber-200 shadow-[0_0_8px_rgba(253,230,138,0.9)] relative z-10 translate-y-[-2px]" />
-                <div className="absolute bottom-1 inset-x-1.5 h-[1.5px] bg-amber-300/60" />
-                <div className="absolute bottom-2 inset-x-2 h-[1px] bg-amber-300/40" />
+              {/* Artwork or Clean Audio Indicator */}
+              <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 relative bg-white/[0.05] border border-white/[0.08] flex items-center justify-center">
+                {isPlaying ? (
+                  <div className="flex items-end gap-0.5 h-4">
+                    <span className="w-1 bg-emerald-400 rounded-full animate-[bounce_1s_infinite_100ms] h-3.5" />
+                    <span className="w-1 bg-emerald-400 rounded-full animate-[bounce_1s_infinite_300ms] h-4" />
+                    <span className="w-1 bg-emerald-400 rounded-full animate-[bounce_1s_infinite_200ms] h-2.5" />
+                    <span className="w-1 bg-emerald-400 rounded-full animate-[bounce_1s_infinite_400ms] h-3" />
+                  </div>
+                ) : (
+                  <Headphones className="w-5 h-5 text-zinc-500" />
+                )}
               </div>
 
               {/* Title & Artist */}
@@ -291,7 +240,7 @@ export const WidgetsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Playback Controls (1:1 with Screenshot) */}
+            {/* Playback Controls */}
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => handleMediaControl('prev')}
@@ -321,17 +270,17 @@ export const WidgetsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Bottom: Progress Bar with Scrub Pill */}
+          {/* Bottom: Progress Bar with Scrub Pill or Idle State */}
           <div className="relative z-10 mt-1">
-            <div className="h-1.5 w-full bg-white/[0.12] rounded-full relative overflow-hidden">
+            <div className="h-1.5 w-full bg-white/[0.08] rounded-full relative overflow-hidden">
               <div
-                className="h-full bg-white rounded-full transition-all duration-150"
-                style={{ width: `${progressPercent}%` }}
+                className={`h-full rounded-full transition-all duration-150 ${isPlaying ? 'bg-emerald-400' : 'bg-white/40'}`}
+                style={{ width: `${isMediaActive && currentDuration > 0 ? progressPercent : 0}%` }}
               />
             </div>
             <div className="flex justify-between items-center text-[9px] font-mono text-zinc-500 mt-1">
-              <span>{formatTime(currentPosition)}</span>
-              <span>{formatTime(currentDuration)}</span>
+              <span>{isMediaActive && currentDuration > 0 ? formatTime(currentPosition) : 'Ready'}</span>
+              <span>{isMediaActive && currentDuration > 0 ? formatTime(currentDuration) : 'macOS Media'}</span>
             </div>
           </div>
         </div>

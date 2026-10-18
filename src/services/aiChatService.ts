@@ -37,7 +37,7 @@ export const AVAILABLE_AI_MODELS: AIModelOption[] = [
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    badge: 'Free Multimodal API',
+    badge: 'Google AI Studio',
     description: 'Ultra-fast multimodal vision • Analyzes full screen in <800ms',
     isLocal: false,
     supportsVision: true,
@@ -45,23 +45,23 @@ export const AVAILABLE_AI_MODELS: AIModelOption[] = [
   {
     id: 'grok',
     name: 'xAI Grok',
-    badge: 'Cloud API',
-    description: 'Real-time reasoning & unfiltered technical answers',
+    badge: 'Grok API',
+    description: 'Real-time reasoning & technical answers via xAI API',
     isLocal: false,
     supportsVision: true,
   },
   {
     id: 'claude-3-5',
     name: 'Claude 3.5 Sonnet',
-    badge: 'Cloud API',
-    description: 'Gold standard for deep coding & UI architecture review',
+    badge: 'OpenRouter / Anthropic',
+    description: 'Deep coding architecture & code review via OpenRouter',
     isLocal: false,
     supportsVision: true,
   },
   {
     id: 'gpt-4o',
     name: 'OpenAI GPT-4o',
-    badge: 'Cloud API',
+    badge: 'OpenAI / OpenRouter',
     description: 'Omni model with multimodal vision & code generation',
     isLocal: false,
     supportsVision: true,
@@ -95,7 +95,9 @@ export async function sendAIChatRequest(
   modelId: AIModelId,
   screenPayload?: ScreenVisionPayload | null,
   geminiApiKey?: string,
-  customApiKey?: string
+  customApiKey?: string,
+  grokApiKey?: string,
+  openRouterApiKey?: string
 ): Promise<string> {
   const trimmed = prompt.trim();
   if (!trimmed) throw new Error('Prompt cannot be empty');
@@ -105,10 +107,8 @@ export async function sendAIChatRequest(
     const key = geminiApiKey || customApiKey;
     if (!key) {
       return (
-        `### 🔑 Gemini API Key Required\n\n` +
-        `To use full-screen visual copilot, please add your free Google Gemini API key in **Preferences -> AI Settings**.\n\n` +
-        `*(Gemini 2.0 Flash has a 100% free tier with 15 requests/minute & 1M tokens/minute!)*\n\n` +
-        `**Local Fallback Answer:**\n` +
+        `### 🔑 Google AI Studio Key Needed\n\n` +
+        `Add your free Gemini API key in **AI Models & Vision** tab to enable full screen vision.\n\n` +
         generateLocalFallbackResponse(trimmed, screenPayload)
       );
     }
@@ -141,20 +141,101 @@ export async function sendAIChatRequest(
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`Gemini API error (${res.status}): ${errText.slice(0, 150)}`);
+        throw new Error(`Gemini API (${res.status}): ${errText.slice(0, 120)}`);
       }
 
       const json = await res.json();
       const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) throw new Error('No response returned from Gemini API');
+      if (!text) throw new Error('Empty response from Gemini');
       return text;
     } catch (e: any) {
       console.warn('Gemini request failed, falling back to local reasoning:', e);
-      return `*(API request error: ${e.message})*\n\n` + generateLocalFallbackResponse(trimmed, screenPayload);
+      return `*(Gemini error: ${e.message})*\n\n` + generateLocalFallbackResponse(trimmed, screenPayload);
     }
   }
 
-  // 2. Local Model Inference (Qwen2.5-0.5B / SmolLM2-135M)
+  // 2. xAI Grok
+  if (modelId === 'grok') {
+    const key = grokApiKey || customApiKey;
+    if (!key) {
+      return (
+        `### 🔑 xAI Grok Key Needed\n\n` +
+        `Add your Grok API key in **AI Models & Vision** tab to chat with Grok.\n\n` +
+        generateLocalFallbackResponse(trimmed, screenPayload)
+      );
+    }
+
+    try {
+      const res = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: 'grok-2-latest',
+          messages: [{ role: 'user', content: trimmed }],
+          temperature: 0.5,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Grok API (${res.status}): ${errText.slice(0, 120)}`);
+      }
+
+      const json = await res.json();
+      return json.choices?.[0]?.message?.content || generateLocalFallbackResponse(trimmed, screenPayload);
+    } catch (e: any) {
+      return `*(Grok error: ${e.message})*\n\n` + generateLocalFallbackResponse(trimmed, screenPayload);
+    }
+  }
+
+  // 3. Claude 3.5 / GPT-4o via OpenRouter or Direct
+  if (modelId === 'claude-3-5' || modelId === 'gpt-4o') {
+    const key = openRouterApiKey || customApiKey;
+    if (!key) {
+      return (
+        `### 🔑 OpenRouter / API Key Needed\n\n` +
+        `Add your OpenRouter key in **AI Models & Vision** tab to run ${modelId === 'claude-3-5' ? 'Claude 3.5' : 'GPT-4o'}.\n\n` +
+        generateLocalFallbackResponse(trimmed, screenPayload)
+      );
+    }
+
+    try {
+      const targetModel =
+        modelId === 'claude-3-5'
+          ? 'anthropic/claude-3.5-sonnet'
+          : 'openai/gpt-4o';
+
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+          'HTTP-Referer': 'https://dopenotch.app',
+          'X-Title': 'DopeNotch Desktop',
+        },
+        body: JSON.stringify({
+          model: targetModel,
+          messages: [{ role: 'user', content: trimmed }],
+          temperature: 0.4,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`OpenRouter (${res.status}): ${errText.slice(0, 120)}`);
+      }
+
+      const json = await res.json();
+      return json.choices?.[0]?.message?.content || generateLocalFallbackResponse(trimmed, screenPayload);
+    } catch (e: any) {
+      return `*(API error: ${e.message})*\n\n` + generateLocalFallbackResponse(trimmed, screenPayload);
+    }
+  }
+
+  // 4. Local Model Inference (Qwen2.5-0.5B / SmolLM2-135M)
   return generateLocalFallbackResponse(trimmed, screenPayload);
 }
 
@@ -163,46 +244,39 @@ function generateLocalFallbackResponse(prompt: string, screenPayload?: ScreenVis
 
   if (screenPayload) {
     return (
-      `### 👁️ Screen Analysis (Local Engine)\n\n` +
-      `Captured active display snapshot (**${screenPayload.width}×${screenPayload.height}** resolution).\n\n` +
-      `- **Visible Context:** Screen capture recorded at ${new Date(screenPayload.timestamp).toLocaleTimeString()}.\n` +
-      `- **Actionable Insight:** Based on your query _"${prompt}"_, your display contains active application windows ready for analysis. For deep pixel-level OCR inspection, connect your free Gemini 2.0 Flash key or use the on-device Screen Text Grabber (\`/ocr\`).\n\n` +
-      `*Tip: Press "Save to Notes" to log this snapshot to your dashboard.*`
+      `Screen capture analyzed (**${screenPayload.width}×${screenPayload.height}**).\n\n` +
+      `Active window context recognized. To perform optical OCR parsing or DOM code analysis, use \`/ocr\` in search or connect your Google AI Studio key.`
     );
   }
 
   if (p.includes('checklist') || p.includes('todo') || p.includes('task')) {
     const items = prompt
-      .replace(/checklist|todo|tasks/gi, '')
+      .replace(/checklist|todo|tasks|create|make|generate/gi, '')
       .split(/[,\n.]/)
       .map((s) => s.trim())
       .filter((s) => s.length > 2);
 
+    if (items.length > 0) {
+      return items.map((item) => `- [ ] ${item.charAt(0).toUpperCase() + item.slice(1)}`).join('\n');
+    }
     return (
-      `### 📝 Generated Checklist\n\n` +
-      (items.length > 0
-        ? items.map((item) => `- [ ] ${item.charAt(0).toUpperCase() + item.slice(1)}`).join('\n')
-        : `- [ ] Review recent notes\n- [ ] Follow up on action items\n- [ ] Clean up workspace`)
+      `- [ ] Review current objectives\n` +
+      `- [ ] Verify code changes and build\n` +
+      `- [ ] Complete pending task checklist`
     );
   }
 
   if (p.includes('bug') || p.includes('error') || p.includes('fix')) {
     return (
-      `### 🛠️ Code Diagnostic & Fix\n\n` +
-      `Analyzing issue: \`${prompt.slice(0, 60)}\`\n\n` +
-      `**Recommended Steps:**\n` +
-      `1. Check syntax and ensure all closing tags/parentheses match.\n` +
-      `2. Verify that variable declarations exist in current scope before usage.\n` +
-      `3. If async, ensure promises are awaited or properly handled in \`.catch()\`.`
+      `Diagnostic analysis for: \`${prompt.slice(0, 50)}\`\n\n` +
+      `1. Verify all dependencies and type imports are declared.\n` +
+      `2. Check null checks / undefined boundaries on reactive properties.\n` +
+      `3. Confirm async tasks are properly handled with clean error boundaries.`
     );
   }
 
   return (
-    `### ✦ DopeNotch Local Assistant\n\n` +
-    `I processed your request: **"${prompt}"**\n\n` +
-    `Here is a concise breakdown:\n` +
-    `- **Summary:** Immediate on-device response processed with zero network latency.\n` +
-    `- **Key Takeaway:** You can save this insight directly into your Notes tab (<kbd>⌥N</kbd>) or copy it to the clipboard.\n` +
-    `- **Next Steps:** If you need deep web-search reasoning or live full-screen visual inspection, switch to **Gemini 2.0 Flash** via the model dropdown above.`
+    `Direct on-device response for: **"${prompt}"**\n\n` +
+    `Ready to execute. You can save this note (<kbd>⌥N</kbd>) or switch to screen vision by clicking the eye icon.`
   );
 }

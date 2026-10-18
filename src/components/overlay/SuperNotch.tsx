@@ -41,6 +41,8 @@ import {
   EyeOff,
   Send,
   Bot,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -136,8 +138,10 @@ export const SuperNotch: React.FC = () => {
     addNote,
     updateNote,
     setActiveTab,
+    apiKeys,
   } = useAppStore();
 
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [shelfSelectedIndex, setShelfSelectedIndex] = useState<number>(0);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -190,10 +194,13 @@ export const SuperNotch: React.FC = () => {
 
   const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets' | 'chat') => {
     if (view === 'chat') {
-      return { width: 860, height: 480 };
+      return { width: 860, height: 510 };
     }
     if (view === 'search') {
       return { width: 860, height: 410 };
+    }
+    if (view === 'widgets') {
+      return { width: 860, height: 280 };
     }
     return { width: 860, height: 260 };
   }, []);
@@ -583,7 +590,15 @@ export const SuperNotch: React.FC = () => {
     setIsAIGenerating(true);
 
     try {
-      const reply = await sendAIChatRequest(userText, selectedAIModel, screenPayload);
+      const reply = await sendAIChatRequest(
+        userText,
+        selectedAIModel,
+        screenPayload,
+        apiKeys['gemini'],
+        apiKeys['openai'],
+        apiKeys['grok'],
+        apiKeys['openrouter']
+      );
       const assistantMsg: ChatMessage = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
@@ -610,7 +625,7 @@ export const SuperNotch: React.FC = () => {
         }
       }, 60);
     }
-  }, [chatInput, currentScreenThumbnail, isAIGenerating, isScreenVisionEnabled, selectedAIModel]);
+  }, [apiKeys, chatInput, currentScreenThumbnail, isAIGenerating, isScreenVisionEnabled, selectedAIModel]);
 
   const handleCopy = async (item: ClipboardItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -1762,10 +1777,14 @@ export const SuperNotch: React.FC = () => {
                     })}
                   </div>
 
-                  {/* Horizontal Shelf Stream (155px x 120px cards with comfortable padding) */}
+                  {/* Horizontal Shelf Stream (155px x 120px cards with soft edge scroll dissolve) */}
                   <div
                     ref={shelfScrollRef}
                     className="flex flex-row gap-2.5 overflow-x-auto pt-1 pb-1.5 px-0.5 items-stretch flex-1 custom-slim-scrollbar"
+                    style={{
+                      maskImage: 'linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
+                    }}
                   >
                     {filteredShelfItems.length === 0 ? (
                       <div className="w-full py-8 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
@@ -1939,10 +1958,14 @@ export const SuperNotch: React.FC = () => {
               {/* ================================================================= */}
               {superNotchHudView === 'search' && (
                 <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
-                  {/* Results List */}
+                  {/* Results List with Soft Edge Dissolve */}
                   <div
                     ref={searchListScrollRef}
                     className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
+                    style={{
+                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
+                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
+                    }}
                   >
                     {/* Deep Focus Session Live Card (/focus, /focus 14, /focus 46) */}
                     {focusLiveMatch && (
@@ -2720,96 +2743,189 @@ export const SuperNotch: React.FC = () => {
               {/* ================================================================= */}
               {/* VIEW C: WIDGETS & MEDIA VIEW                                     */}
               {/* ================================================================= */}
+              {/* ================================================================= */}
+              {/* VIEW C: WIDGETS & MEDIA VIEW (Clean, No Clutter, Direct Fit)      */}
+              {/* ================================================================= */}
               {superNotchHudView === 'widgets' && (
-                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                <div className="flex-1 flex flex-col justify-start pt-0.5 overflow-hidden">
                   <WidgetsView />
-
-                  {/* Widgets Footer */}
-                  <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-transparent font-mono">
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1.5 text-zinc-400">
-                        <LayoutDashboard className="w-3 h-3 text-white" />
-                        <span>Hardware Vitals & Media</span>
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Tab</kbd>
-                        <span>Next Tab</span>
-                      </span>
-                    </div>
-                    <span className="flex items-center gap-1">
-                      <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
-                      <span>Close</span>
-                    </span>
-                  </div>
                 </div>
               )}
 
               {/* ================================================================= */}
-              {/* VIEW D: SEAMLESS MINIMAL FLOATING AI CHAT ISLAND                 */}
+              {/* VIEW D: PHYSICAL NOTCH AI ORB + FLOATING CHAT WIDGET ISLAND       */}
               {/* ================================================================= */}
               {superNotchHudView === 'chat' && (
-                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden relative">
-                  {/* Top Minimal Icon Bar */}
-                  <div className="flex items-center justify-between px-2 py-1 mb-1 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      {/* Model Selector Pill */}
-                      <div className="flex items-center gap-1 bg-white/[0.05] hover:bg-white/[0.08] px-2 py-1 rounded-xl border border-white/[0.06] text-xs text-white transition-colors">
-                        <Bot className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <select
-                          value={selectedAIModel}
-                          onChange={(e) => setSelectedAIModel(e.target.value as AIModelId)}
-                          className="bg-transparent border-none text-zinc-200 text-xs focus:outline-none cursor-pointer font-sans pr-1"
-                        >
-                          {AVAILABLE_AI_MODELS.map((model) => (
-                            <option key={model.id} value={model.id} className="bg-[#121215] text-white">
-                              {model.name}
-                            </option>
-                          ))}
-                        </select>
+                <div className="flex-1 flex flex-col justify-between pt-0.5 overflow-hidden relative">
+                  {/* 1. TOP PHYSICAL NOTCH BEZEL WITH LIVING AI PERSONA ORB */}
+                  <div className="flex justify-center items-center w-full pt-0.5 pb-2 shrink-0">
+                    <div className="h-7 px-4 rounded-full bg-black/95 border border-white/[0.12] flex items-center justify-center gap-3 shadow-md relative overflow-hidden backdrop-blur-md">
+                      {/* Dynamic Glowing Sound/Thinking AI Orb */}
+                      <div className="relative flex items-center justify-center">
+                        {/* Outer pulsing glow aura */}
+                        <motion.div
+                          animate={{
+                            scale: isAIGenerating ? [1, 1.25, 0.95, 1.15, 1] : isRecording ? [1, 1.3, 1] : [1, 1.05, 1],
+                            opacity: isAIGenerating ? [0.8, 1, 0.7, 0.9] : [0.6, 0.85, 0.6],
+                          }}
+                          transition={{
+                            repeat: Infinity,
+                            duration: isAIGenerating ? 1.6 : isRecording ? 0.8 : 3.2,
+                            ease: 'easeInOut',
+                          }}
+                          className="h-3 rounded-full blur-[3px] transition-all duration-150"
+                          style={{
+                            width: isRecording ? `${38 + Math.min(50, audioLevel * 80)}px` : isAIGenerating ? '44px' : '32px',
+                            background: isAIGenerating
+                              ? 'linear-gradient(90deg, #a855f7 0%, #3b82f6 50%, #10b981 100%)' // Thinking: Iridescent multi-color shift
+                              : isRecording
+                              ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #ec4899 100%)' // Listening: Live audio reactivity
+                              : 'linear-gradient(90deg, #e4e4e7 0%, #a1a1aa 50%, #d4d4d8 100%)', // Idle: Clean subtle monochrome pearl
+                          }}
+                        />
+                        {/* Crisp inner luminous nucleus */}
+                        <motion.div
+                          animate={{
+                            scale: isAIGenerating ? [1, 1.1, 0.95, 1] : [1, 1.04, 1],
+                          }}
+                          transition={{
+                            repeat: Infinity,
+                            duration: isAIGenerating ? 1.2 : 2.5,
+                            ease: 'easeInOut',
+                          }}
+                          className="absolute h-1.5 rounded-full bg-white transition-all duration-75"
+                          style={{
+                            width: isRecording ? `${16 + Math.min(24, audioLevel * 45)}px` : isAIGenerating ? '20px' : '14px',
+                            boxShadow: isAIGenerating
+                              ? '0 0 10px 2px rgba(168,85,247,0.8), 0 0 16px 3px rgba(59,130,246,0.6)'
+                              : isRecording
+                              ? '0 0 10px 2px rgba(16,185,129,0.8), 0 0 14px 2px rgba(56,189,248,0.7)'
+                              : '0 0 8px 1px rgba(255,255,255,0.7), 0 0 12px 1px rgba(161,161,170,0.4)',
+                          }}
+                        />
                       </div>
 
-                      {/* Screen Vision Snapshot Toggle Icon Button */}
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (isScreenVisionEnabled) {
-                            setIsScreenVisionEnabled(false);
-                            setCurrentScreenThumbnail(null);
-                          } else {
-                            try {
-                              showStatus('Capturing screen...');
-                              const snapshot = await captureScreenVision();
-                              setCurrentScreenThumbnail(snapshot);
-                              setIsScreenVisionEnabled(true);
-                              showStatus(`${snapshot.width}×${snapshot.height} screen captured`);
-                            } catch (e: any) {
-                              showStatus('Screen capture failed');
-                            }
-                          }
-                        }}
-                        className={`p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
-                          isScreenVisionEnabled
-                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
-                            : 'bg-white/[0.04] text-zinc-400 hover:text-white border-white/[0.06] hover:bg-white/[0.08]'
-                        }`}
-                        title={
-                          isScreenVisionEnabled
-                            ? 'Screen Context Attached (Click to detach)'
-                            : 'See Screen (Click to capture active display)'
-                        }
-                      >
-                        {isScreenVisionEnabled ? (
-                          <>
-                            <Eye className="w-3.5 h-3.5 text-cyan-400" />
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                          </>
-                        ) : (
-                          <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
-                        )}
-                      </button>
+                      {/* Status label inside notch */}
+                      <span className="text-[10px] font-mono font-medium tracking-tight text-zinc-300">
+                        {isAIGenerating
+                          ? 'AI Thinking...'
+                          : isRecording
+                          ? 'Listening...'
+                          : 'SuperNotch AI'}
+                      </span>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-1">
+                  {/* 2. DETACHED FLOATING CHAT WIDGET ISLAND (Matching Wireframe) */}
+                  <div className="flex-1 flex flex-col justify-between bg-[#111115]/95 border border-white/[0.08] rounded-2xl p-3 overflow-hidden shadow-2xl relative">
+                    {/* Top Controls: Design System Dropdown + Screen Vision + Reset */}
+                    <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.05] shrink-0 relative z-20">
+                      <div className="flex items-center gap-2">
+                        {/* Custom Design System Model Selector Dropdown */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                            className="flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.1] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-white transition-all cursor-pointer"
+                          >
+                            <Bot className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+                            <span className="font-medium text-xs text-white">
+                              {AVAILABLE_AI_MODELS.find((m) => m.id === selectedAIModel)?.name || 'Select Model'}
+                            </span>
+                            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+                          </button>
+
+                          <AnimatePresence>
+                            {isModelDropdownOpen && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                                transition={{ duration: 0.12 }}
+                                className="absolute top-10 left-0 z-50 w-64 bg-[#16161b] border border-white/10 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl"
+                              >
+                                <div className="px-2 py-1 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+                                  Select AI Model
+                                </div>
+                                <div className="space-y-0.5 max-h-56 overflow-y-auto custom-slim-scrollbar">
+                                  {AVAILABLE_AI_MODELS.map((model) => {
+                                    const isSelected = selectedAIModel === model.id;
+                                    return (
+                                      <button
+                                        key={model.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedAIModel(model.id);
+                                          setIsModelDropdownOpen(false);
+                                        }}
+                                        className={`w-full text-left px-2.5 py-1.5 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                          isSelected
+                                            ? 'bg-white/10 text-white font-medium'
+                                            : 'text-zinc-300 hover:text-white hover:bg-white/5'
+                                        }`}
+                                      >
+                                        <div className="min-w-0 pr-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="truncate">{model.name}</span>
+                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-zinc-400 shrink-0">
+                                              {model.badge}
+                                            </span>
+                                          </div>
+                                          <p className="text-[10px] text-zinc-500 font-normal truncate">
+                                            {model.description}
+                                          </p>
+                                        </div>
+                                        {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+
+                        {/* Screen Vision Snapshot Toggle Icon Button */}
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (isScreenVisionEnabled) {
+                              setIsScreenVisionEnabled(false);
+                              setCurrentScreenThumbnail(null);
+                            } else {
+                              try {
+                                showStatus('Capturing screen...');
+                                const snapshot = await captureScreenVision();
+                                setCurrentScreenThumbnail(snapshot);
+                                setIsScreenVisionEnabled(true);
+                                showStatus(`${snapshot.width}×${snapshot.height} captured`);
+                              } catch (e: any) {
+                                showStatus('Screen capture failed');
+                              }
+                            }
+                          }}
+                          className={`p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isScreenVisionEnabled
+                              ? 'bg-white/15 text-white border-white/30 shadow-sm'
+                              : 'bg-white/[0.04] text-zinc-400 hover:text-white border-white/[0.06] hover:bg-white/[0.08]'
+                          }`}
+                          title={
+                            isScreenVisionEnabled
+                              ? 'Screen Context Attached (Click to detach)'
+                              : 'See Screen (Click to capture active display)'
+                          }
+                        >
+                          {isScreenVisionEnabled ? (
+                            <>
+                              <Eye className="w-3.5 h-3.5 text-white" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            </>
+                          ) : (
+                            <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
+                          )}
+                        </button>
+                      </div>
+
                       {/* Clear Conversation Icon Button */}
                       <button
                         type="button"
@@ -2818,7 +2934,7 @@ export const SuperNotch: React.FC = () => {
                             {
                               id: `reset-${Date.now()}`,
                               role: 'assistant',
-                              content: `### ✦ DopeNotch AI Copilot\nReady. Ask questions, diagnose code, or tap the eye icon to analyze your screen.`,
+                              content: `Ready. Ask questions, format checklists, or click the eye icon to analyze your screen.`,
                               timestamp: Date.now(),
                               modelUsed: selectedAIModel,
                             },
@@ -2833,159 +2949,159 @@ export const SuperNotch: React.FC = () => {
                         <RotateCcw className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  </div>
 
-                  {/* Messages Scroll Area with Smooth Gradient Fade Mask */}
-                  <div
-                    ref={chatScrollRef}
-                    className="flex-1 overflow-y-auto px-2 space-y-3 pr-2 select-text custom-slim-scrollbar"
-                    style={{
-                      maxHeight: '330px',
-                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 18px, black calc(100% - 18px), transparent 100%)',
-                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 18px, black calc(100% - 18px), transparent 100%)',
-                    }}
-                  >
-                    {chatMessages.map((msg) => {
-                      const isUser = msg.role === 'user';
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
-                        >
-                          {!isUser && (
-                            <div className="w-6 h-6 rounded-xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
-                              <Sparkles className="w-3 h-3" />
-                            </div>
-                          )}
-
+                    {/* Messages Scroll Area with Smooth Gradient Fade Mask and Generous Breathing Space */}
+                    <div
+                      ref={chatScrollRef}
+                      className="flex-1 overflow-y-auto px-1 py-3 space-y-3.5 pr-2 select-text custom-slim-scrollbar"
+                      style={{
+                        maxHeight: '290px',
+                        maskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
+                      }}
+                    >
+                      {chatMessages.map((msg) => {
+                        const isUser = msg.role === 'user';
+                        return (
                           <div
-                            className={`flex flex-col max-w-[85%] ${
-                              isUser
-                                ? 'bg-white/[0.08] text-white rounded-2xl rounded-tr-sm px-3.5 py-2 border border-white/10'
-                                : 'bg-white/[0.03] text-zinc-200 rounded-2xl rounded-tl-sm px-4 py-2.5 border border-white/[0.05]'
-                            }`}
+                            key={msg.id}
+                            className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
                           >
-                            {msg.hasScreenVision && msg.screenThumbnail && (
-                              <div className="mb-2">
-                                <img
-                                  src={msg.screenThumbnail}
-                                  alt="Screen Context"
-                                  className="w-44 h-26 object-cover rounded-lg border border-white/15"
-                                />
+                            {!isUser && (
+                              <div className="w-6 h-6 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
+                                <Sparkles className="w-3 h-3" />
                               </div>
                             )}
 
-                            {/* Message Markdown text */}
-                            <div className="text-xs leading-relaxed space-y-1.5 whitespace-pre-wrap font-sans">
-                              {msg.content.split('\n\n').map((paragraph, pIdx) => {
-                                if (paragraph.startsWith('### ')) {
-                                  return (
-                                    <h4 key={pIdx} className="font-semibold text-white text-xs pt-0.5">
-                                      {paragraph.replace('### ', '')}
-                                    </h4>
-                                  );
-                                }
-                                if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
-                                  return (
-                                    <div key={pIdx} className="font-mono text-[11px] text-zinc-300">
-                                      {paragraph}
-                                    </div>
-                                  );
-                                }
-                                if (paragraph.startsWith('- ')) {
-                                  return (
-                                    <div key={pIdx} className="text-zinc-300 pl-1 text-[11px]">
-                                      {paragraph}
-                                    </div>
-                                  );
-                                }
-                                return <p key={pIdx}>{paragraph}</p>;
-                              })}
+                            <div
+                              className={`flex flex-col max-w-[85%] ${
+                                isUser
+                                  ? 'bg-white/[0.08] text-white rounded-2xl rounded-tr-sm px-3.5 py-2.5 border border-white/10'
+                                  : 'bg-white/[0.03] text-zinc-200 rounded-2xl rounded-tl-sm px-4 py-2.5 border border-white/[0.05]'
+                              }`}
+                            >
+                              {msg.hasScreenVision && msg.screenThumbnail && (
+                                <div className="mb-2">
+                                  <img
+                                    src={msg.screenThumbnail}
+                                    alt="Screen Context"
+                                    className="w-44 h-26 object-cover rounded-lg border border-white/15"
+                                  />
+                                </div>
+                              )}
+
+                              {/* Message Markdown text */}
+                              <div className="text-xs leading-relaxed space-y-1.5 whitespace-pre-wrap font-sans">
+                                {msg.content.split('\n\n').map((paragraph, pIdx) => {
+                                  if (paragraph.startsWith('### ')) {
+                                    return (
+                                      <h4 key={pIdx} className="font-semibold text-white text-xs pt-0.5">
+                                        {paragraph.replace('### ', '')}
+                                      </h4>
+                                    );
+                                  }
+                                  if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
+                                    return (
+                                      <div key={pIdx} className="font-mono text-[11px] text-zinc-300">
+                                        {paragraph}
+                                      </div>
+                                    );
+                                  }
+                                  if (paragraph.startsWith('- ')) {
+                                    return (
+                                      <div key={pIdx} className="text-zinc-300 pl-1 text-[11px]">
+                                        {paragraph}
+                                      </div>
+                                    );
+                                  }
+                                  return <p key={pIdx}>{paragraph}</p>;
+                                })}
+                              </div>
+
+                              {/* Minimal Icon Actions: Copy + Save to Notes */}
+                              {!isUser && (
+                                <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-white/[0.04]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(msg.content);
+                                      showStatus('Copied');
+                                    }}
+                                    className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                    title="Copy to clipboard"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveNoteDirect(msg.content)}
+                                    className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                    title="Save to Notes"
+                                  >
+                                    <FileText className="w-3 h-3 text-zinc-400 hover:text-white" />
+                                  </button>
+                                  {msg.modelUsed && (
+                                    <span className="ml-auto font-mono text-[8.5px] text-zinc-500">
+                                      {msg.modelUsed}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
-                            {/* Minimal Icon Actions: Copy + Save to Notes */}
-                            {!isUser && (
-                              <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-white/[0.04]">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    navigator.clipboard.writeText(msg.content);
-                                    showStatus('Copied');
-                                  }}
-                                  className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                  title="Copy to clipboard"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveNoteDirect(msg.content)}
-                                  className="p-1 rounded-lg text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer"
-                                  title="Save to Notes"
-                                >
-                                  <FileText className="w-3 h-3 text-amber-400/80 hover:text-amber-400" />
-                                </button>
-                                {msg.modelUsed && (
-                                  <span className="ml-auto font-mono text-[8.5px] text-zinc-500">
-                                    {msg.modelUsed}
-                                  </span>
-                                )}
+                            {isUser && (
+                              <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0 mt-0.5 text-[11px] font-semibold">
+                                U
                               </div>
                             )}
                           </div>
+                        );
+                      })}
 
-                          {isUser && (
-                            <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0 mt-0.5 text-[11px] font-semibold">
-                              U
-                            </div>
-                          )}
+                      {isAIGenerating && (
+                        <div className="flex gap-2 justify-start">
+                          <div className="w-6 h-6 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5 animate-pulse">
+                            <Sparkles className="w-3 h-3" />
+                          </div>
+                          <div className="bg-white/[0.03] rounded-2xl rounded-tl-sm px-3.5 py-2 border border-white/[0.05] text-xs text-zinc-400 flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                            <span>{isScreenVisionEnabled ? 'Analyzing screen...' : 'Thinking...'}</span>
+                          </div>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
 
-                    {isAIGenerating && (
-                      <div className="flex gap-2 justify-start">
-                        <div className="w-6 h-6 rounded-xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 animate-pulse">
-                          <Sparkles className="w-3 h-3" />
-                        </div>
-                        <div className="bg-white/[0.03] rounded-2xl rounded-tl-sm px-3.5 py-2 border border-white/[0.05] text-xs text-zinc-400 flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                          <span>{isScreenVisionEnabled ? 'Analyzing screen...' : 'Thinking...'}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bottom Minimal Input Area */}
-                  <div className="pt-2 shrink-0">
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSendChatMessage();
-                      }}
-                      className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.07] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-amber-500/30 rounded-xl px-3.5 py-2 transition-all border border-white/[0.06]"
-                    >
-                      <input
-                        type="text"
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        placeholder={
-                          isScreenVisionEnabled
-                            ? "Ask about visible screen context..."
-                            : "Ask AI, format checklist, or diagnose code..."
-                        }
-                        disabled={isAIGenerating}
-                        className="w-full bg-transparent border-none text-[12.5px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!chatInput.trim() || isAIGenerating}
-                        className="p-1.5 rounded-lg bg-amber-400/20 text-amber-300 hover:bg-amber-400/30 disabled:opacity-30 transition-all cursor-pointer shrink-0"
-                        title="Send (↵)"
+                    {/* Bottom Minimal Input Area */}
+                    <div className="pt-2 shrink-0">
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleSendChatMessage();
+                        }}
+                        className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.07] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3.5 py-2 transition-all border border-white/[0.06]"
                       >
-                        <Send className="w-3.5 h-3.5" />
-                      </button>
-                    </form>
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder={
+                            isScreenVisionEnabled
+                              ? "Ask about visible screen context..."
+                              : "Ask AI, format checklist, or diagnose code..."
+                          }
+                          disabled={isAIGenerating}
+                          className="w-full bg-transparent border-none text-[12.5px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!chatInput.trim() || isAIGenerating}
+                          className="p-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 disabled:opacity-30 transition-all cursor-pointer shrink-0"
+                          title="Send (↵)"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 </div>
               )}
