@@ -43,6 +43,7 @@ import {
   Bot,
   ChevronDown,
   Check,
+  ArrowLeft,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -194,13 +195,13 @@ export const SuperNotch: React.FC = () => {
 
   const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets' | 'chat') => {
     if (view === 'chat') {
-      return { width: 860, height: 510 };
+      return { width: 600, height: 460 };
     }
     if (view === 'search') {
       return { width: 860, height: 410 };
     }
     if (view === 'widgets') {
-      return { width: 860, height: 280 };
+      return { width: 860, height: 285 };
     }
     return { width: 860, height: 260 };
   }, []);
@@ -1057,6 +1058,31 @@ export const SuperNotch: React.FC = () => {
     return items;
   }, [clipboardItems, activeClipboardCategory, clipboardSearchQuery]);
 
+  // Adaptive horizontal scroll edge detection for shelf stream
+  const [shelfCanScrollLeft, setShelfCanScrollLeft] = useState(false);
+  const [shelfCanScrollRight, setShelfCanScrollRight] = useState(false);
+
+  const updateShelfScrollState = useCallback(() => {
+    if (!shelfScrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = shelfScrollRef.current;
+    setShelfCanScrollLeft(scrollLeft > 6);
+    setShelfCanScrollRight(scrollLeft < scrollWidth - clientWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    const el = shelfScrollRef.current;
+    if (!el) return;
+    updateShelfScrollState();
+    el.addEventListener('scroll', updateShelfScrollState, { passive: true });
+    return () => el.removeEventListener('scroll', updateShelfScrollState);
+  }, [updateShelfScrollState, filteredShelfItems.length, superNotchHudView]);
+
+  const shelfMask = useMemo(() => {
+    const leftFade = shelfCanScrollLeft ? 'transparent 0%, black 14px' : 'black 0%, black 14px';
+    const rightFade = shelfCanScrollRight ? 'black calc(100% - 14px), transparent 100%' : 'black calc(100% - 14px), black 100%';
+    return `linear-gradient(to right, ${leftFade}, ${rightFade})`;
+  }, [shelfCanScrollLeft, shelfCanScrollRight]);
+
   // Category items with counts (SuperShelf Visual Shelf)
   const categories: { id: ClipboardCategory; label: string; count: number }[] = useMemo(() => {
     return [
@@ -1318,9 +1344,13 @@ export const SuperNotch: React.FC = () => {
   // - shelf: fixed 860px width, height 250px (shelf) or 410px (search)
   // - recording: strictly locked at 28px height (menu bar level), width smoothly expands to 220px
   // - idle: 160px width, 28px height
+  const isChatView = activeMode === 'shelf' && superNotchHudView === 'chat';
+
   const targetWidth =
     activeMode === 'shelf'
-      ? 860
+      ? isChatView
+        ? 600
+        : 860
       : activeMode === 'recording'
       ? 220
       : noteSavedFeedback
@@ -1333,10 +1363,12 @@ export const SuperNotch: React.FC = () => {
 
   const targetHeight =
     activeMode === 'shelf'
-      ? superNotchHudView === 'chat'
-        ? 480
+      ? isChatView
+        ? 460
         : superNotchHudView === 'search'
         ? 410
+        : superNotchHudView === 'widgets'
+        ? 285
         : 260
       : 28;
 
@@ -1383,7 +1415,398 @@ export const SuperNotch: React.FC = () => {
         }}
         className="pointer-events-auto relative z-10 flex flex-col items-center select-none"
       >
-        {/* Top Left Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
+        {isChatView ? (
+          /* ========================================================================= */
+          /* DETACHED DYNAMIC ISLAND: TOP IDLE NOTCH WITH ORB + GAP + FLOATING CHAT   */
+          /* ========================================================================= */
+          <div className="w-full h-full flex flex-col items-center pointer-events-auto select-none relative">
+            {/* 1. TOP HARDWARE NOTCH BEZEL WITH LIVING AI PERSONA ORB */}
+            <div className="relative flex flex-col items-center shrink-0">
+              {/* Notch Left Ear */}
+              <svg
+                width={10}
+                height={10}
+                viewBox="0 0 10 10"
+                className="absolute top-0 -left-[10px] pointer-events-none z-20"
+              >
+                <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" fill="#000000" />
+              </svg>
+              {/* Notch Right Ear */}
+              <svg
+                width={10}
+                height={10}
+                viewBox="0 0 10 10"
+                className="absolute top-0 -right-[10px] pointer-events-none z-20"
+              >
+                <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" fill="#000000" />
+              </svg>
+
+              {/* Notch Body with Orb */}
+              <div className="w-[190px] h-[32px] rounded-b-2xl bg-black border-x border-b border-white/[0.12] flex items-center justify-center gap-2.5 px-3 shadow-lg relative overflow-hidden">
+                {/* Dynamic Living Sound/Thinking AI Orb */}
+                <div className="relative flex items-center justify-center">
+                  <motion.div
+                    animate={{
+                      scale: isAIGenerating ? [1, 1.25, 0.95, 1.15, 1] : isRecording ? [1, 1.3, 1] : [1, 1.05, 1],
+                      opacity: isAIGenerating ? [0.8, 1, 0.7, 0.9] : [0.6, 0.85, 0.6],
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: isAIGenerating ? 1.6 : isRecording ? 0.8 : 3.2,
+                      ease: 'easeInOut',
+                    }}
+                    className="h-3 rounded-full blur-[3px] transition-all duration-150"
+                    style={{
+                      width: isRecording ? `${38 + Math.min(50, audioLevel * 80)}px` : isAIGenerating ? '44px' : '32px',
+                      background: isAIGenerating
+                        ? 'linear-gradient(90deg, #a855f7 0%, #3b82f6 50%, #10b981 100%)' // Thinking
+                        : isRecording
+                        ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #ec4899 100%)' // Listening
+                        : 'linear-gradient(90deg, #e4e4e7 0%, #a1a1aa 50%, #d4d4d8 100%)', // Idle
+                    }}
+                  />
+                  <motion.div
+                    animate={{
+                      scale: isAIGenerating ? [1, 1.1, 0.95, 1] : [1, 1.04, 1],
+                    }}
+                    transition={{
+                      repeat: Infinity,
+                      duration: isAIGenerating ? 1.2 : 2.5,
+                      ease: 'easeInOut',
+                    }}
+                    className="absolute h-1.5 rounded-full bg-white transition-all duration-75"
+                    style={{
+                      width: isRecording ? `${16 + Math.min(24, audioLevel * 45)}px` : isAIGenerating ? '20px' : '14px',
+                      boxShadow: isAIGenerating
+                        ? '0 0 10px 2px rgba(168,85,247,0.8), 0 0 16px 3px rgba(59,130,246,0.6)'
+                        : isRecording
+                        ? '0 0 10px 2px rgba(16,185,129,0.8), 0 0 14px 2px rgba(56,189,248,0.7)'
+                        : '0 0 8px 1px rgba(255,255,255,0.7), 0 0 12px 1px rgba(161,161,170,0.4)',
+                    }}
+                  />
+                </div>
+
+                <span className="text-[10px] font-mono font-medium tracking-tight text-zinc-300">
+                  {isAIGenerating ? 'Thinking...' : isRecording ? 'Listening...' : 'SuperNotch AI'}
+                </span>
+              </div>
+            </div>
+
+            {/* 2. TRANSPARENT AIR GAP (10px) */}
+            <div className="h-2.5 w-full shrink-0" />
+
+            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET */}
+            <div className="w-[580px] flex-1 rounded-[24px] bg-[#0c0c0e] border border-white/[0.12] p-3 flex flex-col justify-between shadow-2xl relative overflow-hidden backdrop-blur-xl">
+              {/* Header: Back Button (←) + Model Dropdown + Screen Vision + Reset + Close */}
+              <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.05] shrink-0 relative z-20">
+                <div className="flex items-center gap-2">
+                  {/* Back Button to return to Shelf HUD */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleView('shelf')}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] text-zinc-300 hover:text-white transition-all cursor-pointer text-xs font-medium"
+                    title="Back to SuperShelf"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Shelf</span>
+                  </button>
+
+                  {/* Model Selector Dropdown */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
+                      className="flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.1] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-white transition-all cursor-pointer"
+                    >
+                      <Bot className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
+                      <span className="font-medium text-xs text-white">
+                        {AVAILABLE_AI_MODELS.find((m) => m.id === selectedAIModel)?.name || 'Select Model'}
+                      </span>
+                      <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {isModelDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                          transition={{ duration: 0.12 }}
+                          className="absolute top-10 left-0 z-50 w-64 bg-[#16161b] border border-white/10 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl"
+                        >
+                          <div className="px-2 py-1 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+                            Select AI Model
+                          </div>
+                          <div className="space-y-0.5 max-h-56 overflow-y-auto custom-slim-scrollbar">
+                            {AVAILABLE_AI_MODELS.map((model) => {
+                              const isSelected = selectedAIModel === model.id;
+                              return (
+                                <button
+                                  key={model.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedAIModel(model.id);
+                                    setIsModelDropdownOpen(false);
+                                  }}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-white/10 text-white font-medium'
+                                      : 'text-zinc-300 hover:text-white hover:bg-white/5'
+                                  }`}
+                                >
+                                  <div className="min-w-0 pr-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="truncate">{model.name}</span>
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-zinc-400 shrink-0">
+                                        {model.badge}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-zinc-500 font-normal truncate">
+                                      {model.description}
+                                    </p>
+                                  </div>
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Screen Vision Snapshot Toggle */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (isScreenVisionEnabled) {
+                        setIsScreenVisionEnabled(false);
+                        setCurrentScreenThumbnail(null);
+                      } else {
+                        try {
+                          showStatus('Capturing screen...');
+                          const snapshot = await captureScreenVision();
+                          setCurrentScreenThumbnail(snapshot);
+                          setIsScreenVisionEnabled(true);
+                          showStatus(`${snapshot.width}×${snapshot.height} captured`);
+                        } catch (e: any) {
+                          showStatus('Screen capture failed');
+                        }
+                      }
+                    }}
+                    className={`p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
+                      isScreenVisionEnabled
+                        ? 'bg-white/15 text-white border-white/30 shadow-sm'
+                        : 'bg-white/[0.04] text-zinc-400 hover:text-white border-white/[0.06] hover:bg-white/[0.08]'
+                    }`}
+                    title={
+                      isScreenVisionEnabled
+                        ? 'Screen Context Attached (Click to detach)'
+                        : 'See Screen (Click to capture active display)'
+                    }
+                  >
+                    {isScreenVisionEnabled ? (
+                      <>
+                        <Eye className="w-3.5 h-3.5 text-white" />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                      </>
+                    ) : (
+                      <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
+                    )}
+                  </button>
+                </div>
+
+                {/* Actions Right: Clear + Close */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChatMessages([
+                        {
+                          id: `reset-${Date.now()}`,
+                          role: 'assistant',
+                          content: `Ready. Ask questions, format checklists, or click the eye icon to analyze your screen.`,
+                          timestamp: Date.now(),
+                          modelUsed: selectedAIModel,
+                        },
+                      ]);
+                      setCurrentScreenThumbnail(null);
+                      setIsScreenVisionEnabled(false);
+                      showStatus('New session');
+                    }}
+                    className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                    title="New Chat Session"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeShelf}
+                    className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                    title="Close (Esc)"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Messages Scroll Area with Smooth Gradient Fade Mask */}
+              <div
+                ref={chatScrollRef}
+                className="flex-1 overflow-y-auto px-1 py-2 space-y-2.5 pr-2 select-text custom-slim-scrollbar"
+                style={{
+                  maxHeight: '275px',
+                  maskImage: 'linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%)',
+                }}
+              >
+                {chatMessages.map((msg) => {
+                  const isUser = msg.role === 'user';
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {!isUser && (
+                        <div className="w-5 h-5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
+                          <Sparkles className="w-2.5 h-2.5" />
+                        </div>
+                      )}
+
+                      <div
+                        className={`flex flex-col max-w-[85%] ${
+                          isUser
+                            ? 'bg-white/[0.08] text-white rounded-2xl rounded-tr-sm px-3 py-2 border border-white/10'
+                            : 'bg-white/[0.03] text-zinc-200 rounded-2xl rounded-tl-sm px-3.5 py-2 border border-white/[0.05]'
+                        }`}
+                      >
+                        {msg.hasScreenVision && msg.screenThumbnail && (
+                          <div className="mb-1.5">
+                            <img
+                              src={msg.screenThumbnail}
+                              alt="Screen Context"
+                              className="w-40 h-24 object-cover rounded-lg border border-white/15"
+                            />
+                          </div>
+                        )}
+
+                        {/* Message Content: Clean, concise one-liners & checklists */}
+                        <div className="text-xs leading-relaxed space-y-1 whitespace-pre-wrap font-sans">
+                          {msg.content.split('\n\n').map((paragraph, pIdx) => {
+                            if (paragraph.startsWith('### ')) {
+                              return (
+                                <h4 key={pIdx} className="font-semibold text-white text-xs pt-0.5">
+                                  {paragraph.replace('### ', '')}
+                                </h4>
+                              );
+                            }
+                            if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
+                              return (
+                                <div key={pIdx} className="font-mono text-[11px] text-zinc-300">
+                                  {paragraph}
+                                </div>
+                              );
+                            }
+                            if (paragraph.startsWith('- ')) {
+                              return (
+                                <div key={pIdx} className="text-zinc-300 pl-1 text-[11px]">
+                                  {paragraph}
+                                </div>
+                              );
+                            }
+                            return <p key={pIdx}>{paragraph}</p>;
+                          })}
+                        </div>
+
+                        {/* Minimal Icon Actions: Copy + Save to Notes */}
+                        {!isUser && (
+                          <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-white/[0.04]">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(msg.content);
+                                showStatus('Copied');
+                              }}
+                              className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                              title="Copy to clipboard"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveNoteDirect(msg.content)}
+                              className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                              title="Save to Notes"
+                            >
+                              <FileText className="w-3 h-3 text-zinc-400 hover:text-white" />
+                            </button>
+                            {msg.modelUsed && (
+                              <span className="ml-auto font-mono text-[8.5px] text-zinc-500">
+                                {msg.modelUsed}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {isUser && (
+                        <div className="w-5 h-5 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0 mt-0.5 text-[10px] font-semibold">
+                          U
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {isAIGenerating && (
+                  <div className="flex gap-2 justify-start">
+                    <div className="w-5 h-5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5 animate-pulse">
+                      <Sparkles className="w-2.5 h-2.5" />
+                    </div>
+                    <div className="bg-white/[0.03] rounded-2xl rounded-tl-sm px-3 py-1.5 border border-white/[0.05] text-xs text-zinc-400 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                      <span>{isScreenVisionEnabled ? 'Analyzing screen...' : 'Thinking...'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Bottom Minimal Input Area */}
+              <div className="pt-1.5 shrink-0">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendChatMessage();
+                  }}
+                  className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.07] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3 py-2 transition-all border border-white/[0.06]"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={
+                      isScreenVisionEnabled
+                        ? "Ask about visible screen context..."
+                        : "Ask AI, format checklist, or diagnose code..."
+                    }
+                    disabled={isAIGenerating}
+                    className="w-full bg-transparent border-none text-[12px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!chatInput.trim() || isAIGenerating}
+                    className="p-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 disabled:opacity-30 transition-all cursor-pointer shrink-0"
+                    title="Send (↵)"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Top Left Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
         <svg
           width={activeMode === 'shelf' ? 20 : 10}
           height={activeMode === 'shelf' ? 20 : 10}
@@ -1777,13 +2200,13 @@ export const SuperNotch: React.FC = () => {
                     })}
                   </div>
 
-                  {/* Horizontal Shelf Stream (155px x 120px cards with soft edge scroll dissolve) */}
+                  {/* Horizontal Shelf Stream (155px x 120px cards with adaptive soft edge scroll dissolve) */}
                   <div
                     ref={shelfScrollRef}
-                    className="flex flex-row gap-2.5 overflow-x-auto pt-1 pb-1.5 px-0.5 items-stretch flex-1 custom-slim-scrollbar"
+                    className="flex flex-row gap-2.5 overflow-x-auto pt-1 pb-1.5 px-3 items-stretch flex-1 custom-slim-scrollbar"
                     style={{
-                      maskImage: 'linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
-                      WebkitMaskImage: 'linear-gradient(to right, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
+                      maskImage: shelfMask,
+                      WebkitMaskImage: shelfMask,
                     }}
                   >
                     {filteredShelfItems.length === 0 ? (
@@ -2751,365 +3174,13 @@ export const SuperNotch: React.FC = () => {
                   <WidgetsView />
                 </div>
               )}
-
-              {/* ================================================================= */}
-              {/* VIEW D: PHYSICAL NOTCH AI ORB + FLOATING CHAT WIDGET ISLAND       */}
-              {/* ================================================================= */}
-              {superNotchHudView === 'chat' && (
-                <div className="flex-1 flex flex-col justify-between pt-0.5 overflow-hidden relative">
-                  {/* 1. TOP PHYSICAL NOTCH BEZEL WITH LIVING AI PERSONA ORB */}
-                  <div className="flex justify-center items-center w-full pt-0.5 pb-2 shrink-0">
-                    <div className="h-7 px-4 rounded-full bg-black/95 border border-white/[0.12] flex items-center justify-center gap-3 shadow-md relative overflow-hidden backdrop-blur-md">
-                      {/* Dynamic Glowing Sound/Thinking AI Orb */}
-                      <div className="relative flex items-center justify-center">
-                        {/* Outer pulsing glow aura */}
-                        <motion.div
-                          animate={{
-                            scale: isAIGenerating ? [1, 1.25, 0.95, 1.15, 1] : isRecording ? [1, 1.3, 1] : [1, 1.05, 1],
-                            opacity: isAIGenerating ? [0.8, 1, 0.7, 0.9] : [0.6, 0.85, 0.6],
-                          }}
-                          transition={{
-                            repeat: Infinity,
-                            duration: isAIGenerating ? 1.6 : isRecording ? 0.8 : 3.2,
-                            ease: 'easeInOut',
-                          }}
-                          className="h-3 rounded-full blur-[3px] transition-all duration-150"
-                          style={{
-                            width: isRecording ? `${38 + Math.min(50, audioLevel * 80)}px` : isAIGenerating ? '44px' : '32px',
-                            background: isAIGenerating
-                              ? 'linear-gradient(90deg, #a855f7 0%, #3b82f6 50%, #10b981 100%)' // Thinking: Iridescent multi-color shift
-                              : isRecording
-                              ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #ec4899 100%)' // Listening: Live audio reactivity
-                              : 'linear-gradient(90deg, #e4e4e7 0%, #a1a1aa 50%, #d4d4d8 100%)', // Idle: Clean subtle monochrome pearl
-                          }}
-                        />
-                        {/* Crisp inner luminous nucleus */}
-                        <motion.div
-                          animate={{
-                            scale: isAIGenerating ? [1, 1.1, 0.95, 1] : [1, 1.04, 1],
-                          }}
-                          transition={{
-                            repeat: Infinity,
-                            duration: isAIGenerating ? 1.2 : 2.5,
-                            ease: 'easeInOut',
-                          }}
-                          className="absolute h-1.5 rounded-full bg-white transition-all duration-75"
-                          style={{
-                            width: isRecording ? `${16 + Math.min(24, audioLevel * 45)}px` : isAIGenerating ? '20px' : '14px',
-                            boxShadow: isAIGenerating
-                              ? '0 0 10px 2px rgba(168,85,247,0.8), 0 0 16px 3px rgba(59,130,246,0.6)'
-                              : isRecording
-                              ? '0 0 10px 2px rgba(16,185,129,0.8), 0 0 14px 2px rgba(56,189,248,0.7)'
-                              : '0 0 8px 1px rgba(255,255,255,0.7), 0 0 12px 1px rgba(161,161,170,0.4)',
-                          }}
-                        />
-                      </div>
-
-                      {/* Status label inside notch */}
-                      <span className="text-[10px] font-mono font-medium tracking-tight text-zinc-300">
-                        {isAIGenerating
-                          ? 'AI Thinking...'
-                          : isRecording
-                          ? 'Listening...'
-                          : 'SuperNotch AI'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 2. DETACHED FLOATING CHAT WIDGET ISLAND (Matching Wireframe) */}
-                  <div className="flex-1 flex flex-col justify-between bg-[#111115]/95 border border-white/[0.08] rounded-2xl p-3 overflow-hidden shadow-2xl relative">
-                    {/* Top Controls: Design System Dropdown + Screen Vision + Reset */}
-                    <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.05] shrink-0 relative z-20">
-                      <div className="flex items-center gap-2">
-                        {/* Custom Design System Model Selector Dropdown */}
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                            className="flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.1] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-white transition-all cursor-pointer"
-                          >
-                            <Bot className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                            <span className="font-medium text-xs text-white">
-                              {AVAILABLE_AI_MODELS.find((m) => m.id === selectedAIModel)?.name || 'Select Model'}
-                            </span>
-                            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
-                          </button>
-
-                          <AnimatePresence>
-                            {isModelDropdownOpen && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                                transition={{ duration: 0.12 }}
-                                className="absolute top-10 left-0 z-50 w-64 bg-[#16161b] border border-white/10 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl"
-                              >
-                                <div className="px-2 py-1 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                                  Select AI Model
-                                </div>
-                                <div className="space-y-0.5 max-h-56 overflow-y-auto custom-slim-scrollbar">
-                                  {AVAILABLE_AI_MODELS.map((model) => {
-                                    const isSelected = selectedAIModel === model.id;
-                                    return (
-                                      <button
-                                        key={model.id}
-                                        type="button"
-                                        onClick={() => {
-                                          setSelectedAIModel(model.id);
-                                          setIsModelDropdownOpen(false);
-                                        }}
-                                        className={`w-full text-left px-2.5 py-1.5 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer ${
-                                          isSelected
-                                            ? 'bg-white/10 text-white font-medium'
-                                            : 'text-zinc-300 hover:text-white hover:bg-white/5'
-                                        }`}
-                                      >
-                                        <div className="min-w-0 pr-1">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="truncate">{model.name}</span>
-                                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-zinc-400 shrink-0">
-                                              {model.badge}
-                                            </span>
-                                          </div>
-                                          <p className="text-[10px] text-zinc-500 font-normal truncate">
-                                            {model.description}
-                                          </p>
-                                        </div>
-                                        {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-
-                        {/* Screen Vision Snapshot Toggle Icon Button */}
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (isScreenVisionEnabled) {
-                              setIsScreenVisionEnabled(false);
-                              setCurrentScreenThumbnail(null);
-                            } else {
-                              try {
-                                showStatus('Capturing screen...');
-                                const snapshot = await captureScreenVision();
-                                setCurrentScreenThumbnail(snapshot);
-                                setIsScreenVisionEnabled(true);
-                                showStatus(`${snapshot.width}×${snapshot.height} captured`);
-                              } catch (e: any) {
-                                showStatus('Screen capture failed');
-                              }
-                            }
-                          }}
-                          className={`p-1.5 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 ${
-                            isScreenVisionEnabled
-                              ? 'bg-white/15 text-white border-white/30 shadow-sm'
-                              : 'bg-white/[0.04] text-zinc-400 hover:text-white border-white/[0.06] hover:bg-white/[0.08]'
-                          }`}
-                          title={
-                            isScreenVisionEnabled
-                              ? 'Screen Context Attached (Click to detach)'
-                              : 'See Screen (Click to capture active display)'
-                          }
-                        >
-                          {isScreenVisionEnabled ? (
-                            <>
-                              <Eye className="w-3.5 h-3.5 text-white" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                            </>
-                          ) : (
-                            <EyeOff className="w-3.5 h-3.5 text-zinc-400" />
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Clear Conversation Icon Button */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setChatMessages([
-                            {
-                              id: `reset-${Date.now()}`,
-                              role: 'assistant',
-                              content: `Ready. Ask questions, format checklists, or click the eye icon to analyze your screen.`,
-                              timestamp: Date.now(),
-                              modelUsed: selectedAIModel,
-                            },
-                          ]);
-                          setCurrentScreenThumbnail(null);
-                          setIsScreenVisionEnabled(false);
-                          showStatus('New session');
-                        }}
-                        className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer border border-transparent hover:border-white/[0.06]"
-                        title="New Chat Session"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Messages Scroll Area with Smooth Gradient Fade Mask and Generous Breathing Space */}
-                    <div
-                      ref={chatScrollRef}
-                      className="flex-1 overflow-y-auto px-1 py-3 space-y-3.5 pr-2 select-text custom-slim-scrollbar"
-                      style={{
-                        maxHeight: '290px',
-                        maskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
-                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 20px, black calc(100% - 20px), transparent 100%)',
-                      }}
-                    >
-                      {chatMessages.map((msg) => {
-                        const isUser = msg.role === 'user';
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
-                          >
-                            {!isUser && (
-                              <div className="w-6 h-6 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
-                                <Sparkles className="w-3 h-3" />
-                              </div>
-                            )}
-
-                            <div
-                              className={`flex flex-col max-w-[85%] ${
-                                isUser
-                                  ? 'bg-white/[0.08] text-white rounded-2xl rounded-tr-sm px-3.5 py-2.5 border border-white/10'
-                                  : 'bg-white/[0.03] text-zinc-200 rounded-2xl rounded-tl-sm px-4 py-2.5 border border-white/[0.05]'
-                              }`}
-                            >
-                              {msg.hasScreenVision && msg.screenThumbnail && (
-                                <div className="mb-2">
-                                  <img
-                                    src={msg.screenThumbnail}
-                                    alt="Screen Context"
-                                    className="w-44 h-26 object-cover rounded-lg border border-white/15"
-                                  />
-                                </div>
-                              )}
-
-                              {/* Message Markdown text */}
-                              <div className="text-xs leading-relaxed space-y-1.5 whitespace-pre-wrap font-sans">
-                                {msg.content.split('\n\n').map((paragraph, pIdx) => {
-                                  if (paragraph.startsWith('### ')) {
-                                    return (
-                                      <h4 key={pIdx} className="font-semibold text-white text-xs pt-0.5">
-                                        {paragraph.replace('### ', '')}
-                                      </h4>
-                                    );
-                                  }
-                                  if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
-                                    return (
-                                      <div key={pIdx} className="font-mono text-[11px] text-zinc-300">
-                                        {paragraph}
-                                      </div>
-                                    );
-                                  }
-                                  if (paragraph.startsWith('- ')) {
-                                    return (
-                                      <div key={pIdx} className="text-zinc-300 pl-1 text-[11px]">
-                                        {paragraph}
-                                      </div>
-                                    );
-                                  }
-                                  return <p key={pIdx}>{paragraph}</p>;
-                                })}
-                              </div>
-
-                              {/* Minimal Icon Actions: Copy + Save to Notes */}
-                              {!isUser && (
-                                <div className="flex items-center gap-1.5 mt-2 pt-1.5 border-t border-white/[0.04]">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(msg.content);
-                                      showStatus('Copied');
-                                    }}
-                                    className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                    title="Copy to clipboard"
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSaveNoteDirect(msg.content)}
-                                    className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                    title="Save to Notes"
-                                  >
-                                    <FileText className="w-3 h-3 text-zinc-400 hover:text-white" />
-                                  </button>
-                                  {msg.modelUsed && (
-                                    <span className="ml-auto font-mono text-[8.5px] text-zinc-500">
-                                      {msg.modelUsed}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {isUser && (
-                              <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0 mt-0.5 text-[11px] font-semibold">
-                                U
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {isAIGenerating && (
-                        <div className="flex gap-2 justify-start">
-                          <div className="w-6 h-6 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5 animate-pulse">
-                            <Sparkles className="w-3 h-3" />
-                          </div>
-                          <div className="bg-white/[0.03] rounded-2xl rounded-tl-sm px-3.5 py-2 border border-white/[0.05] text-xs text-zinc-400 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                            <span>{isScreenVisionEnabled ? 'Analyzing screen...' : 'Thinking...'}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bottom Minimal Input Area */}
-                    <div className="pt-2 shrink-0">
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          handleSendChatMessage();
-                        }}
-                        className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.07] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3.5 py-2 transition-all border border-white/[0.06]"
-                      >
-                        <input
-                          type="text"
-                          value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          placeholder={
-                            isScreenVisionEnabled
-                              ? "Ask about visible screen context..."
-                              : "Ask AI, format checklist, or diagnose code..."
-                          }
-                          disabled={isAIGenerating}
-                          className="w-full bg-transparent border-none text-[12.5px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!chatInput.trim() || isAIGenerating}
-                          className="p-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 disabled:opacity-30 transition-all cursor-pointer shrink-0"
-                          title="Send (↵)"
-                        >
-                          <Send className="w-3.5 h-3.5" />
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-      </motion.div>
-    </div>
+      </>
+    )}
+    </motion.div>
+  </div>
   );
 };
