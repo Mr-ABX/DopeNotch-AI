@@ -22,15 +22,26 @@ pub struct NoteItem {
 static NOTES_LOCK: Mutex<()> = Mutex::new(());
 
 fn get_notes_path() -> PathBuf {
-    if let Some(home) = dirs::home_dir() {
-        let dir = home.join(".dopenotch");
-        if !dir.exists() {
-            let _ = fs::create_dir_all(&dir);
+    let settings = crate::settings::AppSettings::load_or_default();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let notes_file = crate::storage::DopeNotchStorage::notes_file(&root);
+
+    if !notes_file.exists() {
+        if let Some(home) = dirs::home_dir() {
+            let legacy = home.join(".dopenotch").join("notes.json");
+            if legacy.exists() {
+                if let Some(parent) = notes_file.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                let _ = fs::copy(&legacy, &notes_file);
+                return notes_file;
+            }
         }
-        dir.join("notes.json")
-    } else {
-        PathBuf::from("notes.json")
+        if let Some(parent) = notes_file.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
     }
+    notes_file
 }
 
 pub fn load_notes_from_disk() -> Result<Vec<NoteItem>, String> {

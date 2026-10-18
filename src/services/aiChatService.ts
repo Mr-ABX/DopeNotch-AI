@@ -362,6 +362,17 @@ export async function pullOllamaModel(
   }
 }
 
+export async function deleteOllamaModel(modelName: string): Promise<void> {
+  const res = await fetch('http://127.0.0.1:11434/api/delete', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: modelName }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to delete model (${res.status})`);
+  }
+}
+
 function generateLocalFallbackResponse(prompt: string, screenPayload?: ScreenVisionPayload | null): string {
   const p = prompt.trim();
   const lower = p.toLowerCase();

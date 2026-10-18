@@ -53,6 +53,8 @@ pub struct AppSettings {
     pub activation_mode: ActivationMode,
     #[serde(default)]
     pub visualizer_style: VisualizerStyle,
+    #[serde(default)]
+    pub storage_directory: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, Default)]
@@ -247,6 +249,7 @@ impl Default for AppSettings {
             notch_style: NotchStyle::DynamicIsland,
             activation_mode: ActivationMode::Toggle,
             visualizer_style: VisualizerStyle::Wave,
+            storage_directory: None,
         }
     }
 }
@@ -266,18 +269,28 @@ impl AppSettings {
         dopenotch_cfg
     }
 
+    /// Resolves the unified storage root for this settings instance (~/Documents/DopeNotch by default)
+    pub fn storage_root(&self) -> PathBuf {
+        crate::storage::DopeNotchStorage::get_root(self.storage_directory.as_deref())
+    }
+
+    /// Resolves default storage root (~/Documents/DopeNotch)
+    pub fn default_storage_root() -> PathBuf {
+        crate::storage::DopeNotchStorage::get_root(None)
+    }
+
+    /// Returns the voice models directory in unified storage
     pub fn models_dir() -> PathBuf {
-        let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
-        let dopenotch_dir = base.join("DopeNotch").join("models");
-        if dopenotch_dir.exists() {
-            return dopenotch_dir;
-        }
-        let murmur_dir = base.join("Murmur").join("models");
-        if murmur_dir.exists() {
-            return murmur_dir;
-        }
-        let _ = std::fs::create_dir_all(&dopenotch_dir);
-        dopenotch_dir
+        let root = Self::default_storage_root();
+        let voice_dir = crate::storage::DopeNotchStorage::voice_models_dir(&root);
+        let _ = std::fs::create_dir_all(&voice_dir);
+        voice_dir
+    }
+
+    pub fn get_models_dir(&self) -> PathBuf {
+        let voice_dir = crate::storage::DopeNotchStorage::voice_models_dir(&self.storage_root());
+        let _ = std::fs::create_dir_all(&voice_dir);
+        voice_dir
     }
 
     pub fn load_or_default() -> Self {
@@ -309,9 +322,16 @@ impl AppSettings {
     }
 
     pub fn model_path(&self, model: &WhisperModel) -> PathBuf {
-        let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
         let filename = model.filename();
         
+        // 1. Primary: check unified ~/Documents/DopeNotch/models/voice/
+        let unified_path = crate::storage::DopeNotchStorage::voice_models_dir(&self.storage_root()).join(filename);
+        if unified_path.exists() {
+            return unified_path;
+        }
+
+        // 2. Fallback: check legacy directories
+        let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
         let dopenotch_path = base.join("DopeNotch").join("models").join(filename);
         if dopenotch_path.exists() {
             return dopenotch_path;
@@ -333,7 +353,8 @@ impl AppSettings {
             return murmur_cfg;
         }
 
-        dopenotch_path
+        // Default to unified path for future downloads
+        unified_path
     }
 
     pub fn is_model_downloaded(&self, model: &WhisperModel) -> bool {
@@ -352,14 +373,29 @@ impl AppSettings {
         }
     }
 
-    pub fn history_path() -> PathBuf {
-        let mut path = Self::models_dir();
-        path.push("history.json");
-        path
+    pub fn history_path(&self) -> PathBuf {
+        let unified = crate::storage::DopeNotchStorage::voice_history_file(&self.storage_root());
+        if unified.exists() {
+            return unified;
+        }
+
+        // Legacy fallback
+        let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+        let murmur_hist = base.join("Murmur").join("models").join("history.json");
+        if murmur_hist.exists() {
+            return murmur_hist;
+        }
+
+        unified
+    }
+
+    pub fn static_history_path() -> PathBuf {
+        let root = Self::default_storage_root();
+        crate::storage::DopeNotchStorage::voice_history_file(&root)
     }
 
     pub fn load_history() -> Vec<VoiceHistoryItem> {
-        let path = Self::history_path();
+        let path = Self::static_history_path();
         if path.exists() {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if let Ok(items) = serde_json::from_str::<Vec<VoiceHistoryItem>>(&content) {
@@ -367,11 +403,23 @@ impl AppSettings {
                 }
             }
         }
+
+        // Try legacy path
+        let base = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+        let murmur_hist = base.join("Murmur").join("models").join("history.json");
+        if murmur_hist.exists() {
+            if let Ok(content) = std::fs::read_to_string(&murmur_hist) {
+                if let Ok(items) = serde_json::from_str::<Vec<VoiceHistoryItem>>(&content) {
+                    return items;
+                }
+            }
+        }
+
         Vec::new()
     }
 
     pub fn save_history(items: &[VoiceHistoryItem]) -> Result<()> {
-        let path = Self::history_path();
+        let path = Self::static_history_path();
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
@@ -381,7 +429,7 @@ impl AppSettings {
     }
 
     pub fn gemma_model_path(&self, model: &GemmaModel) -> PathBuf {
-        let mut path = Self::models_dir();
+        let mut path = self.get_models_dir();
         path.push("gemma");
         path.push(model.as_str());
         path
@@ -389,7 +437,6 @@ impl AppSettings {
 
     pub fn is_gemma_model_downloaded(&self, model: &GemmaModel) -> bool {
         let path = self.gemma_model_path(model);
-        // It's considered downloaded if model.safetensors exists
         path.join("model.safetensors").exists()
     }
 }

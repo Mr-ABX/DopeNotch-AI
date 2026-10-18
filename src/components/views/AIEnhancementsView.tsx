@@ -14,6 +14,8 @@ import {
   Mic,
   Send,
   ExternalLink,
+  Trash2,
+  Zap,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import {
@@ -22,6 +24,7 @@ import {
   sendAIChatRequest,
   checkLocalOllamaHealth,
   pullOllamaModel,
+  deleteOllamaModel,
 } from '../../services/aiChatService';
 import { invoke } from '@tauri-apps/api/core';
 
@@ -81,9 +84,33 @@ export const AIEnhancementsView: React.FC = () => {
     }
   };
 
+  const handleDeleteModel = async (modelId: string) => {
+    const target = modelId === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+    try {
+      await deleteOllamaModel(target);
+      await refreshLocalHealth();
+    } catch (e: any) {
+      console.error('Failed to delete model', e);
+    }
+  };
+
+  const [isStartingOllama, setIsStartingOllama] = useState(false);
+
+  const handleStartOllama = async () => {
+    setIsStartingOllama(true);
+    try {
+      await invoke('check_or_start_ollama');
+      await refreshLocalHealth();
+    } catch (e) {
+      console.error('Failed to auto-start local Ollama engine:', e);
+    } finally {
+      setIsStartingOllama(false);
+    }
+  };
+
   const handleOpenExtensionsFolder = async () => {
     try {
-      await invoke('open_extensions_folder');
+      await invoke('open_storage_directory', { subfolder: 'extensions' });
     } catch (e) {
       console.error('Failed to open extensions folder', e);
     }
@@ -91,7 +118,7 @@ export const AIEnhancementsView: React.FC = () => {
 
   const handleOpenLocalModelsFolder = async () => {
     try {
-      await invoke('open_local_models_folder');
+      await invoke('open_storage_directory', { subfolder: 'models' });
     } catch (e) {
       console.error('Failed to open local models folder', e);
     }
@@ -148,19 +175,19 @@ export const AIEnhancementsView: React.FC = () => {
           <button
             onClick={handleOpenLocalModelsFolder}
             className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-xs text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Open local Ollama models directory in Finder"
+            title="Open unified models folder in Finder (~/Documents/DopeNotch/models)"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>~/.ollama/models</span>
+            <span>models/</span>
           </button>
 
           <button
             onClick={handleOpenExtensionsFolder}
             className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-xs text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Open extensions folder in Finder"
+            title="Open unified extensions folder in Finder (~/Documents/DopeNotch/extensions)"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>~/.dopenotch/extensions</span>
+            <span>extensions/</span>
           </button>
         </div>
       </div>
@@ -230,10 +257,21 @@ export const AIEnhancementsView: React.FC = () => {
                 Local Engine Online ({installedLocalModels.length} models ready)
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium font-mono">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                Local Engine Offline
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Local Engine Offline
+                </span>
+                <button
+                  onClick={handleStartOllama}
+                  disabled={isStartingOllama}
+                  className="px-2 py-0.5 rounded-full bg-white/10 hover:bg-white/15 border border-white/20 text-zinc-200 hover:text-white text-[10px] font-medium flex items-center gap-1 transition-all cursor-pointer"
+                  title="Auto-detect & start Ollama in background"
+                >
+                  <Zap className="w-2.5 h-2.5 text-amber-400" />
+                  <span>{isStartingOllama ? 'Starting...' : 'Auto-Launch Engine'}</span>
+                </button>
+              </div>
             )}
           </div>
           <button
@@ -305,9 +343,21 @@ export const AIEnhancementsView: React.FC = () => {
                       </span>
                     ) : model.isLocal ? (
                       isInstalled ? (
-                        <span className="text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Ready on Device
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Ready
+                          </span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteModel(model.id);
+                            }}
+                            title="Delete model from disk to free up space"
+                            className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       ) : isOllamaOnline ? (
                         <button
                           onClick={(e) => {

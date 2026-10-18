@@ -55,7 +55,7 @@ export const VoiceEngineView: React.FC = () => {
 
   const handleOpenFolder = async () => {
     try {
-      await invoke('open_models_directory');
+      await invoke('open_storage_directory', { subfolder: 'voice' });
     } catch (e) {
       console.error('Failed to open models folder', e);
     }

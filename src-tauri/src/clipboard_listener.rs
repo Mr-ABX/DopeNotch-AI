@@ -131,20 +131,36 @@ pub fn detect_category(text: &str) -> String {
     "clipboard".to_string()
 }
 
-/// Path to persistent clipboard storage JSON
+/// Path to persistent clipboard storage JSON (~/Documents/DopeNotch/history/clipboard_history.json)
 fn clipboard_storage_path() -> std::path::PathBuf {
-    let base = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    let dopenotch_clip = base.join("DopeNotch").join("clipboard_history.json");
-    if dopenotch_clip.exists() {
-        return dopenotch_clip;
+    let settings = crate::settings::AppSettings::load_or_default();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let target = crate::storage::DopeNotchStorage::clipboard_file(&root);
+
+    if !target.exists() {
+        let base = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let murmur_clip = base.join("Murmur").join("clipboard_history.json");
+        if murmur_clip.exists() {
+            if let Some(parent) = target.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::copy(&murmur_clip, &target);
+            return target;
+        }
+        let dopenotch_clip = base.join("DopeNotch").join("clipboard_history.json");
+        if dopenotch_clip.exists() {
+            if let Some(parent) = target.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let _ = std::fs::copy(&dopenotch_clip, &target);
+            return target;
+        }
     }
-    let murmur_clip = base.join("Murmur").join("clipboard_history.json");
-    if murmur_clip.exists() {
-        return murmur_clip;
+
+    if let Some(parent) = target.parent() {
+        let _ = std::fs::create_dir_all(parent);
     }
-    let dir = base.join("DopeNotch");
-    let _ = std::fs::create_dir_all(&dir);
-    dopenotch_clip
+    target
 }
 
 pub fn load_saved_clipboard() -> Vec<ClipboardItemPayload> {

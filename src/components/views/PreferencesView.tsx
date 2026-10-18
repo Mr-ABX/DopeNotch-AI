@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Settings as SettingsIcon,
   Keyboard,
@@ -6,9 +6,35 @@ import {
   Layers,
   Database,
   Sliders,
+  FolderOpen,
+  Folder,
+  HardDrive,
+  FileText,
+  ClipboardList,
+  Puzzle,
+  Mic2,
+  Sparkles,
+  RotateCcw,
+  ExternalLink,
 } from 'lucide-react';
 import { useAppStore, OverlayStyle } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
+
+interface StorageInfo {
+  rootPath: string;
+  isCustom: boolean;
+  notesPath: string;
+  historyPath: string;
+  extensionsPath: string;
+  voiceModelsPath: string;
+  aiModelsPath: string;
+  notesCount: number;
+  clipboardCount: number;
+  voiceHistoryCount: number;
+  extensionsCount: number;
+  voiceModelsCount: number;
+  totalSizeBytes: number;
+}
 
 export const PreferencesView: React.FC = () => {
   const {
@@ -38,6 +64,66 @@ export const PreferencesView: React.FC = () => {
 
   const [isRecordingPrimary, setIsRecordingPrimary] = useState(false);
   const [isRecordingSecondary, setIsRecordingSecondary] = useState(false);
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [isLoadingStorage, setIsLoadingStorage] = useState(false);
+
+  const fetchStorageInfo = async () => {
+    try {
+      const info = await invoke<StorageInfo>('get_storage_info');
+      setStorageInfo(info);
+    } catch (e) {
+      console.error('Failed to get storage info:', e);
+    }
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  const handleOpenStorageDirectory = async (subfolder?: string) => {
+    try {
+      await invoke('open_storage_directory', { subfolder: subfolder || null });
+    } catch (e) {
+      console.error('Failed to open directory:', e);
+    }
+  };
+
+  const handleChangeStorageFolder = async () => {
+    try {
+      setIsLoadingStorage(true);
+      const selected = await invoke<string | null>('pick_storage_folder');
+      if (selected) {
+        const updated = await invoke<StorageInfo>('change_storage_directory', { newPath: selected });
+        setStorageInfo(updated);
+      }
+    } catch (e) {
+      console.error('Failed to change storage directory:', e);
+    } finally {
+      setIsLoadingStorage(false);
+    }
+  };
+
+  const handleResetStorageFolder = async () => {
+    try {
+      setIsLoadingStorage(true);
+      const updated = await invoke<StorageInfo>('reset_storage_directory');
+      setStorageInfo(updated);
+    } catch (e) {
+      console.error('Failed to reset storage directory:', e);
+    } finally {
+      setIsLoadingStorage(false);
+    }
+  };
+
+  useEffect(() => {
+    if (settingsSection === 'data') {
+      fetchStorageInfo();
+    }
+  }, [settingsSection]);
 
   const syncBackend = async (updates: Partial<any>) => {
     try {
@@ -483,12 +569,191 @@ export const PreferencesView: React.FC = () => {
         )}
 
         {settingsSection === 'data' && (
-          <div className="space-y-4 max-w-xl">
+          <div className="space-y-5 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-white">Data & Storage</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Manage local files and history</p>
+              <h3 className="text-sm font-semibold text-white">Data & Unified Storage</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Manage local workspace files, notes, custom scripts, and offline AI models</p>
             </div>
 
+            {/* Unified Storage Root Folder Card */}
+            <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                    <HardDrive className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-white">DopeNotch Unified Folder</span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                        storageInfo?.isCustom
+                          ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      }`}>
+                        {storageInfo?.isCustom ? 'Custom Location' : 'Default Documents'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 font-mono mt-0.5 truncate max-w-sm">
+                      {storageInfo?.rootPath || '~/Documents/DopeNotch'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[11px] font-mono text-zinc-400 block">Total Disk</span>
+                  <span className="text-xs font-mono font-semibold text-zinc-200">
+                    {formatBytes(storageInfo?.totalSizeBytes || 0)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-2 border-t border-[#1e1e24]">
+                <button
+                  type="button"
+                  onClick={() => handleOpenStorageDirectory()}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white text-xs font-medium border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Open in Finder</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleChangeStorageFolder}
+                  disabled={isLoadingStorage}
+                  className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white text-xs font-medium border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Folder className="w-3.5 h-3.5" />
+                  <span>{isLoadingStorage ? 'Updating...' : 'Change Location...'}</span>
+                </button>
+
+                {storageInfo?.isCustom && (
+                  <button
+                    type="button"
+                    onClick={handleResetStorageFolder}
+                    disabled={isLoadingStorage}
+                    className="px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200 text-xs font-medium border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer ml-auto"
+                    title="Reset to default ~/Documents/DopeNotch"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Subfolders Explorer Grid */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-400">Workspace Subfolders</span>
+                <span className="text-[11px] text-zinc-500 font-mono">100% on-device & visible</span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2">
+                {/* 1. Notes */}
+                <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                      <FileText className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white">Notes & Checklists</p>
+                      <p className="text-[11px] text-zinc-500 font-mono">notes/ • {storageInfo?.notesCount || 0} voice notes & .md files</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenStorageDirectory('notes')}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                    title="Open notes folder in Finder"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* 2. History */}
+                <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                      <ClipboardList className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white">Clipboard & Voice History</p>
+                      <p className="text-[11px] text-zinc-500 font-mono">history/ • {storageInfo?.clipboardCount || 0} clips, {storageInfo?.voiceHistoryCount || 0} transcripts</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenStorageDirectory('history')}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                    title="Open history folder in Finder"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* 3. Extensions */}
+                <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                      <Puzzle className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white">Custom Extensions & Scripts</p>
+                      <p className="text-[11px] text-zinc-500 font-mono">extensions/ • {storageInfo?.extensionsCount || 0} scripts (.sh, .py, .js)</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenStorageDirectory('extensions')}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                    title="Open extensions folder in Finder"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* 4. Voice Models */}
+                <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
+                      <Mic2 className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white">Voice Speech Models</p>
+                      <p className="text-[11px] text-zinc-500 font-mono">models/voice/ • {storageInfo?.voiceModelsCount || 0} Whisper GGML engines</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenStorageDirectory('voice')}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                    title="Open voice models folder in Finder"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* 5. AI Models */}
+                <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-white">Offline Neural AI Models</p>
+                      <p className="text-[11px] text-zinc-500 font-mono">models/ai/ • Local LLMs (Qwen 2.5, SmolLM2)</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleOpenStorageDirectory('ai')}
+                    className="p-1.5 rounded-lg hover:bg-white/5 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                    title="Open AI models folder in Finder"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Cache Reset */}
             <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-white">Local Dictation Cache</p>

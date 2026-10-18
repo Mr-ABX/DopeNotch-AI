@@ -960,85 +960,10 @@ pub struct UserExtension {
 #[tauri::command]
 pub async fn load_user_extensions() -> Result<Vec<UserExtension>, String> {
     let mut extensions = Vec::new();
-    let home = match dirs::home_dir() {
-        Some(h) => h,
-        None => return Ok(extensions),
-    };
-
-    let ext_dir = home.join(".dopenotch").join("extensions");
-    if !ext_dir.exists() {
-        let _ = std::fs::create_dir_all(&ext_dir);
-    }
-
-    let readme_path = ext_dir.join("README.md");
-    if !readme_path.exists() {
-        let readme_content = r#"# DopeNotch Custom Extensions & Scripts
-
-Welcome to your DopeNotch extensions folder! Any script placed here is automatically discovered, indexed, and made executable from the DopeNotch Notch and Command Palette.
-
-## Supported Script Formats
-- **Bash / Shell** (`.sh`, `.bash`, `.zsh`)
-- **Python** (`.py`)
-- **Node.js** (`.js`, `.mjs`)
-- **Folder Extensions** (a subfolder containing a `manifest.json` and entry file)
-
-## Raycast-Compatible Metadata Headers
-Add comments at the top of your script to configure its title, icon, and output mode:
-
-```bash
-#!/bin/bash
-
-# @raycast.schemaVersion 1
-# @raycast.title My Custom Tool
-# @raycast.mode clipboard
-# @raycast.icon 🚀
-# @raycast.description Copies custom generated data to your clipboard
-# @raycast.author YourName
-
-echo "Hello from my custom extension!"
-```
-
-### Modes:
-- `clipboard` (Default): Output of stdout is automatically copied to clipboard and added to your SuPaste shelf history.
-- `silent`: Runs in the background without modifying clipboard.
-
-## How to Trigger
-Drop any script in this folder and press `⇧⌘K` in DopeNotch to see it instantly!
-"#;
-        let _ = std::fs::write(&readme_path, readme_content);
-    }
-
-    // Starter Raycast-compatible scripts if folder is newly created
-    let sample_sh = ext_dir.join("iso-timestamp.sh");
-    if !sample_sh.exists() {
-        let starter_script = r#"#!/bin/bash
-
-# @raycast.schemaVersion 1
-# @raycast.title Insert ISO Timestamp
-# @raycast.mode clipboard
-# @raycast.icon ⏱️
-# @raycast.description Copies current ISO 8601 UTC timestamp to clipboard
-
-date -u +"%Y-%m-%dT%H:%M:%SZ"
-"#;
-        let _ = std::fs::write(&sample_sh, starter_script);
-    }
-
-    let sample_py = ext_dir.join("generate-uuid.py");
-    if !sample_py.exists() {
-        let py_script = r#"#!/usr/bin/env python3
-
-# @raycast.schemaVersion 1
-# @raycast.title Generate UUID v4
-# @raycast.mode clipboard
-# @raycast.icon 🔑
-# @raycast.description Generates a random UUID v4 and copies it to clipboard
-
-import uuid
-print(str(uuid.uuid4()))
-"#;
-        let _ = std::fs::write(&sample_py, py_script);
-    }
+    let settings = crate::settings::AppSettings::load_or_default();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let _ = crate::storage::DopeNotchStorage::init_and_migrate(&root);
+    let ext_dir = crate::storage::DopeNotchStorage::extensions_dir(&root);
 
     let entries = match std::fs::read_dir(&ext_dir) {
         Ok(e) => e,
@@ -1128,106 +1053,105 @@ print(str(uuid.uuid4()))
 
 #[tauri::command]
 pub async fn open_extensions_folder() -> Result<String, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Failed to find home directory".to_string())?;
-    let ext_dir = home.join(".dopenotch").join("extensions");
-    if !ext_dir.exists() {
-        let _ = std::fs::create_dir_all(&ext_dir);
-    }
-
-    let readme_path = ext_dir.join("README.md");
-    if !readme_path.exists() {
-        let readme_content = r#"# DopeNotch Custom Extensions & Scripts
-
-Welcome to your DopeNotch extensions folder! Any script placed here is automatically discovered, indexed, and made executable from the DopeNotch Notch and Command Palette.
-
-## Supported Script Formats
-- **Bash / Shell** (`.sh`, `.bash`, `.zsh`)
-- **Python** (`.py`)
-- **Node.js** (`.js`, `.mjs`)
-- **Folder Extensions** (a subfolder containing a `manifest.json` and entry file)
-
-## Raycast-Compatible Metadata Headers
-Add comments at the top of your script to configure its title, icon, and output mode:
-
-```bash
-#!/bin/bash
-
-# @raycast.schemaVersion 1
-# @raycast.title My Custom Tool
-# @raycast.mode clipboard
-# @raycast.icon 🚀
-# @raycast.description Copies custom generated data to your clipboard
-# @raycast.author YourName
-
-echo "Hello from my custom extension!"
-```
-
-### Modes:
-- `clipboard` (Default): Output of stdout is automatically copied to clipboard and added to your SuPaste shelf history.
-- `silent`: Runs in the background without modifying clipboard.
-
-## How to Trigger
-Drop any script in this folder and press `⇧⌘K` in DopeNotch to see it instantly!
-"#;
-        let _ = std::fs::write(&readme_path, readme_content);
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&ext_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open extensions folder in Finder: {}", e))?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(&ext_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open extensions folder in Explorer: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&ext_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open extensions folder: {}", e))?;
-    }
-
+    let settings = crate::settings::AppSettings::load_or_default();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let _ = crate::storage::DopeNotchStorage::init_and_migrate(&root);
+    let ext_dir = crate::storage::DopeNotchStorage::extensions_dir(&root);
+    crate::storage::DopeNotchStorage::reveal_path(&ext_dir)?;
     Ok(ext_dir.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub async fn open_local_models_folder() -> Result<String, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Failed to find home directory".to_string())?;
-    let models_dir = home.join(".ollama").join("models");
-    if !models_dir.exists() {
-        let _ = std::fs::create_dir_all(&models_dir);
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&models_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open local models folder in Finder: {}", e))?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(&models_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open local models folder in Explorer: {}", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&models_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open local models folder: {}", e))?;
-    }
-
+    let settings = crate::settings::AppSettings::load_or_default();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let _ = crate::storage::DopeNotchStorage::init_and_migrate(&root);
+    let models_dir = crate::storage::DopeNotchStorage::models_dir(&root);
+    crate::storage::DopeNotchStorage::reveal_path(&models_dir)?;
     Ok(models_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn get_storage_info(state: State<'_, MurmurState>) -> Result<crate::storage::StorageInfo, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let is_custom = settings.storage_directory.is_some();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let _ = crate::storage::DopeNotchStorage::init_and_migrate(&root);
+    let stats = crate::storage::DopeNotchStorage::get_stats(&root, is_custom);
+    Ok(stats)
+}
+
+#[tauri::command]
+pub async fn open_storage_directory(subfolder: Option<String>, state: State<'_, MurmurState>) -> Result<String, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let _ = crate::storage::DopeNotchStorage::init_and_migrate(&root);
+
+    let target = match subfolder.as_deref() {
+        Some("notes") => crate::storage::DopeNotchStorage::notes_dir(&root),
+        Some("history") => crate::storage::DopeNotchStorage::history_dir(&root),
+        Some("extensions") => crate::storage::DopeNotchStorage::extensions_dir(&root),
+        Some("voice") | Some("models/voice") => crate::storage::DopeNotchStorage::voice_models_dir(&root),
+        Some("ai") | Some("models/ai") => crate::storage::DopeNotchStorage::ai_models_dir(&root),
+        Some("models") => crate::storage::DopeNotchStorage::models_dir(&root),
+        _ => root.clone(),
+    };
+
+    crate::storage::DopeNotchStorage::reveal_path(&target)?;
+    Ok(target.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn change_storage_directory(new_path: String, state: State<'_, MurmurState>) -> Result<crate::storage::StorageInfo, String> {
+    let clean = new_path.trim().to_string();
+    if clean.is_empty() {
+        return Err("Storage path cannot be empty".to_string());
+    }
+
+    let target_root = crate::storage::DopeNotchStorage::get_root(Some(&clean));
+    crate::storage::DopeNotchStorage::init_and_migrate(&target_root)
+        .map_err(|e| format!("Failed to initialize storage directory: {}", e))?;
+
+    let mut settings = state.settings.lock().unwrap().clone();
+    settings.storage_directory = Some(clean);
+    settings.save().map_err(|e| e.to_string())?;
+    *state.settings.lock().unwrap() = settings;
+
+    let stats = crate::storage::DopeNotchStorage::get_stats(&target_root, true);
+    Ok(stats)
+}
+
+#[tauri::command]
+pub async fn reset_storage_directory(state: State<'_, MurmurState>) -> Result<crate::storage::StorageInfo, String> {
+    let target_root = crate::storage::DopeNotchStorage::get_root(None);
+    crate::storage::DopeNotchStorage::init_and_migrate(&target_root)
+        .map_err(|e| format!("Failed to initialize default storage directory: {}", e))?;
+
+    let mut settings = state.settings.lock().unwrap().clone();
+    settings.storage_directory = None;
+    settings.save().map_err(|e| e.to_string())?;
+    *state.settings.lock().unwrap() = settings;
+
+    let stats = crate::storage::DopeNotchStorage::get_stats(&target_root, false);
+    Ok(stats)
+}
+
+#[tauri::command]
+pub async fn pick_storage_folder(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let folder = app.dialog().file().blocking_pick_folder();
+    Ok(folder.map(|f| f.to_string()))
+}
+
+#[tauri::command]
+pub async fn check_or_start_ollama() -> Result<crate::ollama_manager::OllamaEngineStatus, String> {
+    let _ = crate::ollama_manager::OllamaManager::ensure_running().await;
+    Ok(crate::ollama_manager::OllamaManager::get_status().await)
+}
+
+#[tauri::command]
+pub async fn get_ollama_status() -> Result<crate::ollama_manager::OllamaEngineStatus, String> {
+    Ok(crate::ollama_manager::OllamaManager::get_status().await)
 }
 
 #[tauri::command]

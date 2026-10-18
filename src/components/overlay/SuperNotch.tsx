@@ -923,12 +923,12 @@ export const SuperNotch: React.FC = () => {
       id: 'cmd-extensions',
       command: '/extensions',
       title: 'Open Extensions Folder',
-      subtitle: 'Create & manage custom Bash, Python & Node scripts (~/.dopenotch/extensions)',
+      subtitle: 'Create & manage custom Bash, Python & Node scripts (DopeNotch/extensions)',
       icon: FolderOpen,
       action: async () => {
         try {
           await invoke('open_extensions_folder');
-          showStatus('Opened ~/.dopenotch/extensions in Finder');
+          showStatus('Opened DopeNotch extensions in Finder');
         } catch (e: any) {
           showStatus(e?.toString() || 'Failed to open extensions folder');
         }
@@ -3390,14 +3390,14 @@ export const SuperNotch: React.FC = () => {
                             e.stopPropagation();
                             try {
                               await invoke('open_extensions_folder');
-                              showStatus('Opened ~/.dopenotch/extensions');
+                              showStatus('Opened DopeNotch extensions');
                             } catch {}
                           }}
                           className="flex items-center gap-1 text-zinc-400 hover:text-amber-400 transition-colors ml-1 cursor-pointer group"
                           title="Open extensions folder in Finder to add your own scripts"
                         >
                           <FolderOpen className="w-3 h-3 text-amber-400/80 group-hover:text-amber-400" />
-                          <span>Custom Scripts (~/.dopenotch)</span>
+                          <span>Custom Scripts (DopeNotch)</span>
                         </button>
                       </div>
                       <span className="flex items-center gap-1 font-mono">

@@ -13,6 +13,8 @@ pub mod notes;
 pub mod web_inspector;
 pub mod app_launcher;
 pub mod screen_vision;
+pub mod storage;
+pub mod ollama_manager;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -52,6 +54,18 @@ pub fn run() {
         })
         .setup(|app| {
             let settings = AppSettings::load_or_default();
+
+            // Initialize and auto-migrate unified storage (~/Documents/DopeNotch)
+            let storage_root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+            if let Err(e) = crate::storage::DopeNotchStorage::init_and_migrate(&storage_root) {
+                log::error!("Failed to initialize DopeNotch storage: {}", e);
+            }
+
+            // Auto-detect and start local Ollama background server if available
+            tauri::async_runtime::spawn(async {
+                let _ = crate::ollama_manager::OllamaManager::ensure_running().await;
+            });
+
             let transcriber_state = TranscriberState::new(&settings.model);
 
             let murmur_state = MurmurState {
@@ -195,6 +209,13 @@ pub fn run() {
             commands::get_installed_applications,
             commands::launch_application,
             commands::capture_screen_vision,
+            commands::get_storage_info,
+            commands::open_storage_directory,
+            commands::change_storage_directory,
+            commands::reset_storage_directory,
+            commands::pick_storage_folder,
+            commands::check_or_start_ollama,
+            commands::get_ollama_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

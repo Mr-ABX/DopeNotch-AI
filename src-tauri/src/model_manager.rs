@@ -150,16 +150,8 @@ pub async fn delete_model_file(
 
 #[tauri::command]
 pub fn open_models_directory() -> Result<(), String> {
-    let dir = crate::settings::AppSettings::models_dir();
-    
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open").arg(&dir).spawn().map_err(|e| e.to_string())?;
-    
-    #[cfg(target_os = "windows")]
-    std::process::Command::new("explorer").arg(&dir).spawn().map_err(|e| e.to_string())?;
-
-    #[cfg(target_os = "linux")]
-    std::process::Command::new("xdg-open").arg(&dir).spawn().map_err(|e| e.to_string())?;
-
-    Ok(())
+    let settings = crate::settings::AppSettings::load_or_default();
+    let root = crate::storage::DopeNotchStorage::get_root(settings.storage_directory.as_deref());
+    let dir = crate::storage::DopeNotchStorage::voice_models_dir(&root);
+    crate::storage::DopeNotchStorage::reveal_path(&dir)
 }
