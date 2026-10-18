@@ -61,6 +61,7 @@ import {
   ScreenVisionPayload,
   captureScreenVision,
   sendAIChatRequest,
+  checkLocalOllamaHealth,
 } from '../../services/aiChatService';
 import { WidgetsView } from './WidgetsView';
 import { evaluateQuickCalc } from '../../services/quickCalc';
@@ -169,6 +170,27 @@ export const SuperNotch: React.FC = () => {
   const [isChatDictating, setIsChatDictating] = useState(false);
   const isChatDictatingRef = useRef(false);
   isChatDictatingRef.current = isChatDictating;
+
+  const [localOllamaHealth, setLocalOllamaHealth] = useState<{
+    isOnline: boolean;
+    installedModels: string[];
+  }>({ isOnline: false, installedModels: [] });
+
+  useEffect(() => {
+    let mounted = true;
+    const updateHealth = async () => {
+      try {
+        const h = await checkLocalOllamaHealth();
+        if (mounted) setLocalOllamaHealth(h);
+      } catch {}
+    };
+    updateHealth();
+    const interval = setInterval(updateHealth, 5000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const shelfScrollRef = useRef<HTMLDivElement>(null);
@@ -1432,10 +1454,20 @@ export const SuperNotch: React.FC = () => {
 
   return (
     <div className="fixed top-0 left-0 w-full h-full pointer-events-none flex flex-col items-center select-none overflow-visible bg-transparent">
-      {/* Click-outside backdrop to auto-close shelf */}
-      {activeMode === 'shelf' && (
+      {/* Click-outside backdrop: in normal shelf, apply soft darkening; in chat, keep fully transparent */}
+      {activeMode === 'shelf' && !isChatView && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 pointer-events-auto z-0 bg-black/40 backdrop-blur-[6px]"
+          onClick={closeShelf}
+        />
+      )}
+      {isChatView && (
         <div
-          className="fixed inset-0 pointer-events-auto z-0"
+          className="fixed inset-0 pointer-events-auto z-0 bg-transparent"
           onClick={closeShelf}
         />
       )}
@@ -1477,12 +1509,12 @@ export const SuperNotch: React.FC = () => {
             onMouseDown={(e) => e.stopPropagation()}
             className="w-full h-full flex flex-col items-center pointer-events-auto select-none relative"
           >
-            {/* 1. TOP HARDWARE NOTCH BEZEL WITH LIVING AI PERSONA ORB (Centered, No text) */}
+            {/* 1. TOP HARDWARE NOTCH BEZEL WITH LIVING AI PERSONA ORB (Exact hardware match: 160x28, 10px ears, pure black) */}
             <div
               onClick={(e) => e.stopPropagation()}
               className="relative flex flex-col items-center shrink-0"
             >
-              {/* Notch Left Ear */}
+              {/* Notch Left Ear (10px Fillet matching idle MacBook bezel) */}
               <svg
                 width={10}
                 height={10}
@@ -1491,7 +1523,7 @@ export const SuperNotch: React.FC = () => {
               >
                 <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" fill="#000000" />
               </svg>
-              {/* Notch Right Ear */}
+              {/* Notch Right Ear (10px Fillet matching idle MacBook bezel) */}
               <svg
                 width={10}
                 height={10}
@@ -1501,8 +1533,8 @@ export const SuperNotch: React.FC = () => {
                 <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" fill="#000000" />
               </svg>
 
-              {/* Notch Body with Orb Dead-Centered */}
-              <div className="w-[180px] h-[32px] rounded-b-2xl bg-black border-x border-b border-white/[0.12] flex items-center justify-center shadow-lg relative overflow-hidden">
+              {/* Notch Body with Orb Dead-Centered - Exact 160px x 28px matching idle state */}
+              <div className="w-[160px] h-[28px] rounded-b-[14px] bg-black flex items-center justify-center relative overflow-hidden">
                 {/* Dynamic Living Sound/Thinking AI Orb */}
                 <div className="relative flex items-center justify-center">
                   <motion.div
@@ -1562,14 +1594,14 @@ export const SuperNotch: React.FC = () => {
               </div>
             </div>
 
-            {/* 2. TRANSPARENT AIR GAP (10px) */}
-            <div className="h-2.5 w-full shrink-0" />
+            {/* 2. TRANSPARENT AIR GAP (8px) */}
+            <div className="h-2 w-full shrink-0" />
 
-            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET (Soft Squircle 28px) */}
+            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET (Soft Squircle 24px, Solid Jet Black matching notch) */}
             <div
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="w-[580px] flex-1 rounded-[28px] bg-[#0c0c0e]/95 border border-white/[0.1] p-3.5 flex flex-col justify-between shadow-2xl relative overflow-hidden backdrop-blur-2xl"
+              className="w-[580px] flex-1 rounded-[24px] bg-black border border-white/[0.08] p-3.5 flex flex-col justify-between shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] relative overflow-hidden"
             >
               {/* Header: Left (← Back Icon Only) | Center (Model Selector + Vision) | Right (Mic + Reset + Close) */}
               <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.06] shrink-0 relative z-20">
@@ -1589,24 +1621,39 @@ export const SuperNotch: React.FC = () => {
                 {/* Center: Model Selector Dropdown Pill + Screen Vision */}
                 <div className="flex items-center gap-1.5">
                   <div className="relative">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsModelDropdownOpen(!isModelDropdownOpen);
-                      }}
-                      className="flex items-center gap-1.5 bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-zinc-200 hover:text-white transition-all cursor-pointer"
-                    >
-                      <Bot className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                      <span className="font-medium text-xs text-zinc-200 max-w-[130px] truncate">
-                        {AVAILABLE_AI_MODELS.find((m) => m.id === selectedAIModel)?.name || 'Select Model'}
-                      </span>
-                      <ChevronDown
-                        className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${
-                          isModelDropdownOpen ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
+                    {(() => {
+                      const cur = AVAILABLE_AI_MODELS.find((m) => m.id === selectedAIModel);
+                      const targetOllama = selectedAIModel === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+                      const isReadyLocal =
+                        cur?.isLocal &&
+                        localOllamaHealth.isOnline &&
+                        localOllamaHealth.installedModels.some((m) => m.toLowerCase().includes(targetOllama));
+
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsModelDropdownOpen(!isModelDropdownOpen);
+                          }}
+                          className="flex items-center gap-1.5 bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-zinc-200 hover:text-white transition-all cursor-pointer"
+                        >
+                          {isReadyLocal ? (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" title="Local Brain Ready on Device" />
+                          ) : (
+                            <Bot className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                          )}
+                          <span className="font-medium text-xs text-zinc-200 max-w-[130px] truncate">
+                            {cur?.name || 'Select Model'}
+                          </span>
+                          <ChevronDown
+                            className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${
+                              isModelDropdownOpen ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+                      );
+                    })()}
 
                     <AnimatePresence>
                       {isModelDropdownOpen && (
@@ -1624,6 +1671,12 @@ export const SuperNotch: React.FC = () => {
                           <div className="space-y-0.5 max-h-56 overflow-y-auto custom-slim-scrollbar">
                             {AVAILABLE_AI_MODELS.map((model) => {
                               const isSelected = selectedAIModel === model.id;
+                              const targetOllama = model.id === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+                              const isReady =
+                                model.isLocal &&
+                                localOllamaHealth.isOnline &&
+                                localOllamaHealth.installedModels.some((m) => m.toLowerCase().includes(targetOllama));
+
                               return (
                                 <button
                                   key={model.id}
@@ -1641,9 +1694,12 @@ export const SuperNotch: React.FC = () => {
                                 >
                                   <div className="min-w-0 pr-1">
                                     <div className="flex items-center gap-1.5">
+                                      {isReady && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                      )}
                                       <span className="truncate">{model.name}</span>
-                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-zinc-400 shrink-0">
-                                        {model.badge}
+                                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/[0.06] text-zinc-300 shrink-0">
+                                        {isReady ? 'On-Device ✓' : model.badge}
                                       </span>
                                     </div>
                                     <p className="text-[10px] text-zinc-500 font-normal truncate">

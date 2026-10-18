@@ -235,8 +235,131 @@ export async function sendAIChatRequest(
     }
   }
 
-  // 4. Local Model Inference (Qwen2.5-0.5B / SmolLM2-135M)
+  // 4. Local Model Real Inference (Qwen2.5-0.5B / SmolLM2-135M via Ollama)
+  if (modelId === 'qwen2.5-0.5b' || modelId === 'smollm2-135m') {
+    const targetModel = modelId === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+
+    try {
+      const messages: any[] = [
+        {
+          role: 'system',
+          content:
+            'You are an ultra-fast, helpful AI assistant built directly into DopeNotch on macOS. Provide concise, direct, high-value answers. Keep responses short and snappy (1-3 sentences or clean markdown checklists). Avoid fluff, chit-chat, or filler intros.',
+        },
+      ];
+
+      if (screenPayload) {
+        messages.push({
+          role: 'user',
+          content: `[User has active screen snapshot attached (${screenPayload.width}×${screenPayload.height})]\n\n${trimmed}`,
+        });
+      } else {
+        messages.push({
+          role: 'user',
+          content: trimmed,
+        });
+      }
+
+      const res = await fetch('http://127.0.0.1:11434/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: targetModel,
+          messages,
+          stream: false,
+          options: {
+            temperature: 0.4,
+            num_ctx: 4096,
+          },
+        }),
+        signal: AbortSignal.timeout(25000),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        const reply = json.message?.content?.trim();
+        if (reply) return reply;
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        if (res.status === 404 || (errJson.error && errJson.error.includes('not found'))) {
+          return (
+            `### 📥 Model '${targetModel}' Not Downloaded\n\n` +
+            `Go to **AI Models & Vision** tab and click **Download Model** to install it (~${
+              modelId === 'qwen2.5-0.5b' ? '397' : '270'
+            } MB).`
+          );
+        }
+      }
+    } catch (e: any) {
+      console.warn(`Local LLM query failed for ${targetModel}:`, e);
+      return (
+        `### ⚡ Local Brain (Ollama) Offline\n\n` +
+        `Make sure Ollama is running on your Mac (` +
+        `\`ollama serve\` or launch Ollama.app). Testing fallback:\n\n` +
+        generateLocalFallbackResponse(trimmed, screenPayload)
+      );
+    }
+  }
+
   return generateLocalFallbackResponse(trimmed, screenPayload);
+}
+
+export async function checkLocalOllamaHealth(): Promise<{
+  isOnline: boolean;
+  installedModels: string[];
+}> {
+  try {
+    const res = await fetch('http://127.0.0.1:11434/api/tags', {
+      method: 'GET',
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!res.ok) return { isOnline: false, installedModels: [] };
+    const data = await res.json();
+    const models = (data.models || []).map((m: any) => (m.name || '').toLowerCase());
+    return { isOnline: true, installedModels: models };
+  } catch {
+    return { isOnline: false, installedModels: [] };
+  }
+}
+
+export async function pullOllamaModel(
+  modelName: string,
+  onProgress?: (progress: number, statusText: string) => void
+): Promise<void> {
+  const res = await fetch('http://127.0.0.1:11434/api/pull', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: modelName, stream: true }),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Failed to initiate pull (${res.status})`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const item = JSON.parse(line);
+        if (item.total && item.completed) {
+          const pct = Math.round((item.completed / item.total) * 100);
+          onProgress?.(pct, item.status || 'Downloading...');
+        } else if (item.status) {
+          onProgress?.(0, item.status);
+        }
+      } catch {}
+    }
+  }
 }
 
 function generateLocalFallbackResponse(prompt: string, screenPayload?: ScreenVisionPayload | null): string {

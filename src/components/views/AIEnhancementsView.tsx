@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Bot,
   Eye,
   Key,
   FolderOpen,
   Check,
+  CheckCircle2,
+  Download,
+  Loader2,
+  RefreshCw,
   Cpu,
   Terminal,
   Mic,
@@ -12,7 +16,13 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
-import { AVAILABLE_AI_MODELS, AIModelId, sendAIChatRequest } from '../../services/aiChatService';
+import {
+  AVAILABLE_AI_MODELS,
+  AIModelId,
+  sendAIChatRequest,
+  checkLocalOllamaHealth,
+  pullOllamaModel,
+} from '../../services/aiChatService';
 import { invoke } from '@tauri-apps/api/core';
 
 export const AIEnhancementsView: React.FC = () => {
@@ -29,11 +39,61 @@ export const AIEnhancementsView: React.FC = () => {
   const [savedKeyFeedback, setSavedKeyFeedback] = useState<string | null>(null);
   const [visibleKey, setVisibleKey] = useState<Record<string, boolean>>({});
 
+  // Local Ollama & LLM Detection & Download State
+  const [isOllamaOnline, setIsOllamaOnline] = useState(false);
+  const [installedLocalModels, setInstalledLocalModels] = useState<string[]>([]);
+  const [downloadingModelId, setDownloadingModelId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadStatusText, setDownloadStatusText] = useState('');
+
+  const refreshLocalHealth = async () => {
+    const health = await checkLocalOllamaHealth();
+    setIsOllamaOnline(health.isOnline);
+    setInstalledLocalModels(health.installedModels);
+  };
+
+  useEffect(() => {
+    refreshLocalHealth();
+    const interval = setInterval(refreshLocalHealth, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleDownloadModel = async (modelId: string) => {
+    const target = modelId === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+    setDownloadingModelId(modelId);
+    setDownloadProgress(0);
+    setDownloadStatusText('Connecting to Ollama...');
+
+    try {
+      await pullOllamaModel(target, (pct, status) => {
+        setDownloadProgress(pct);
+        setDownloadStatusText(status);
+      });
+      await refreshLocalHealth();
+      setDownloadStatusText('Downloaded ✓');
+    } catch (e: any) {
+      setDownloadStatusText(`Failed: ${e.message || 'Error'}`);
+    } finally {
+      setTimeout(() => {
+        setDownloadingModelId(null);
+        setDownloadProgress(0);
+      }, 2500);
+    }
+  };
+
   const handleOpenExtensionsFolder = async () => {
     try {
       await invoke('open_extensions_folder');
     } catch (e) {
       console.error('Failed to open extensions folder', e);
+    }
+  };
+
+  const handleOpenLocalModelsFolder = async () => {
+    try {
+      await invoke('open_local_models_folder');
+    } catch (e) {
+      console.error('Failed to open local models folder', e);
     }
   };
 
@@ -84,13 +144,25 @@ export const AIEnhancementsView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={handleOpenExtensionsFolder}
-          className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-xs text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
-        >
-          <FolderOpen className="w-3.5 h-3.5" />
-          <span>~/.dopenotch/extensions</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleOpenLocalModelsFolder}
+            className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-xs text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Open local Ollama models directory in Finder"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>~/.ollama/models</span>
+          </button>
+
+          <button
+            onClick={handleOpenExtensionsFolder}
+            className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.08] text-xs text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Open extensions folder in Finder"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            <span>~/.dopenotch/extensions</span>
+          </button>
+        </div>
       </div>
 
       {/* Model Role Architecture Overview: Clean Compact Cards */}
@@ -148,17 +220,42 @@ export const AIEnhancementsView: React.FC = () => {
       {/* Available AI Models Grid: Monochrome & Minimal */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium uppercase tracking-wider text-zinc-400">
-            Available Models
-          </span>
-          <span className="text-[11px] font-mono text-zinc-500">
-            Active in Floating Chat
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium uppercase tracking-wider text-zinc-400">
+              Available Models
+            </span>
+            {isOllamaOnline ? (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-medium font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Local Engine Online ({installedLocalModels.length} models ready)
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-medium font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                Local Engine Offline
+              </span>
+            )}
+          </div>
+          <button
+            onClick={refreshLocalHealth}
+            title="Refresh local model status"
+            className="text-[11px] font-mono text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            <span>Sync</span>
+          </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {AVAILABLE_AI_MODELS.map((model) => {
             const isSelected = selectedModel === model.id;
+            const targetOllamaName = model.id === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+            const isInstalled =
+              model.isLocal &&
+              isOllamaOnline &&
+              installedLocalModels.some((m) => m.toLowerCase().includes(targetOllamaName));
+            const isDownloadingThis = downloadingModelId === model.id;
+
             return (
               <div
                 key={model.id}
@@ -182,15 +279,53 @@ export const AIEnhancementsView: React.FC = () => {
                   </p>
                 </div>
 
+                {isDownloadingThis && (
+                  <div className="w-full mt-2.5 pt-2 border-t border-white/[0.06] space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-zinc-400">
+                      <span className="flex items-center gap-1 text-zinc-300">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        {downloadStatusText || 'Downloading...'}
+                      </span>
+                      <span className="font-mono text-zinc-200">{downloadProgress}%</span>
+                    </div>
+                    <div className="w-full h-1 bg-white/[0.08] rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-white transition-all duration-200"
+                        style={{ width: `${downloadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-white/[0.04] text-[10.5px]">
                   <span className="flex items-center gap-1 font-mono text-zinc-500">
                     {model.supportsVision ? (
                       <span className="text-zinc-400 flex items-center gap-1">
                         <Eye className="w-3 h-3" /> Vision
                       </span>
+                    ) : model.isLocal ? (
+                      isInstalled ? (
+                        <span className="text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Ready on Device
+                        </span>
+                      ) : isOllamaOnline ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadModel(model.id);
+                          }}
+                          className="px-2 py-0.5 rounded bg-white/[0.08] hover:bg-white/20 text-[10px] text-white flex items-center gap-1 transition-all"
+                        >
+                          <Download className="w-3 h-3" /> Download
+                        </button>
+                      ) : (
+                        <span className="text-zinc-500 flex items-center gap-1">
+                          <Cpu className="w-3 h-3" /> Local CPU
+                        </span>
+                      )
                     ) : (
                       <span className="text-zinc-500 flex items-center gap-1">
-                        <Cpu className="w-3 h-3" /> Local CPU
+                        <Cpu className="w-3 h-3" /> API Model
                       </span>
                     )}
                   </span>

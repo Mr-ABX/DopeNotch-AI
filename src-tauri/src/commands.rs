@@ -1198,6 +1198,39 @@ Drop any script in this folder and press `⇧⌘K` in DopeNotch to see it instan
 }
 
 #[tauri::command]
+pub async fn open_local_models_folder() -> Result<String, String> {
+    let home = dirs::home_dir().ok_or_else(|| "Failed to find home directory".to_string())?;
+    let models_dir = home.join(".ollama").join("models");
+    if !models_dir.exists() {
+        let _ = std::fs::create_dir_all(&models_dir);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&models_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open local models folder in Finder: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&models_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open local models folder in Explorer: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&models_dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open local models folder: {}", e))?;
+    }
+
+    Ok(models_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 pub async fn execute_user_extension(
     app: AppHandle,
     file_path: String,

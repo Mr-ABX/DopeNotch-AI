@@ -183,6 +183,7 @@ pub fn run() {
             commands::load_user_extensions,
             commands::execute_user_extension,
             commands::open_extensions_folder,
+            commands::open_local_models_folder,
             commands::get_notes,
             commands::save_note,
             commands::delete_note,
