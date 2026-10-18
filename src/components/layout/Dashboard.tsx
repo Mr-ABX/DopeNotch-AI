@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { TitleBar } from './TitleBar';
 import { WelcomeView } from '../views/WelcomeView';
 import { VoiceEngineView } from '../views/VoiceEngineView';
+import { AIEnhancementsView } from '../views/AIEnhancementsView';
 import { CommandModeView } from '../views/CommandModeView';
 import { TranscriptionHistoryView } from '../views/TranscriptionHistoryView';
 import { PreferencesView } from '../views/PreferencesView';
@@ -19,9 +20,10 @@ export const Dashboard: React.FC = () => {
       case 'welcome':
         return <WelcomeView />;
       case 'voiceEngine':
+        return <VoiceEngineView />;
       case 'aiSettings':
       case 'aiEnhancements':
-        return <VoiceEngineView />;
+        return <AIEnhancementsView />;
       case 'history':
       case 'fileTranscription':
       case 'meetingTools':

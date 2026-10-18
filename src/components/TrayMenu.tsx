@@ -117,7 +117,7 @@ export const TrayMenu: React.FC<Props> = () => {
             <Copy size={14} className="text-zinc-400" />
             <span>Clipboard Shelf</span>
           </div>
-          <span className="text-[10px] text-zinc-500 font-mono">SuPaste Notch</span>
+          <span className="text-[10px] text-zinc-500 font-mono">SuperShelf Notch</span>
         </button>
 
         <button

@@ -225,7 +225,7 @@ export const ScreenLoupeOverlay: React.FC<ScreenLoupeOverlayProps> = ({
     ctx.strokeRect(radius - 3, radius - 3, 6, 6);
   }, [mousePos, zoom, imageLoaded, diameter, radius]);
 
-  // Click to copy color and add to SuPaste shelf
+  // Click to copy color and add to SuperShelf
   const handleLoupeClick = useCallback(() => {
     if (!sampledColor.hex) return;
     navigator.clipboard.writeText(sampledColor.hex);

@@ -193,7 +193,7 @@ interface AppState {
   setOrbTheme: (theme: OrbTheme) => void;
   setLiveMetrics: (wpm: number, latencyMs: number) => void;
 
-  // SuPaste Clipboard Manager
+  // SuperShelf Clipboard Manager
   clipboardItems: ClipboardItem[];
   activeClipboardCategory: ClipboardCategory;
   clipboardSearchQuery: string;
@@ -539,7 +539,7 @@ export const useAppStore = create<AppState>((set) => ({
   },
   setLiveMetrics: (liveWPM, liveLatencyMs) => set({ liveWPM, liveLatencyMs }),
 
-  // SuPaste Clipboard Manager
+  // SuperShelf Clipboard Manager
   clipboardItems: INITIAL_CLIPBOARD_ITEMS,
   activeClipboardCategory: 'all',
   clipboardSearchQuery: '',

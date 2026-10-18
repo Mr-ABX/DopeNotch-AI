@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Sparkles,
   Mic,
+  Bot,
   ClipboardList,
   FileText,
   Blocks,
@@ -19,6 +20,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'welcome', label: 'Overview', icon: Sparkles },
   { id: 'voiceEngine', label: 'Voice Engine', icon: Mic },
+  { id: 'aiSettings', label: 'AI Models & Vision', icon: Bot },
   { id: 'history', label: 'Clipboard & History', icon: ClipboardList },
   { id: 'notes', label: 'Voice Notes', icon: FileText },
   { id: 'extensions', label: 'Extensions', icon: Blocks },
@@ -53,7 +55,7 @@ export const Sidebar: React.FC = () => {
             const Icon = item.icon;
             const isActive =
               activeTab === item.id ||
-              (item.id === 'voiceEngine' && (activeTab === 'aiSettings' || activeTab === 'aiEnhancements')) ||
+              (item.id === 'aiSettings' && activeTab === 'aiEnhancements') ||
               (item.id === 'history' && (activeTab === 'fileTranscription' || activeTab === 'meetingTools')) ||
               (item.id === 'commandMode' && (activeTab === 'writeMode' || activeTab === 'rewriteMode' || activeTab === 'cleanupStyles'));
 

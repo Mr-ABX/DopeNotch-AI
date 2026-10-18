@@ -54,7 +54,7 @@ export const PixelRulerOverlay: React.FC = () => {
       const text = `${target.width}px × ${target.height}px`;
       navigator.clipboard.writeText(text);
 
-      // Push to SuPaste clipboard shelf history
+      // Push to SuperShelf clipboard shelf history
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setClipboardItems([

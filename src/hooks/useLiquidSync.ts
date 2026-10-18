@@ -188,7 +188,7 @@ export function useLiquidSync() {
 
         addTranscriptionRecord(record);
 
-        // Also push to SuPaste Clipboard & Dictation History
+        // Also push to SuperShelf Clipboard & Dictation History
         addClipboardItem({
           content: finalText,
           category: 'dictation',
