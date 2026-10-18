@@ -240,43 +240,51 @@ export async function sendAIChatRequest(
 }
 
 function generateLocalFallbackResponse(prompt: string, screenPayload?: ScreenVisionPayload | null): string {
-  const p = prompt.toLowerCase();
+  const p = prompt.trim();
+  const lower = p.toLowerCase();
 
+  // Screen Context Snapshot
   if (screenPayload) {
-    return (
-      `Screen capture analyzed (**${screenPayload.width}×${screenPayload.height}**).\n\n` +
-      `Active window context recognized. To perform optical OCR parsing or DOM code analysis, use \`/ocr\` in search or connect your Google AI Studio key.`
-    );
+    return `Screen captured (${screenPayload.width}×${screenPayload.height}). Ready to inspect or extract text.`;
   }
 
-  if (p.includes('checklist') || p.includes('todo') || p.includes('task')) {
-    const items = prompt
-      .replace(/checklist|todo|tasks|create|make|generate/gi, '')
-      .split(/[,\n.]/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 2);
+  // Common Greetings
+  if (/^(hi|hello|hey|yo|sup|good morning|good evening)/i.test(lower)) {
+    return 'Ready. Ask a question, paste code to fix, or generate a checklist.';
+  }
+
+  // Checklist Generation
+  if (lower.includes('checklist') || lower.includes('todo') || lower.includes('task')) {
+    const raw = p.replace(/checklist|todo|tasks|create|make|generate|for|a/gi, '').trim();
+    const items = raw.split(/[,\n.]/).map((s) => s.trim()).filter((s) => s.length > 1);
 
     if (items.length > 0) {
       return items.map((item) => `- [ ] ${item.charAt(0).toUpperCase() + item.slice(1)}`).join('\n');
     }
-    return (
-      `- [ ] Review current objectives\n` +
-      `- [ ] Verify code changes and build\n` +
-      `- [ ] Complete pending task checklist`
-    );
+    return `- [ ] Review pending items\n- [ ] Run test verification\n- [ ] Complete task`;
   }
 
-  if (p.includes('bug') || p.includes('error') || p.includes('fix')) {
-    return (
-      `Diagnostic analysis for: \`${prompt.slice(0, 50)}\`\n\n` +
-      `1. Verify all dependencies and type imports are declared.\n` +
-      `2. Check null checks / undefined boundaries on reactive properties.\n` +
-      `3. Confirm async tasks are properly handled with clean error boundaries.`
-    );
+  // Code Fix / Debugging
+  if (lower.includes('bug') || lower.includes('error') || lower.includes('fix') || lower.includes('issue')) {
+    return `Checked: Ensure null/undefined guards exist and types match properly across the call stack.`;
   }
 
-  return (
-    `Direct on-device response for: **"${prompt}"**\n\n` +
-    `Ready to execute. You can save this note (<kbd>⌥N</kbd>) or switch to screen vision by clicking the eye icon.`
-  );
+  // Grammar / Polish
+  if (lower.startsWith('fix ') || lower.startsWith('polish ') || lower.includes('grammar')) {
+    const textToFix = p.replace(/^(?:fix|polish|grammar)\s+/i, '');
+    const capitalized = textToFix.charAt(0).toUpperCase() + textToFix.slice(1);
+    const withPeriod = capitalized.endsWith('.') ? capitalized : `${capitalized}.`;
+    return `Polished: "${withPeriod}"`;
+  }
+
+  // Math calculation
+  if (/^[\d\s+\-*/().^%]+$/.test(p)) {
+    try {
+      const result = Function(`"use strict"; return (${p})`)();
+      return `= ${result}`;
+    } catch {}
+  }
+
+  // Default clean one-liner
+  return `Processed on-device. Press ⌥N to save note or ⌘C to copy.`;
 }

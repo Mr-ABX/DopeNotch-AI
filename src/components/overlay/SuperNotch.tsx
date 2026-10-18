@@ -155,7 +155,7 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'welcome-msg',
       role: 'assistant',
-      content: `### ✦ DopeNotch AI Copilot\nAsk questions, diagnose code, generate Markdown checklists, or click **"See Screen"** to visually analyze whatever is open on your display.`,
+      content: `Ready. Ask a question, format checklists, or click the eye icon to analyze your screen.`,
       timestamp: Date.now(),
       modelUsed: 'qwen2.5-0.5b',
     },
