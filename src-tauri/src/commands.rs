@@ -1738,5 +1738,20 @@ pub async fn inspect_website(url: String) -> Result<crate::web_inspector::WebIns
     crate::web_inspector::inspect_url(&url).await
 }
 
+#[tauri::command]
+pub fn get_installed_applications() -> Vec<crate::app_launcher::AppEntry> {
+    crate::app_launcher::get_or_scan_apps()
+}
+
+#[tauri::command]
+pub fn launch_application(path: String) -> Result<(), String> {
+    crate::app_launcher::launch_app_by_path(&path)
+}
+
+#[tauri::command]
+pub fn capture_screen_vision() -> Result<crate::screen_vision::ScreenVisionPayload, String> {
+    crate::screen_vision::capture_screen_snapshot()
+}
+
 
 

@@ -297,7 +297,7 @@ export const PreferencesView: React.FC = () => {
             <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
               <div>
                 <p className="text-xs font-medium text-white">Clipboard Shelf</p>
-                <p className="text-[11px] text-zinc-500">Open SuPaste horizontal clipboard history directly</p>
+                <p className="text-[11px] text-zinc-500">Open SuperShelf horizontal clipboard history directly</p>
               </div>
 
               <div className="flex items-center gap-1.5">

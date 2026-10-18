@@ -11,6 +11,8 @@ mod voxcoder;
 pub mod clipboard_listener;
 pub mod notes;
 pub mod web_inspector;
+pub mod app_launcher;
+pub mod screen_vision;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -189,6 +191,9 @@ pub fn run() {
             commands::start_voice_note_recording,
             commands::start_meeting_recording,
             commands::inspect_website,
+            commands::get_installed_applications,
+            commands::launch_application,
+            commands::capture_screen_vision,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

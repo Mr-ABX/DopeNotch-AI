@@ -114,7 +114,7 @@ export const ExtensionsView: React.FC = () => {
     {
       id: 'ext-shelf',
       command: '/shelf',
-      title: 'SuPaste Card Shelf',
+      title: 'SuperShelf Clipboard Shelf',
       category: 'clipboard',
       description: 'Horizontal visual card stream displaying recent clips, links, code, and sampled swatches.',
       howItWorks: 'Monitors macOS pasteboard locally. Automatically tags text types (links, code, colors, dictations) into visual cards.',
@@ -127,7 +127,7 @@ export const ExtensionsView: React.FC = () => {
         invoke('set_notch_expanded', { expanded: true, width: 860, height: 220 }).catch(() => {});
         setSuperNotchMode('shelf');
         setSuperNotchHudView('shelf');
-        showNotification('SuPaste Shelf expanded at screen top');
+        showNotification('SuperShelf expanded at screen top');
       },
     },
     {

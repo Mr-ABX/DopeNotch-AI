@@ -36,6 +36,11 @@ import {
   Radio,
   Layers,
   Type,
+  AppWindow,
+  Eye,
+  EyeOff,
+  Send,
+  Bot,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -46,11 +51,26 @@ import {
   ClipboardItem,
   NoteItem,
 } from '../../stores/appStore';
+import {
+  AIModelId,
+  AVAILABLE_AI_MODELS,
+  ChatMessage,
+  ScreenVisionPayload,
+  captureScreenVision,
+  sendAIChatRequest,
+} from '../../services/aiChatService';
 import { WidgetsView } from './WidgetsView';
 import { evaluateQuickCalc } from '../../services/quickCalc';
 import { polishTextForChat, convertToMarkdownChecklist } from '../../services/quickPrompt';
 import { searchUnicodeSymbols } from '../../services/emojiFinder';
 import { analyzeColor, extractHexColors } from '../../services/colorPaletteService';
+
+export interface InstalledApp {
+  id: string;
+  name: string;
+  path: string;
+  bundle_id: string;
+}
 
 interface UserExtension {
   id: string;
@@ -124,10 +144,28 @@ export const SuperNotch: React.FC = () => {
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
   const [noteSavedFeedback, setNoteSavedFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
+  const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
+
+  // AI Chat & Screen Copilot State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome-msg',
+      role: 'assistant',
+      content: `### ✦ DopeNotch AI Copilot\nAsk questions, diagnose code, generate Markdown checklists, or click **"See Screen"** to visually analyze whatever is open on your display.`,
+      timestamp: Date.now(),
+      modelUsed: 'qwen2.5-0.5b',
+    },
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [selectedAIModel, setSelectedAIModel] = useState<AIModelId>('qwen2.5-0.5b');
+  const [isScreenVisionEnabled, setIsScreenVisionEnabled] = useState(false);
+  const [isAIGenerating, setIsAIGenerating] = useState(false);
+  const [currentScreenThumbnail, setCurrentScreenThumbnail] = useState<ScreenVisionPayload | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const shelfScrollRef = useRef<HTMLDivElement>(null);
   const searchListScrollRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openedAtRef = useRef<number>(0);
   const isDraggingRef = useRef(false);
@@ -150,7 +188,10 @@ export const SuperNotch: React.FC = () => {
     }, 2200);
   }, []);
 
-  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets') => {
+  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets' | 'chat') => {
+    if (view === 'chat') {
+      return { width: 860, height: 480 };
+    }
     if (view === 'search') {
       return { width: 860, height: 410 };
     }
@@ -169,7 +210,7 @@ export const SuperNotch: React.FC = () => {
     }, 250);
   }, [setSuperNotchMode]);
 
-  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets') => {
+  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets' | 'chat') => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -360,9 +401,21 @@ export const SuperNotch: React.FC = () => {
     }
   }, []);
 
+  const loadInstalledApps = useCallback(async () => {
+    try {
+      const apps = await invoke<InstalledApp[]>('get_installed_applications');
+      if (Array.isArray(apps)) {
+        setInstalledApps(apps);
+      }
+    } catch (e) {
+      console.error('Failed to load installed applications', e);
+    }
+  }, []);
+
   useEffect(() => {
     loadExtensions();
-  }, [loadExtensions]);
+    loadInstalledApps();
+  }, [loadExtensions, loadInstalledApps]);
 
   const quickCalcMatch = useMemo(() => {
     return evaluateQuickCalc(clipboardSearchQuery);
@@ -488,8 +541,8 @@ export const SuperNotch: React.FC = () => {
     };
   }, [triggerNoteSavedAnimation, setNotes, updateNote, setIsRecording]);
 
-  // Switch between Shelf (SuPaste), Search (Raycast), and Widgets views
-  const handleToggleView = (newView: 'shelf' | 'search' | 'widgets') => {
+  // Switch between Shelf (SuperShelf), Search (Raycast), Widgets, and AI Chat views
+  const handleToggleView = (newView: 'shelf' | 'search' | 'widgets' | 'chat') => {
     setSuperNotchHudView(newView);
     const dims = getExpandedDimensions(newView);
     invoke('set_notch_expanded', {
@@ -498,6 +551,66 @@ export const SuperNotch: React.FC = () => {
       height: dims.height,
     }).catch(() => {});
   };
+
+  const handleSendChatMessage = useCallback(async () => {
+    if (!chatInput.trim() || isAIGenerating) return;
+    const userText = chatInput.trim();
+    setChatInput('');
+
+    let screenPayload = currentScreenThumbnail;
+    if (isScreenVisionEnabled && !screenPayload) {
+      try {
+        screenPayload = await captureScreenVision();
+        setCurrentScreenThumbnail(screenPayload);
+      } catch (e) {
+        console.warn('Failed to capture screen vision:', e);
+      }
+    }
+
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: userText,
+      timestamp: Date.now(),
+      hasScreenVision: Boolean(screenPayload),
+      screenThumbnail: screenPayload
+        ? `data:${screenPayload.mime_type};base64,${screenPayload.base64_image}`
+        : undefined,
+      modelUsed: selectedAIModel,
+    };
+
+    setChatMessages((prev) => [...prev, userMsg]);
+    setIsAIGenerating(true);
+
+    try {
+      const reply = await sendAIChatRequest(userText, selectedAIModel, screenPayload);
+      const assistantMsg: ChatMessage = {
+        id: `ai-${Date.now()}`,
+        role: 'assistant',
+        content: reply,
+        timestamp: Date.now(),
+        modelUsed: selectedAIModel,
+      };
+      setChatMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-err-${Date.now()}`,
+          role: 'assistant',
+          content: `### ⚠️ Request Error\n${err?.message || 'Failed to generate response'}`,
+          timestamp: Date.now(),
+        },
+      ]);
+    } finally {
+      setIsAIGenerating(false);
+      setTimeout(() => {
+        if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+      }, 60);
+    }
+  }, [chatInput, currentScreenThumbnail, isAIGenerating, isScreenVisionEnabled, selectedAIModel]);
 
   const handleCopy = async (item: ClipboardItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -778,7 +891,7 @@ export const SuperNotch: React.FC = () => {
     {
       id: 'cmd-shelf',
       command: '/shelf',
-      title: 'SuPaste Card Shelf',
+      title: 'SuperShelf Clipboard Shelf',
       subtitle: 'Switch to horizontal clipboard card view',
       icon: LayoutGrid,
       action: () => {
@@ -828,6 +941,16 @@ export const SuperNotch: React.FC = () => {
         showStatus('Pruned unpinned items');
       },
     },
+    {
+      id: 'cmd-chat',
+      command: '/chat',
+      title: 'AI Chat & Screen Copilot',
+      subtitle: 'Multimodal dynamic island with screen vision & notes sync',
+      icon: Bot,
+      action: () => {
+        handleToggleView('chat');
+      },
+    },
     // User-Authored Extensions (~/.dopenotch/extensions/)
     ...userExtensions.map((ext) => ({
       id: ext.id,
@@ -854,12 +977,18 @@ export const SuperNotch: React.FC = () => {
         }
       },
     })),
-  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer, isMeetingScribeActive, meetingElapsedSecs, handleToggleMeetingScribe, setActiveTab]);
+  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer, isMeetingScribeActive, meetingElapsedSecs, handleToggleMeetingScribe, setActiveTab, handleToggleView]);
 
   // Combined fast search results
   const searchResults = useMemo(() => {
     const q = clipboardSearchQuery.trim().toLowerCase();
     const isSlash = q.startsWith('/');
+
+    const matchingApps = (!isSlash && q.length >= 1)
+      ? installedApps
+          .filter((app) => app.name.toLowerCase().includes(q) || app.id.toLowerCase().includes(q))
+          .slice(0, 5)
+      : [];
 
     const matchingCommands = toolCommands.filter((cmd) => {
       if (isSlash) {
@@ -887,11 +1016,12 @@ export const SuperNotch: React.FC = () => {
     });
 
     return {
+      apps: matchingApps,
       commands: matchingCommands,
       clips: matchingClips,
-      totalCount: matchingCommands.length + matchingClips.length,
+      totalCount: matchingApps.length + matchingCommands.length + matchingClips.length,
     };
-  }, [clipboardSearchQuery, toolCommands, clipboardItems]);
+  }, [clipboardSearchQuery, toolCommands, clipboardItems, installedApps]);
 
   // Filtered shelf items by category
   const filteredShelfItems = useMemo(() => {
@@ -912,7 +1042,7 @@ export const SuperNotch: React.FC = () => {
     return items;
   }, [clipboardItems, activeClipboardCategory, clipboardSearchQuery]);
 
-  // Category items with counts (1:1 with SuPaste Screenshot)
+  // Category items with counts (SuperShelf Visual Shelf)
   const categories: { id: ClipboardCategory; label: string; count: number }[] = useMemo(() => {
     return [
       { id: 'all', label: 'All', count: clipboardItems.length },
@@ -950,7 +1080,7 @@ export const SuperNotch: React.FC = () => {
   }, [clipboardItems]);
 
   // Listen for backend toggle events:
-  // - murmur://toggle-shelf (Cmd+Shift+V): Directly toggles/opens SuPaste Clipboard Shelf
+  // - murmur://toggle-shelf (Cmd+Shift+V): Directly toggles/opens SuperShelf Clipboard Shelf
   // - murmur://toggle-search (Cmd+Shift+K): Directly toggles/opens Search & Mini-Tools
   useEffect(() => {
     const unlistenToggle = listen('murmur://toggle-shelf', () => {
@@ -1032,10 +1162,10 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
-      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search)
+      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> AI Chat
       if (e.key === 'Tab') {
         e.preventDefault();
-        const views: ('shelf' | 'widgets' | 'search')[] = ['shelf', 'widgets', 'search'];
+        const views: ('shelf' | 'widgets' | 'search' | 'chat')[] = ['shelf', 'widgets', 'search', 'chat'];
         const currentIdx = views.indexOf(superNotchHudView);
         const nextView = views[(currentIdx + 1) % views.length];
         handleToggleView(nextView);
@@ -1043,7 +1173,7 @@ export const SuperNotch: React.FC = () => {
       }
 
       if (superNotchHudView === 'search') {
-        const total = searchResults.commands.length + searchResults.clips.length;
+        const total = searchResults.apps.length + searchResults.commands.length + searchResults.clips.length;
 
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -1090,10 +1220,19 @@ export const SuperNotch: React.FC = () => {
             return;
           }
           if (total === 0) return;
-          if (searchSelectedIndex < searchResults.commands.length) {
-            searchResults.commands[searchSelectedIndex].action();
+          if (searchSelectedIndex < searchResults.apps.length) {
+            const app = searchResults.apps[searchSelectedIndex];
+            if (app) {
+              invoke('launch_application', { appPath: app.path }).catch(() => {});
+              showStatus(`Launching ${app.name}...`);
+              closeShelf();
+              return;
+            }
+          } else if (searchSelectedIndex < searchResults.apps.length + searchResults.commands.length) {
+            const cmdIdx = searchSelectedIndex - searchResults.apps.length;
+            searchResults.commands[cmdIdx].action();
           } else {
-            const clipIdx = searchSelectedIndex - searchResults.commands.length;
+            const clipIdx = searchSelectedIndex - searchResults.apps.length - searchResults.commands.length;
             const clip = searchResults.clips[clipIdx];
             if (clip) handlePaste(clip);
           }
@@ -1179,7 +1318,9 @@ export const SuperNotch: React.FC = () => {
 
   const targetHeight =
     activeMode === 'shelf'
-      ? superNotchHudView === 'search'
+      ? superNotchHudView === 'chat'
+        ? 480
+        : superNotchHudView === 'search'
         ? 410
         : 260
       : 28;
@@ -1285,7 +1426,7 @@ export const SuperNotch: React.FC = () => {
           )}
         </svg>
 
-        {/* Main Notch Body Container (Pure SuPaste Crisp Hardware Profile - Zero Blurry Drop Shadow) */}
+        {/* Main Notch Body Container (Pure SuperShelf Crisp Hardware Profile - Zero Blurry Drop Shadow) */}
         <div
           style={{ borderRadius: targetRadius }}
           className={`w-full h-full flex flex-col items-center overflow-hidden bg-black relative ${
@@ -1316,7 +1457,7 @@ export const SuperNotch: React.FC = () => {
               title={
                 focusTimerRunning
                   ? `Focus session: ${formatTime(focusTimerRemaining)} remaining (Click to open)`
-                  : 'Click or press ⌥V to open SuPaste shelf'
+                  : 'Click or press ⌥V to open SuperShelf'
               }
             >
               {noteSavedFeedback ? (
@@ -1442,7 +1583,7 @@ export const SuperNotch: React.FC = () => {
               transition={{ duration: 0.16 }}
               className="w-full h-full p-3 flex flex-col justify-between text-[#ededed] bg-black"
             >
-              {/* TOP HEADER: Clean Minimal Search + Unboxed Icon Toggles (1:1 with SuPaste) */}
+              {/* TOP HEADER: Clean Minimal Search + Unboxed Icon Toggles (SuperShelf) */}
               <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-transparent">
                 {/* Left: Roomy Search Bar + Action Toggles positioned immediately after it */}
                 <div className="flex items-center gap-2">
@@ -1488,9 +1629,9 @@ export const SuperNotch: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Distinct Tab Toggles: Clean Icon-Only Toggles: 1. Shelf, 2. Widgets, 3. Extensions (Always at the end) */}
+                  {/* Distinct Tab Toggles: Clean Icon-Only Toggles: 1. Shelf, 2. Widgets, 3. Extensions, 4. AI Chat */}
                   <div className="flex items-center gap-1 bg-white/[0.04] p-1 rounded-xl border border-white/[0.06] ml-1">
-                    {/* Tab 1: SuPaste Shelf View */}
+                    {/* Tab 1: SuperShelf Shelf View */}
                     <button
                       onClick={() => handleToggleView('shelf')}
                       className={`p-2 rounded-lg transition-all cursor-pointer ${
@@ -1498,7 +1639,7 @@ export const SuperNotch: React.FC = () => {
                           ? 'bg-white/15 text-white shadow-sm border border-white/10'
                           : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
                       }`}
-                      title="Clipboard Shelf View (Tab)"
+                      title="SuperShelf Clipboard Shelf (Tab)"
                     >
                       <LayoutGrid className="w-4 h-4" />
                     </button>
@@ -1516,7 +1657,7 @@ export const SuperNotch: React.FC = () => {
                       <LayoutDashboard className="w-4 h-4" />
                     </button>
 
-                    {/* Tab 3: Extensions & Quick Search (Always at the end) */}
+                    {/* Tab 3: Extensions & Quick Search */}
                     <button
                       onClick={() => handleToggleView('search')}
                       className={`p-2 rounded-lg transition-all cursor-pointer ${
@@ -1527,6 +1668,19 @@ export const SuperNotch: React.FC = () => {
                       title="Extensions & Quick Search (Tab)"
                     >
                       <Sparkles className="w-4 h-4" />
+                    </button>
+
+                    {/* Tab 4: AI Chat & Screen Copilot */}
+                    <button
+                      onClick={() => handleToggleView('chat')}
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
+                        superNotchHudView === 'chat'
+                          ? 'bg-amber-400/20 text-amber-300 shadow-sm border border-amber-400/30'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="AI Chat & Screen Copilot (Tab)"
+                    >
+                      <Bot className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -1577,7 +1731,7 @@ export const SuperNotch: React.FC = () => {
               </div>
 
               {/* ================================================================= */}
-              {/* VIEW A: SUPASTE HORIZONTAL VISUAL SHELF (1:1 with Screenshot 1)  */}
+              {/* VIEW A: SUPERSHELF HORIZONTAL VISUAL SHELF                       */}
               {/* ================================================================= */}
               {superNotchHudView === 'shelf' && (
                 <div className="flex-1 flex flex-col justify-between pt-1.5 overflow-hidden">
@@ -2321,6 +2475,57 @@ export const SuperNotch: React.FC = () => {
                         </div>
                       ) : (
                         <>
+                          {/* Section: Installed macOS Applications (Instant Launch) */}
+                          {searchResults.apps.length > 0 && (
+                            <div className="mb-2">
+                              <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold text-cyan-400 font-sans tracking-normal">
+                                <span className="flex items-center gap-1.5">
+                                  <AppWindow className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span>Applications</span>
+                                </span>
+                                <span className="text-[10px] font-mono text-cyan-400/70 font-normal">
+                                  {searchResults.apps.length}
+                                </span>
+                              </div>
+                              {searchResults.apps.map((app, appIdx) => {
+                                const isSelected = searchSelectedIndex === appIdx;
+                                return (
+                                  <div
+                                    key={app.id}
+                                    onClick={() => {
+                                      invoke('launch_application', { appPath: app.path }).catch(() => {});
+                                      showStatus(`Launching ${app.name}...`);
+                                      closeShelf();
+                                    }}
+                                    onMouseEnter={() => setSearchSelectedIndex(appIdx)}
+                                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'bg-cyan-500/15 border border-cyan-500/30 text-white shadow-sm'
+                                        : 'hover:bg-white/[0.04] text-zinc-300 border border-transparent'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-6 h-6 rounded-md bg-cyan-500/15 text-cyan-400 flex items-center justify-center flex-shrink-0 text-xs">
+                                        <AppWindow className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div className="flex items-center gap-2 truncate">
+                                        <span className="text-xs font-semibold text-white truncate font-sans">
+                                          {app.name}
+                                        </span>
+                                        <span className="text-[10px] text-zinc-500 truncate hidden md:inline font-mono">
+                                          {app.path}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-cyan-300 px-1.5 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/20">
+                                      Launch ↵
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
                           {/* Section: Extensions & Tools */}
                           {searchResults.commands.length > 0 && (
                             <div className="mb-2">
@@ -2331,7 +2536,8 @@ export const SuperNotch: React.FC = () => {
                                 </span>
                               </div>
                               {searchResults.commands.map((cmd, i) => {
-                                const isSelected = searchSelectedIndex === i;
+                                const overallCmdIndex = searchResults.apps.length + i;
+                                const isSelected = searchSelectedIndex === overallCmdIndex;
                                 const CmdIcon = cmd.icon;
                                 const isUserExt = (cmd as any).isUserExtension;
                                 const userIcon = (cmd as any).userIcon;
@@ -2340,7 +2546,7 @@ export const SuperNotch: React.FC = () => {
                                   <div
                                     key={cmd.id}
                                     onClick={() => cmd.action()}
-                                    onMouseEnter={() => setSearchSelectedIndex(i)}
+                                    onMouseEnter={() => setSearchSelectedIndex(overallCmdIndex)}
                                     className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
                                       isSelected
                                         ? 'bg-white/[0.1] text-white shadow-sm'
@@ -2398,7 +2604,7 @@ export const SuperNotch: React.FC = () => {
                                 </span>
                               </div>
                               {searchResults.clips.map((item, idx) => {
-                                const overallIndex = searchResults.commands.length + idx;
+                                const overallIndex = searchResults.apps.length + searchResults.commands.length + idx;
                                 const isSelected = searchSelectedIndex === overallIndex;
                                 const isColor = item.category === 'color';
 
@@ -2534,6 +2740,274 @@ export const SuperNotch: React.FC = () => {
                       <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
                       <span>Close</span>
                     </span>
+                  </div>
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* VIEW D: FLOATING DETACHED AI CHAT ISLAND (MULTIMODAL COPILOT)    */}
+              {/* ================================================================= */}
+              {superNotchHudView === 'chat' && (
+                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
+                  {/* Top Control Bar: Model Selector, Screen Vision Toggle, New Chat */}
+                  <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.06] mb-2 shrink-0">
+                    <div className="flex items-center gap-2">
+                      {/* Model Selector Dropdown */}
+                      <div className="flex items-center gap-1.5 bg-black/50 px-2.5 py-1 rounded-lg border border-white/10 text-xs text-white">
+                        <Bot className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <select
+                          value={selectedAIModel}
+                          onChange={(e) => setSelectedAIModel(e.target.value as AIModelId)}
+                          className="bg-transparent border-none text-white text-xs focus:outline-none cursor-pointer font-sans"
+                        >
+                          {AVAILABLE_AI_MODELS.map((model) => (
+                            <option key={model.id} value={model.id} className="bg-[#121215] text-white">
+                              {model.name} ({model.badge})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Screen Vision Snapshot Toggle */}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (isScreenVisionEnabled) {
+                            setIsScreenVisionEnabled(false);
+                            setCurrentScreenThumbnail(null);
+                          } else {
+                            try {
+                              showStatus('Capturing screen snapshot...');
+                              const snapshot = await captureScreenVision();
+                              setCurrentScreenThumbnail(snapshot);
+                              setIsScreenVisionEnabled(true);
+                              showStatus(`Captured ${snapshot.width}×${snapshot.height} screen`);
+                            } catch (e: any) {
+                              showStatus('Failed to capture screen');
+                            }
+                          }
+                        }}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer border ${
+                          isScreenVisionEnabled
+                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
+                            : 'bg-white/[0.04] text-zinc-400 hover:text-white border-white/[0.06] hover:bg-white/[0.08]'
+                        }`}
+                        title="Capture full-screen context to ask AI questions about what is on your display"
+                      >
+                        {isScreenVisionEnabled ? (
+                          <>
+                            <Eye className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Screen Attached</span>
+                            <span className="text-[10px] text-cyan-300/70 font-mono">
+                              ({currentScreenThumbnail ? `${currentScreenThumbnail.width}×${currentScreenThumbnail.height}` : 'Active'})
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-3.5 h-3.5 text-zinc-500" />
+                            <span>See Screen</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMessages([
+                            {
+                              id: `reset-${Date.now()}`,
+                              role: 'assistant',
+                              content: `### ✦ DopeNotch AI Copilot\nNew session ready. Ask me anything, or click **"See Screen"** to visually analyze your display.`,
+                              timestamp: Date.now(),
+                              modelUsed: selectedAIModel,
+                            },
+                          ]);
+                          setCurrentScreenThumbnail(null);
+                          setIsScreenVisionEnabled(false);
+                          showStatus('Cleared chat session');
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[11px] text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                        title="Clear conversation"
+                      >
+                        + New Chat
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Messages Scroll Area */}
+                  <div
+                    ref={chatScrollRef}
+                    className="flex-1 overflow-y-auto px-1 space-y-3 pr-1.5 select-text"
+                    style={{ maxHeight: '310px' }}
+                  >
+                    {chatMessages.map((msg) => {
+                      const isUser = msg.role === 'user';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
+                        >
+                          {!isUser && (
+                            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+                              <Sparkles className="w-3.5 h-3.5" />
+                            </div>
+                          )}
+
+                          <div
+                            className={`flex flex-col max-w-[85%] ${
+                              isUser
+                                ? 'bg-white/[0.09] text-white rounded-2xl rounded-tr-sm px-3.5 py-2 border border-white/10'
+                                : 'bg-[#111114]/90 text-zinc-200 rounded-2xl rounded-tl-sm px-4 py-3 border border-white/[0.08] shadow-md'
+                            }`}
+                          >
+                            {msg.hasScreenVision && msg.screenThumbnail && (
+                              <div className="mb-2">
+                                <img
+                                  src={msg.screenThumbnail}
+                                  alt="Captured Screen Context"
+                                  className="w-48 h-28 object-cover rounded-lg border border-white/20 shadow"
+                                />
+                                <span className="text-[10px] font-mono text-cyan-400 mt-1 block">
+                                  👁️ Analyzed with Full Screen Vision
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Message Markdown-like text formatting */}
+                            <div className="text-xs leading-relaxed space-y-1.5 whitespace-pre-wrap font-sans">
+                              {msg.content.split('\n\n').map((paragraph, pIdx) => {
+                                if (paragraph.startsWith('### ')) {
+                                  return (
+                                    <h4 key={pIdx} className="font-bold text-white text-xs pt-0.5">
+                                      {paragraph.replace('### ', '')}
+                                    </h4>
+                                  );
+                                }
+                                if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
+                                  return (
+                                    <div key={pIdx} className="font-mono text-[11.5px] text-zinc-300">
+                                      {paragraph}
+                                    </div>
+                                  );
+                                }
+                                if (paragraph.startsWith('- ')) {
+                                  return (
+                                    <div key={pIdx} className="text-zinc-300 pl-1 text-[11.5px]">
+                                      {paragraph}
+                                    </div>
+                                  );
+                                }
+                                return <p key={pIdx}>{paragraph}</p>;
+                              })}
+                            </div>
+
+                            {/* Assistant Action Bar: Copy + 1-Click Save to Notes */}
+                            {!isUser && (
+                              <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-white/[0.06] text-[10.5px]">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(msg.content);
+                                    showStatus('Copied answer to clipboard');
+                                  }}
+                                  className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                  <span>Copy</span>
+                                </button>
+                                <span className="text-zinc-600">•</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveNoteDirect(msg.content)}
+                                  className="flex items-center gap-1 text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer"
+                                  title="Save this answer to Notes in Dashboard"
+                                >
+                                  <FileText className="w-3 h-3 text-amber-400/80" />
+                                  <span>Save to Notes</span>
+                                </button>
+                                {msg.modelUsed && (
+                                  <span className="ml-auto font-mono text-[9px] text-zinc-500">
+                                    {msg.modelUsed}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {isUser && (
+                            <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shrink-0 mt-0.5 text-xs font-semibold">
+                              U
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {isAIGenerating && (
+                      <div className="flex gap-2.5 justify-start">
+                        <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 animate-pulse">
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="bg-[#111114]/90 rounded-2xl rounded-tl-sm px-4 py-3 border border-white/[0.08] text-xs text-zinc-400 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                          <span>
+                            {isScreenVisionEnabled
+                              ? 'Analyzing screen pixels & generating response...'
+                              : 'Reasoning with local AI model...'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bottom Prompt Input Area */}
+                  <div className="pt-2 border-t border-white/[0.06] mt-2 shrink-0">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSendChatMessage();
+                      }}
+                      className="flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.08] focus-within:bg-white/[0.09] focus-within:ring-1 focus-within:ring-amber-500/40 rounded-xl px-3 py-2 transition-all"
+                    >
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder={
+                          isScreenVisionEnabled
+                            ? "Ask about what's visible on your screen... (↵ to send)"
+                            : "Ask AI copilot, convert to checklist, or diagnose code... (↵ to send)"
+                        }
+                        disabled={isAIGenerating}
+                        className="w-full bg-transparent border-none text-[12.5px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!chatInput.trim() || isAIGenerating}
+                        className="p-1.5 rounded-lg bg-amber-400/20 text-amber-300 hover:bg-amber-400/30 disabled:opacity-40 disabled:hover:bg-amber-400/20 transition-all cursor-pointer shrink-0"
+                        title="Send message (Enter)"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                    </form>
+
+                    {/* Chat Footer Note */}
+                    <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-1.5 font-mono">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1 text-zinc-400">
+                          <Bot className="w-3 h-3 text-amber-400" />
+                          <span>AI Screen Copilot</span>
+                        </span>
+                        <span>•</span>
+                        <span>Shift+Enter for newline</span>
+                      </div>
+                      <span className="flex items-center gap-1 font-mono">
+                        <kbd className="px-1 py-0.2 rounded bg-white/[0.08] text-zinc-300">Esc</kbd>
+                        <span>Close</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}

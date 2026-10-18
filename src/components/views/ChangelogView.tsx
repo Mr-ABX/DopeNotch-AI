@@ -16,7 +16,7 @@ export const ChangelogView: React.FC = () => {
       <div className="p-6 rounded-2xl bg-[#121215] border border-[#1e1e24] space-y-5">
         <div className="flex items-center justify-between border-b border-[#1e1e24] pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-[#ededed]">Version 0.4.0 (DopeNotch & SuPaste Shelf)</span>
+            <span className="text-sm font-bold text-[#ededed]">Version 0.4.0 (DopeNotch & SuperShelf)</span>
             <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
               Latest
             </span>
@@ -28,7 +28,7 @@ export const ChangelogView: React.FC = () => {
           <div className="flex items-start gap-3">
             <CheckCircle2 className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
             <div>
-              <h3 className="text-xs font-semibold text-[#ededed]">1:1 SuPaste Top Notch Silhouette</h3>
+              <h3 className="text-xs font-semibold text-[#ededed]">Native SuperShelf Top Notch Silhouette</h3>
               <p className="text-xs text-zinc-400 mt-0.5">
                 Authentic Apple MacBook notch cutout with concave reverse-ear curves, horizontal card carousel, and zero rectangular drop-shadow artifacts.
               </p>
