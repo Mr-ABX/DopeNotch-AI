@@ -39,11 +39,11 @@ import {
   AppWindow,
   Eye,
   EyeOff,
-  Send,
   Bot,
   ChevronDown,
   Check,
   ArrowLeft,
+  ArrowUp,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -166,6 +166,9 @@ export const SuperNotch: React.FC = () => {
   const [isScreenVisionEnabled, setIsScreenVisionEnabled] = useState(false);
   const [isAIGenerating, setIsAIGenerating] = useState(false);
   const [currentScreenThumbnail, setCurrentScreenThumbnail] = useState<ScreenVisionPayload | null>(null);
+  const [isChatDictating, setIsChatDictating] = useState(false);
+  const isChatDictatingRef = useRef(false);
+  isChatDictatingRef.current = isChatDictating;
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const shelfScrollRef = useRef<HTMLDivElement>(null);
@@ -559,6 +562,51 @@ export const SuperNotch: React.FC = () => {
       height: dims.height,
     }).catch(() => {});
   };
+
+  // Listen for real-time Whisper dictation streaming into Chat input
+  useEffect(() => {
+    const unlistenPartial = listen<string>('murmur://transcript-partial', (event) => {
+      if (isChatDictatingRef.current) {
+        const text = event.payload || '';
+        if (text) {
+          setChatInput(text);
+        }
+      }
+    });
+
+    const unlistenDone = listen<string>('murmur://transcript-done', (event) => {
+      if (isChatDictatingRef.current) {
+        const text = event.payload || '';
+        if (text.trim()) {
+          setChatInput(text.trim());
+        }
+        setIsChatDictating(false);
+        setIsRecording(false);
+      }
+    });
+
+    return () => {
+      unlistenPartial.then((f) => f());
+      unlistenDone.then((f) => f());
+    };
+  }, [setIsRecording]);
+
+  const handleToggleVoiceInChat = useCallback(async () => {
+    if (isChatDictating) {
+      try {
+        await invoke('toggle_recording');
+      } catch {}
+      setIsChatDictating(false);
+      setIsRecording(false);
+    } else {
+      setIsChatDictating(true);
+      try {
+        await invoke('toggle_recording');
+      } catch {}
+      setIsRecording(true);
+      showStatus('Listening to voice...');
+    }
+  }, [isChatDictating, setIsRecording, showStatus]);
 
   const handleSendChatMessage = useCallback(async () => {
     if (!chatInput.trim() || isAIGenerating) return;
@@ -1213,6 +1261,11 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
+      // In Chat and Widgets views, prevent shelf / search navigation and enter-to-paste
+      if (superNotchHudView === 'chat' || superNotchHudView === 'widgets') {
+        return;
+      }
+
       if (superNotchHudView === 'search') {
         const total = searchResults.apps.length + searchResults.commands.length + searchResults.clips.length;
 
@@ -1344,13 +1397,13 @@ export const SuperNotch: React.FC = () => {
   // - shelf: fixed 860px width, height 250px (shelf) or 410px (search)
   // - recording: strictly locked at 28px height (menu bar level), width smoothly expands to 220px
   // - idle: 160px width, 28px height
-  const isChatView = activeMode === 'shelf' && superNotchHudView === 'chat';
+  const isChatView = superNotchHudView === 'chat' && (activeMode === 'shelf' || isChatDictating || (activeMode === 'recording' && isChatDictating));
 
   const targetWidth =
-    activeMode === 'shelf'
-      ? isChatView
-        ? 600
-        : 860
+    isChatView
+      ? 600
+      : activeMode === 'shelf'
+      ? 860
       : activeMode === 'recording'
       ? 220
       : noteSavedFeedback
@@ -1362,10 +1415,10 @@ export const SuperNotch: React.FC = () => {
       : 160;
 
   const targetHeight =
-    activeMode === 'shelf'
-      ? isChatView
-        ? 460
-        : superNotchHudView === 'search'
+    isChatView
+      ? 460
+      : activeMode === 'shelf'
+      ? superNotchHudView === 'search'
         ? 410
         : superNotchHudView === 'widgets'
         ? 285
@@ -1419,9 +1472,16 @@ export const SuperNotch: React.FC = () => {
           /* ========================================================================= */
           /* DETACHED DYNAMIC ISLAND: TOP IDLE NOTCH WITH ORB + GAP + FLOATING CHAT   */
           /* ========================================================================= */
-          <div className="w-full h-full flex flex-col items-center pointer-events-auto select-none relative">
-            {/* 1. TOP HARDWARE NOTCH BEZEL WITH LIVING AI PERSONA ORB */}
-            <div className="relative flex flex-col items-center shrink-0">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="w-full h-full flex flex-col items-center pointer-events-auto select-none relative"
+          >
+            {/* 1. TOP HARDWARE NOTCH BEZEL WITH LIVING AI PERSONA ORB (Centered, No text) */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="relative flex flex-col items-center shrink-0"
+            >
               {/* Notch Left Ear */}
               <svg
                 width={10}
@@ -1441,88 +1501,111 @@ export const SuperNotch: React.FC = () => {
                 <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" fill="#000000" />
               </svg>
 
-              {/* Notch Body with Orb */}
-              <div className="w-[190px] h-[32px] rounded-b-2xl bg-black border-x border-b border-white/[0.12] flex items-center justify-center gap-2.5 px-3 shadow-lg relative overflow-hidden">
+              {/* Notch Body with Orb Dead-Centered */}
+              <div className="w-[180px] h-[32px] rounded-b-2xl bg-black border-x border-b border-white/[0.12] flex items-center justify-center shadow-lg relative overflow-hidden">
                 {/* Dynamic Living Sound/Thinking AI Orb */}
                 <div className="relative flex items-center justify-center">
                   <motion.div
                     animate={{
-                      scale: isAIGenerating ? [1, 1.25, 0.95, 1.15, 1] : isRecording ? [1, 1.3, 1] : [1, 1.05, 1],
-                      opacity: isAIGenerating ? [0.8, 1, 0.7, 0.9] : [0.6, 0.85, 0.6],
+                      scale: isAIGenerating
+                        ? [1, 1.25, 0.95, 1.2, 1]
+                        : isRecording || isChatDictating
+                        ? [1, 1.35, 1]
+                        : [1, 1.06, 1],
+                      opacity: isAIGenerating ? [0.8, 1, 0.75, 0.95] : [0.55, 0.8, 0.55],
                     }}
                     transition={{
                       repeat: Infinity,
-                      duration: isAIGenerating ? 1.6 : isRecording ? 0.8 : 3.2,
+                      duration: isAIGenerating ? 1.4 : isRecording || isChatDictating ? 0.75 : 3.0,
                       ease: 'easeInOut',
                     }}
                     className="h-3 rounded-full blur-[3px] transition-all duration-150"
                     style={{
-                      width: isRecording ? `${38 + Math.min(50, audioLevel * 80)}px` : isAIGenerating ? '44px' : '32px',
+                      width:
+                        isRecording || isChatDictating
+                          ? `${38 + Math.min(50, audioLevel * 80)}px`
+                          : isAIGenerating
+                          ? '46px'
+                          : '32px',
                       background: isAIGenerating
-                        ? 'linear-gradient(90deg, #a855f7 0%, #3b82f6 50%, #10b981 100%)' // Thinking
-                        : isRecording
-                        ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #ec4899 100%)' // Listening
-                        : 'linear-gradient(90deg, #e4e4e7 0%, #a1a1aa 50%, #d4d4d8 100%)', // Idle
+                        ? 'linear-gradient(90deg, #ffffff 0%, #cbd5e1 35%, #94a3b8 70%, #f8fafc 100%)' // Thinking AI Silver/Cool White/Gray
+                        : isRecording || isChatDictating
+                        ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #ec4899 100%)' // Speaking / Listening
+                        : 'linear-gradient(90deg, #f59e0b 0%, #ec4899 35%, #8b5cf6 70%, #10b981 100%)', // Normal living orb
                     }}
                   />
                   <motion.div
                     animate={{
-                      scale: isAIGenerating ? [1, 1.1, 0.95, 1] : [1, 1.04, 1],
+                      scale: isAIGenerating ? [1, 1.15, 0.92, 1] : [1, 1.04, 1],
                     }}
                     transition={{
                       repeat: Infinity,
-                      duration: isAIGenerating ? 1.2 : 2.5,
+                      duration: isAIGenerating ? 1.1 : 2.4,
                       ease: 'easeInOut',
                     }}
                     className="absolute h-1.5 rounded-full bg-white transition-all duration-75"
                     style={{
-                      width: isRecording ? `${16 + Math.min(24, audioLevel * 45)}px` : isAIGenerating ? '20px' : '14px',
+                      width:
+                        isRecording || isChatDictating
+                          ? `${16 + Math.min(24, audioLevel * 45)}px`
+                          : isAIGenerating
+                          ? '22px'
+                          : '14px',
                       boxShadow: isAIGenerating
-                        ? '0 0 10px 2px rgba(168,85,247,0.8), 0 0 16px 3px rgba(59,130,246,0.6)'
-                        : isRecording
-                        ? '0 0 10px 2px rgba(16,185,129,0.8), 0 0 14px 2px rgba(56,189,248,0.7)'
-                        : '0 0 8px 1px rgba(255,255,255,0.7), 0 0 12px 1px rgba(161,161,170,0.4)',
+                        ? '0 0 12px 3px rgba(255,255,255,0.95), 0 0 20px 4px rgba(203,213,225,0.7)'
+                        : isRecording || isChatDictating
+                        ? '0 0 10px 2px rgba(16,185,129,0.85), 0 0 16px 3px rgba(56,189,248,0.7)'
+                        : '0 0 8px 1px rgba(255,255,255,0.8), 0 0 12px 2px rgba(245,158,11,0.5)',
                     }}
                   />
                 </div>
-
-                <span className="text-[10px] font-mono font-medium tracking-tight text-zinc-300">
-                  {isAIGenerating ? 'Thinking...' : isRecording ? 'Listening...' : 'SuperNotch AI'}
-                </span>
               </div>
             </div>
 
             {/* 2. TRANSPARENT AIR GAP (10px) */}
             <div className="h-2.5 w-full shrink-0" />
 
-            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET */}
-            <div className="w-[580px] flex-1 rounded-[24px] bg-[#0c0c0e] border border-white/[0.12] p-3 flex flex-col justify-between shadow-2xl relative overflow-hidden backdrop-blur-xl">
-              {/* Header: Back Button (←) + Model Dropdown + Screen Vision + Reset + Close */}
-              <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.05] shrink-0 relative z-20">
-                <div className="flex items-center gap-2">
-                  {/* Back Button to return to Shelf HUD */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggleView('shelf')}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08] text-zinc-300 hover:text-white transition-all cursor-pointer text-xs font-medium"
-                    title="Back to SuperShelf"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Shelf</span>
-                  </button>
+            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET (Soft Squircle 28px) */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="w-[580px] flex-1 rounded-[28px] bg-[#0c0c0e]/95 border border-white/[0.1] p-3.5 flex flex-col justify-between shadow-2xl relative overflow-hidden backdrop-blur-2xl"
+            >
+              {/* Header: Left (← Back Icon Only) | Center (Model Selector + Vision) | Right (Mic + Reset + Close) */}
+              <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.06] shrink-0 relative z-20">
+                {/* Left: Icon-Only Back Button */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleView('shelf');
+                  }}
+                  className="p-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.1] border border-white/[0.08] text-zinc-400 hover:text-white transition-all cursor-pointer"
+                  title="Back to Shelf"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                </button>
 
-                  {/* Model Selector Dropdown */}
+                {/* Center: Model Selector Dropdown Pill + Screen Vision */}
+                <div className="flex items-center gap-1.5">
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setIsModelDropdownOpen(!isModelDropdownOpen)}
-                      className="flex items-center gap-1.5 bg-white/[0.06] hover:bg-white/[0.1] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-white transition-all cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsModelDropdownOpen(!isModelDropdownOpen);
+                      }}
+                      className="flex items-center gap-1.5 bg-white/[0.04] hover:bg-white/[0.08] px-2.5 py-1.5 rounded-xl border border-white/[0.08] text-xs text-zinc-200 hover:text-white transition-all cursor-pointer"
                     >
-                      <Bot className="w-3.5 h-3.5 text-zinc-300 shrink-0" />
-                      <span className="font-medium text-xs text-white">
+                      <Bot className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                      <span className="font-medium text-xs text-zinc-200 max-w-[130px] truncate">
                         {AVAILABLE_AI_MODELS.find((m) => m.id === selectedAIModel)?.name || 'Select Model'}
                       </span>
-                      <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${isModelDropdownOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown
+                        className={`w-3 h-3 text-zinc-400 transition-transform duration-150 ${
+                          isModelDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
                     </button>
 
                     <AnimatePresence>
@@ -1532,7 +1615,8 @@ export const SuperNotch: React.FC = () => {
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           exit={{ opacity: 0, y: -4, scale: 0.98 }}
                           transition={{ duration: 0.12 }}
-                          className="absolute top-10 left-0 z-50 w-64 bg-[#16161b] border border-white/10 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl"
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute top-10 left-1/2 -translate-x-1/2 z-50 w-64 bg-[#141418] border border-white/10 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl"
                         >
                           <div className="px-2 py-1 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
                             Select AI Model
@@ -1544,14 +1628,15 @@ export const SuperNotch: React.FC = () => {
                                 <button
                                   key={model.id}
                                   type="button"
-                                  onClick={() => {
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     setSelectedAIModel(model.id);
                                     setIsModelDropdownOpen(false);
                                   }}
                                   className={`w-full text-left px-2.5 py-1.5 rounded-xl flex items-center justify-between text-xs transition-colors cursor-pointer ${
                                     isSelected
                                       ? 'bg-white/10 text-white font-medium'
-                                      : 'text-zinc-300 hover:text-white hover:bg-white/5'
+                                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
                                   }`}
                                 >
                                   <div className="min-w-0 pr-1">
@@ -1578,7 +1663,8 @@ export const SuperNotch: React.FC = () => {
                   {/* Screen Vision Snapshot Toggle */}
                   <button
                     type="button"
-                    onClick={async () => {
+                    onClick={async (e) => {
+                      e.stopPropagation();
                       if (isScreenVisionEnabled) {
                         setIsScreenVisionEnabled(false);
                         setCurrentScreenThumbnail(null);
@@ -1589,7 +1675,7 @@ export const SuperNotch: React.FC = () => {
                           setCurrentScreenThumbnail(snapshot);
                           setIsScreenVisionEnabled(true);
                           showStatus(`${snapshot.width}×${snapshot.height} captured`);
-                        } catch (e: any) {
+                        } catch (err: any) {
                           showStatus('Screen capture failed');
                         }
                       }
@@ -1616,11 +1702,27 @@ export const SuperNotch: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Actions Right: Clear + Close */}
+                {/* Right: Dictate Mic + Reset + Close */}
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleVoiceInChat();
+                    }}
+                    className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                      isChatDictating
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
+                    }`}
+                    title={isChatDictating ? 'Stop Voice Input' : 'Voice Dictate'}
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setChatMessages([
                         {
                           id: `reset-${Date.now()}`,
@@ -1641,7 +1743,10 @@ export const SuperNotch: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={closeShelf}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeShelf();
+                    }}
                     className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
                     title="Close (Esc)"
                   >
@@ -1653,7 +1758,7 @@ export const SuperNotch: React.FC = () => {
               {/* Messages Scroll Area with Smooth Gradient Fade Mask */}
               <div
                 ref={chatScrollRef}
-                className="flex-1 overflow-y-auto px-1 py-2 space-y-2.5 pr-2 select-text custom-slim-scrollbar"
+                className="flex-1 overflow-y-auto px-1 py-1.5 space-y-2 select-text custom-slim-scrollbar"
                 style={{
                   maxHeight: '275px',
                   maskImage: 'linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%)',
@@ -1665,88 +1770,128 @@ export const SuperNotch: React.FC = () => {
                   return (
                     <div
                       key={msg.id}
-                      className={`flex gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
+                      className={`group/msg flex gap-2 ${isUser ? 'justify-end items-start' : 'justify-start items-start'}`}
                     >
                       {!isUser && (
-                        <div className="w-5 h-5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
+                        <div className="w-5 h-5 rounded-lg bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-zinc-400 shrink-0 mt-0.5">
                           <Sparkles className="w-2.5 h-2.5" />
                         </div>
                       )}
 
-                      <div
-                        className={`flex flex-col max-w-[85%] ${
-                          isUser
-                            ? 'bg-white/[0.08] text-white rounded-2xl rounded-tr-sm px-3 py-2 border border-white/10'
-                            : 'bg-white/[0.03] text-zinc-200 rounded-2xl rounded-tl-sm px-3.5 py-2 border border-white/[0.05]'
-                        }`}
-                      >
-                        {msg.hasScreenVision && msg.screenThumbnail && (
-                          <div className="mb-1.5">
-                            <img
-                              src={msg.screenThumbnail}
-                              alt="Screen Context"
-                              className="w-40 h-24 object-cover rounded-lg border border-white/15"
-                            />
-                          </div>
-                        )}
+                      <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[85%]`}>
+                        {/* Compact Message Bubble */}
+                        <div
+                          className={`${
+                            isUser
+                              ? 'bg-white/[0.08] text-white rounded-2xl rounded-tr-sm px-3.5 py-1.5 border border-white/10'
+                              : 'bg-white/[0.03] text-zinc-200 rounded-2xl rounded-tl-sm px-3.5 py-2 border border-white/[0.05]'
+                          }`}
+                        >
+                          {msg.hasScreenVision && msg.screenThumbnail && (
+                            <div className="mb-1.5">
+                              <img
+                                src={msg.screenThumbnail}
+                                alt="Screen Context"
+                                className="w-40 h-24 object-cover rounded-lg border border-white/15"
+                              />
+                            </div>
+                          )}
 
-                        {/* Message Content: Clean, concise one-liners & checklists */}
-                        <div className="text-xs leading-relaxed space-y-1 whitespace-pre-wrap font-sans">
-                          {msg.content.split('\n\n').map((paragraph, pIdx) => {
-                            if (paragraph.startsWith('### ')) {
-                              return (
-                                <h4 key={pIdx} className="font-semibold text-white text-xs pt-0.5">
-                                  {paragraph.replace('### ', '')}
-                                </h4>
-                              );
-                            }
-                            if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
-                              return (
-                                <div key={pIdx} className="font-mono text-[11px] text-zinc-300">
-                                  {paragraph}
-                                </div>
-                              );
-                            }
-                            if (paragraph.startsWith('- ')) {
-                              return (
-                                <div key={pIdx} className="text-zinc-300 pl-1 text-[11px]">
-                                  {paragraph}
-                                </div>
-                              );
-                            }
-                            return <p key={pIdx}>{paragraph}</p>;
-                          })}
+                          {/* Message Content: Clean, concise one-liners & checklists */}
+                          <div className="text-xs leading-relaxed space-y-1 whitespace-pre-wrap font-sans">
+                            {msg.content.split('\n\n').map((paragraph, pIdx) => {
+                              if (paragraph.startsWith('### ')) {
+                                return (
+                                  <h4 key={pIdx} className="font-semibold text-white text-xs pt-0.5">
+                                    {paragraph.replace('### ', '')}
+                                  </h4>
+                                );
+                              }
+                              if (paragraph.startsWith('- [ ] ') || paragraph.startsWith('- [x] ')) {
+                                return (
+                                  <div key={pIdx} className="font-mono text-[11px] text-zinc-300">
+                                    {paragraph}
+                                  </div>
+                                );
+                              }
+                              if (paragraph.startsWith('- ')) {
+                                return (
+                                  <div key={pIdx} className="text-zinc-300 pl-1 text-[11px]">
+                                    {paragraph}
+                                  </div>
+                                );
+                              }
+                              return <p key={pIdx}>{paragraph}</p>;
+                            })}
+                          </div>
                         </div>
 
-                        {/* Minimal Icon Actions: Copy + Save to Notes */}
-                        {!isUser && (
-                          <div className="flex items-center gap-1.5 mt-1.5 pt-1 border-t border-white/[0.04]">
+                        {/* Hover Actions Row Under Message: Transparent icons, no backgrounds */}
+                        <div className="flex items-center gap-1 mt-1 px-1 opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150">
+                          {/* Copy Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigator.clipboard.writeText(msg.content);
+                              showStatus('Copied');
+                            }}
+                            className="text-zinc-500 hover:text-white p-0.5 transition-colors cursor-pointer bg-transparent"
+                            title="Copy to clipboard"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+
+                          {/* Save to Notes Button for Assistant */}
+                          {!isUser && (
                             <button
                               type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(msg.content);
-                                showStatus('Copied');
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveNoteDirect(msg.content);
                               }}
-                              className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                              title="Copy to clipboard"
-                            >
-                              <Copy className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSaveNoteDirect(msg.content)}
-                              className="p-1 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                              className="text-zinc-500 hover:text-white p-0.5 transition-colors cursor-pointer bg-transparent"
                               title="Save to Notes"
                             >
-                              <FileText className="w-3 h-3 text-zinc-400 hover:text-white" />
+                              <FileText className="w-3 h-3" />
                             </button>
-                            {msg.modelUsed && (
-                              <span className="ml-auto font-mono text-[8.5px] text-zinc-500">
-                                {msg.modelUsed}
+                          )}
+
+                          {/* Eye Info Icon with Hover Tooltip for Model & Time */}
+                          <div className="relative group/eye">
+                            <button
+                              type="button"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-zinc-500 hover:text-white p-0.5 transition-colors cursor-pointer bg-transparent flex items-center"
+                              title="Message details"
+                            >
+                              <Eye className="w-3 h-3" />
+                            </button>
+
+                            {/* Floating Tooltip */}
+                            <div
+                              className={`absolute bottom-full ${
+                                isUser ? 'right-0' : 'left-0'
+                              } mb-1.5 hidden group-hover/eye:flex items-center gap-1.5 px-2 py-1 rounded-md bg-[#16161a] border border-white/10 shadow-xl text-[10px] font-mono text-zinc-300 whitespace-nowrap z-30 pointer-events-none`}
+                            >
+                              {!isUser && msg.modelUsed && (
+                                <>
+                                  <span>
+                                    {AVAILABLE_AI_MODELS.find((m) => m.id === msg.modelUsed)?.name ||
+                                      msg.modelUsed}
+                                  </span>
+                                  <span className="text-zinc-600">•</span>
+                                </>
+                              )}
+                              <span className="text-zinc-400">
+                                {new Date(msg.timestamp).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
                               </span>
-                            )}
+                            </div>
                           </div>
-                        )}
+                        </div>
                       </div>
 
                       {isUser && (
@@ -1759,8 +1904,8 @@ export const SuperNotch: React.FC = () => {
                 })}
 
                 {isAIGenerating && (
-                  <div className="flex gap-2 justify-start">
-                    <div className="w-5 h-5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5 animate-pulse">
+                  <div className="flex gap-2 justify-start items-center">
+                    <div className="w-5 h-5 rounded-lg bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-300 shrink-0 animate-pulse">
                       <Sparkles className="w-2.5 h-2.5" />
                     </div>
                     <div className="bg-white/[0.03] rounded-2xl rounded-tl-sm px-3 py-1.5 border border-white/[0.05] text-xs text-zinc-400 flex items-center gap-2">
@@ -1771,35 +1916,79 @@ export const SuperNotch: React.FC = () => {
                 )}
               </div>
 
-              {/* Bottom Minimal Input Area */}
+              {/* Bottom Soft Pill Input Bar with Animated Send & Mic */}
               <div className="pt-1.5 shrink-0">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     handleSendChatMessage();
                   }}
-                  className="flex items-center gap-2 bg-white/[0.05] hover:bg-white/[0.07] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-white/20 rounded-xl px-3 py-2 transition-all border border-white/[0.06]"
+                  className="flex items-center gap-2 bg-[#141418] hover:bg-[#18181d] focus-within:bg-[#1a1a20] focus-within:ring-1 focus-within:ring-white/20 rounded-full px-3.5 py-1.5 transition-all border border-white/[0.08] shadow-inner"
                 >
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendChatMessage();
+                      }
+                    }}
                     placeholder={
-                      isScreenVisionEnabled
-                        ? "Ask about visible screen context..."
-                        : "Ask AI, format checklist, or diagnose code..."
+                      isChatDictating
+                        ? 'Listening to voice...'
+                        : isScreenVisionEnabled
+                        ? 'Ask about visible screen context...'
+                        : 'Ask AI, format checklist, or diagnose code...'
                     }
                     disabled={isAIGenerating}
-                    className="w-full bg-transparent border-none text-[12px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text"
+                    className="w-full bg-transparent border-none text-[12px] text-white placeholder:text-zinc-500 focus:outline-none select-text font-normal cursor-text py-1"
                   />
+
+                  {/* Embedded Mic Button for Voice Dictation */}
                   <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleVoiceInChat();
+                    }}
+                    className={`p-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+                      isChatDictating
+                        ? 'bg-emerald-500 text-black animate-pulse shadow-md shadow-emerald-500/30'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.08]'
+                    }`}
+                    title={isChatDictating ? 'Stop Voice Input' : 'Voice Dictate'}
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Animated Circular Send Button */}
+                  <motion.button
                     type="submit"
                     disabled={!chatInput.trim() || isAIGenerating}
-                    className="p-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 disabled:opacity-30 transition-all cursor-pointer shrink-0"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.94 }}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                      chatInput.trim() && !isAIGenerating
+                        ? 'bg-white text-black shadow-md hover:bg-zinc-100 hover:shadow-white/20'
+                        : 'bg-white/10 text-zinc-500 cursor-not-allowed'
+                    }`}
                     title="Send (↵)"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
+                    {isAIGenerating ? (
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-black" />
+                      </motion.div>
+                    ) : (
+                      <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                    )}
+                  </motion.button>
                 </form>
               </div>
             </div>
