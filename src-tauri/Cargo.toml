@@ -1,10 +1,10 @@
 [package]
 name = "dopenotch"
 version = "0.4.0"
-description = "DopeNotch - 'cause it's top-notch. Ultra-fast on-device voice dictation & clipboard shelf"
-authors = ["DopeNotch Team"]
+description = "DopeNotch AI - 'cause it's top-notch. Ultra-fast on-device voice dictation, notch AI assistant & clipboard shelf"
+authors = ["DopeNotch AI Team"]
 license = "MIT"
-repository = "https://github.com/yourusername/dopenotch"
+repository = "https://github.com/Mr-ABX/DopeNotch-AI"
 edition = "2021"
 rust-version = "1.75"
 default-run = "dopenotch"
