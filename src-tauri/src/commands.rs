@@ -264,6 +264,17 @@ async fn handle_transcription_result(
 }
 
 #[cfg(target_os = "macos")]
+pub fn is_accessibility_granted() -> bool {
+    #[link(name = "ApplicationServices", kind = "framework")]
+    extern "C" {
+        fn AXIsProcessTrusted() -> bool;
+    }
+    unsafe {
+        AXIsProcessTrusted()
+    }
+}
+
+#[cfg(target_os = "macos")]
 pub fn request_accessibility_permissions() -> bool {
     #[link(name = "ApplicationServices", kind = "framework")]
     extern "C" {
@@ -1239,7 +1250,7 @@ pub struct SystemPermissionsStatus {
 pub fn check_system_permissions() -> SystemPermissionsStatus {
     #[cfg(target_os = "macos")]
     {
-        let accessibility = request_accessibility_permissions();
+        let accessibility = is_accessibility_granted();
         let mic_code = unsafe { check_mic_permission_status() };
         let (microphone, microphone_status) = match mic_code {
             3 => (true, "authorized".to_string()),
@@ -1690,9 +1701,203 @@ pub fn toggle_voice_note(app: AppHandle) {
     }
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct SystemFileResult {
+    pub name: String,
+    pub path: String,
+    pub kind: String,
+}
+
 #[tauri::command]
-pub async fn inspect_website(url: String) -> Result<crate::web_inspector::WebInspectionResult, String> {
-    crate::web_inspector::inspect_url(&url).await
+pub async fn inspect_website(app: AppHandle, url: String) -> Result<crate::web_inspector::WebInspectionResult, String> {
+    let _ = app.emit("dopenotch://inspect-fetching-started", &url);
+    let _ = app.emit_to("notch", "dopenotch://inspect-fetching-started", &url);
+
+    match crate::web_inspector::inspect_url(&url).await {
+        Ok(result) => {
+            let _ = app.emit("dopenotch://inspect-fetching-done", &result);
+            let _ = app.emit_to("notch", "dopenotch://inspect-fetching-done", &result);
+            let _ = app.emit("dopenotch://inspector-data", &result);
+            let _ = app.emit_to("inspector", "dopenotch://inspector-data", &result);
+            
+            // Open inspector window automatically
+            if let Some(win) = app.get_webview_window("inspector") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+            Ok(result)
+        }
+        Err(e) => {
+            let _ = app.emit("dopenotch://inspect-fetching-error", &e);
+            let _ = app.emit_to("notch", "dopenotch://inspect-fetching-error", &e);
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn open_inspector_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("inspector") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        let _ = win.center();
+    }
+}
+
+#[tauri::command]
+pub fn close_inspector_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("inspector") {
+        let _ = win.hide();
+    }
+}
+
+#[tauri::command]
+pub fn get_active_browser_tab_url() -> Option<String> {
+    crate::web_inspector::get_frontmost_browser_url()
+}
+
+#[tauri::command]
+pub async fn download_asset_to_disk(
+    target_data: String,
+    suggested_filename: Option<String>,
+    is_svg_content: bool,
+) -> Result<String, String> {
+    let base_dir = dirs::document_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("DopeNotch")
+        .join("downloads");
+
+    std::fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
+
+    let filename = suggested_filename.unwrap_or_else(|| {
+        let ext = if is_svg_content { "svg" } else { "png" };
+        format!("asset_{}.{}", uuid::Uuid::new_v4().simple(), ext)
+    });
+
+    let safe_filename: String = filename
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+
+    let dest_path = base_dir.join(&safe_filename);
+
+    if is_svg_content {
+        std::fs::write(&dest_path, target_data.as_bytes()).map_err(|e| e.to_string())?;
+    } else {
+        if target_data.starts_with("data:") {
+            if let Some(comma_pos) = target_data.find(',') {
+                let b64 = &target_data[comma_pos + 1..];
+                use base64::Engine;
+                let decoded = base64::engine::general_purpose::STANDARD
+                    .decode(b64)
+                    .map_err(|e| format!("Base64 decode failed: {}", e))?;
+                std::fs::write(&dest_path, decoded).map_err(|e| e.to_string())?;
+            } else {
+                return Err("Invalid data URI".to_string());
+            }
+        } else {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .build()
+                .map_err(|e| e.to_string())?;
+
+            let bytes = client
+                .get(&target_data)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?
+                .bytes()
+                .await
+                .map_err(|e| e.to_string())?;
+
+            std::fs::write(&dest_path, bytes).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(dest_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn search_system_files(query: String) -> Result<Vec<SystemFileResult>, String> {
+    let q = query.trim();
+    if q.is_empty() {
+        return Ok(vec![]);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let output = tokio::process::Command::new("mdfind")
+            .arg("-name")
+            .arg(q)
+            .output()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if !output.status.success() {
+            return Ok(vec![]);
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let mut results = Vec::new();
+        for line in stdout.lines().take(12) {
+            let path_str = line.trim();
+            if path_str.is_empty() {
+                continue;
+            }
+            let p = std::path::Path::new(path_str);
+            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("file").to_lowercase();
+                results.push(SystemFileResult {
+                    name: name.to_string(),
+                    path: path_str.to_string(),
+                    kind: ext,
+                });
+            }
+        }
+        Ok(results)
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(vec![])
+    }
+}
+
+#[tauri::command]
+pub fn reveal_path_in_finder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn();
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path))
+            .spawn();
+        Ok(())
+    }
+}
+
+#[tauri::command]
+pub fn open_path_in_os(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open")
+            .arg(&path)
+            .spawn();
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path])
+            .spawn();
+        Ok(())
+    }
 }
 
 #[tauri::command]

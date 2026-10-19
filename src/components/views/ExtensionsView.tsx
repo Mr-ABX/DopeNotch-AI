@@ -13,6 +13,8 @@ import {
   Command,
   Play,
   Music,
+  Layers,
+  FolderSearch,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
@@ -200,6 +202,41 @@ export const ExtensionsView: React.FC = () => {
         invoke('clear_clipboard_history').catch(() => {});
         setClipboardItems(clipboardItems.filter((i) => i.isPinned));
         showNotification('Unpinned clipboard items cleared');
+      },
+    },
+    {
+      id: 'ext-inspect',
+      command: '/inspect',
+      title: 'Web & HTML Asset Inspector',
+      category: 'developer',
+      description: 'Extracts real image previews, vector SVGs, color palettes, and typography into a floating draggable inspector window.',
+      howItWorks: 'Scrapes live web URLs, active browser tabs (Safari, Chrome, Arc, Brave), or local .html files on device.',
+      howToUse: 'Type /inspect <url> or /inspect active in the Notch. 1-click download assets with checkmarks.',
+      icon: Layers,
+      hotkey: '/inspect',
+      status: 'active',
+      actionLabel: 'Open Asset Inspector',
+      onExecute: () => {
+        invoke('open_inspector_window').catch(() => {});
+        showNotification('Asset Inspector window opened');
+      },
+    },
+    {
+      id: 'ext-find',
+      command: '/find',
+      title: 'Spotlight Full-System File Search',
+      category: 'utilities',
+      description: 'Search documents, source files, and images across your entire drive instantly with zero index lag.',
+      howItWorks: 'Bridges directly to macOS native Spotlight (mdfind) to locate files in <50ms with 1-click Reveal in Finder.',
+      howToUse: 'Press ⌘⇧K or open the Notch and type /find <name> to instantly locate and open any file.',
+      icon: FolderSearch,
+      hotkey: '/find',
+      status: 'active',
+      actionLabel: 'Search Files in Notch',
+      onExecute: () => {
+        invoke('set_notch_expanded', { expanded: true, width: 860, height: 250 }).catch(() => {});
+        setSuperNotchMode('shelf');
+        setSuperNotchHudView('search');
       },
     },
   ];

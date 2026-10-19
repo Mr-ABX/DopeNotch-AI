@@ -4,6 +4,7 @@ import { Dashboard } from './components/layout/Dashboard';
 import { SuperNotch } from './components/overlay/SuperNotch';
 import { PixelRulerOverlay } from './components/overlay/PixelRulerOverlay';
 import { ScreenLoupeOverlay } from './components/overlay/ScreenLoupeOverlay';
+import { AssetInspectorWindow } from './components/overlay/AssetInspectorWindow';
 import { TrayMenu } from './components/TrayMenu';
 import { useLiquidSync } from './hooks/useLiquidSync';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -16,10 +17,11 @@ const windowLabel = getCurrentWindow().label;
 function App() {
   useLiquidSync();
 
-  const [view] = useState<'dashboard' | 'tray' | 'notch' | 'ruler'>(
+  const [view] = useState<'dashboard' | 'tray' | 'notch' | 'ruler' | 'inspector'>(
     windowLabel === 'notch' || windowLabel === 'overlay' ? 'notch' :
     windowLabel === 'ruler' ? 'ruler' :
     windowLabel === 'tray' ? 'tray' :
+    windowLabel === 'inspector' ? 'inspector' :
     'dashboard'
   );
 
@@ -86,6 +88,10 @@ function App() {
       );
     }
     return <PixelRulerOverlay />;
+  }
+
+  if (view === 'inspector') {
+    return <AssetInspectorWindow />;
   }
 
   return (

@@ -80,7 +80,7 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 overlay::set_dock_icon();
-                let _ = crate::commands::request_accessibility_permissions();
+                let _ = crate::commands::is_accessibility_granted();
                 if settings.show_dock_icon {
                     app.set_activation_policy(tauri::ActivationPolicy::Regular);
                 } else {
@@ -206,6 +206,13 @@ pub fn run() {
             commands::start_voice_note_recording,
             commands::start_meeting_recording,
             commands::inspect_website,
+            commands::open_inspector_window,
+            commands::close_inspector_window,
+            commands::get_active_browser_tab_url,
+            commands::download_asset_to_disk,
+            commands::search_system_files,
+            commands::reveal_path_in_finder,
+            commands::open_path_in_os,
             commands::get_installed_applications,
             commands::launch_application,
             commands::capture_screen_vision,

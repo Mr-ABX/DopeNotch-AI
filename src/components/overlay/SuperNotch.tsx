@@ -35,7 +35,6 @@ import {
   ExternalLink,
   Radio,
   Layers,
-  Type,
   AppWindow,
   Eye,
   EyeOff,
@@ -44,6 +43,8 @@ import {
   Check,
   ArrowLeft,
   ArrowUp,
+  Download,
+  FolderSearch,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -62,6 +63,7 @@ import {
   captureScreenVision,
   sendAIChatRequest,
   checkLocalOllamaHealth,
+  pullOllamaModel,
 } from '../../services/aiChatService';
 import { WidgetsView } from './WidgetsView';
 import { evaluateQuickCalc } from '../../services/quickCalc';
@@ -175,6 +177,34 @@ export const SuperNotch: React.FC = () => {
     isOnline: boolean;
     installedModels: string[];
   }>({ isOnline: false, installedModels: [] });
+
+  const [downloadingChatModel, setDownloadingChatModel] = useState<string | null>(null);
+  const [chatModelDownloadPct, setChatModelDownloadPct] = useState<number>(0);
+  const [chatModelStatusText, setChatModelStatusText] = useState<string>('');
+
+  const handleDownloadChatModel = async (modelId: 'qwen2.5-0.5b' | 'smollm2-135m') => {
+    const targetName = modelId === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+    setDownloadingChatModel(modelId);
+    setChatModelDownloadPct(0);
+    setChatModelStatusText('Connecting to Ollama...');
+
+    try {
+      await pullOllamaModel(targetName, (pct, status) => {
+        setChatModelDownloadPct(pct);
+        setChatModelStatusText(status);
+      });
+      const health = await checkLocalOllamaHealth();
+      setLocalOllamaHealth(health);
+      setChatModelStatusText('Ready ✓');
+    } catch (e: any) {
+      setChatModelStatusText(`Download error: ${e.message || 'Failed'}`);
+    } finally {
+      setTimeout(() => {
+        setDownloadingChatModel(null);
+        setChatModelDownloadPct(0);
+      }, 2000);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -327,28 +357,53 @@ export const SuperNotch: React.FC = () => {
 
   const [inspectedWebData, setInspectedWebData] = useState<WebInspectionResult | null>(null);
   const [isInspectingWeb, setIsInspectingWeb] = useState(false);
-  const [webInspectorTab, setWebInspectorTab] = useState<'palette' | 'media' | 'fonts' | 'meta'>('palette');
 
-  // /inspect & /web Live Match (DOM & design asset extractor)
+  // /inspect, /web, /assets Live Match (DOM & design asset extractor)
   const inspectLiveMatch = useMemo(() => {
     const query = clipboardSearchQuery.trim();
-    const match = query.match(/^\/(?:inspect|web|assets)\s+(.+)$/i);
+    const match = query.match(/^\/(?:inspect|web|assets)(?:\s+(.*))?$/i);
     if (!match) return null;
-    return { url: match[1].trim() };
+    return { url: (match[1] || '').trim() || 'active' };
   }, [clipboardSearchQuery]);
 
   const handleRunWebInspection = useCallback(async (url: string) => {
     setIsInspectingWeb(true);
+    const target = url.trim() || 'active';
     try {
-      const res = await invoke<WebInspectionResult>('inspect_website', { url });
+      const res = await invoke<WebInspectionResult>('inspect_website', { url: target });
       setInspectedWebData(res);
-      showStatus(`Extracted ${res.total_assets_count} web assets`);
-    } catch (e) {
-      showStatus(`Failed to inspect website: ${e}`);
+      showStatus(`Extracted ${res.total_assets_count} assets • Inspector opened`);
+    } catch (e: any) {
+      showStatus(`Inspection error: ${e?.toString() || 'Failed'}`);
     } finally {
       setIsInspectingWeb(false);
     }
   }, [showStatus]);
+
+  // Spotlight Full-System File Search (/find <query>)
+  const [systemFiles, setSystemFiles] = useState<{ name: string; path: string; kind: string }[]>([]);
+
+  useEffect(() => {
+    const q = clipboardSearchQuery.trim();
+    if (!q.startsWith('/find')) {
+      setSystemFiles([]);
+      return;
+    }
+    const searchTerm = q.replace(/^\/find\s*/, '').trim();
+    if (!searchTerm) {
+      setSystemFiles([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const files = await invoke<{ name: string; path: string; kind: string }[]>('search_system_files', { query: searchTerm });
+        setSystemFiles(files || []);
+      } catch (err) {
+        console.error('System file search error:', err);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [clipboardSearchQuery]);
 
   // Ambient Meeting & Lecture Scribe (/meeting or /listen)
   const [isMeetingScribeActive, setIsMeetingScribeActive] = useState(false);
@@ -870,6 +925,19 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-find',
+      command: '/find',
+      title: 'Spotlight Full-System File Search',
+      subtitle: 'Instantly find any document, script, or image across your entire drive (/find <name>)',
+      icon: FolderSearch,
+      action: () => {
+        setClipboardSearchQuery('/find ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
       id: 'cmd-inspect',
       command: '/inspect',
       title: 'Web Asset & Palette Inspector',
@@ -1105,9 +1173,10 @@ export const SuperNotch: React.FC = () => {
       apps: matchingApps,
       commands: matchingCommands,
       clips: matchingClips,
-      totalCount: matchingApps.length + matchingCommands.length + matchingClips.length,
+      files: systemFiles,
+      totalCount: matchingApps.length + matchingCommands.length + matchingClips.length + systemFiles.length,
     };
-  }, [clipboardSearchQuery, toolCommands, clipboardItems, installedApps]);
+  }, [clipboardSearchQuery, toolCommands, clipboardItems, installedApps, systemFiles]);
 
   // Filtered shelf items by category
   const filteredShelfItems = useMemo(() => {
@@ -1289,7 +1358,7 @@ export const SuperNotch: React.FC = () => {
       }
 
       if (superNotchHudView === 'search') {
-        const total = searchResults.apps.length + searchResults.commands.length + searchResults.clips.length;
+        const total = searchResults.apps.length + searchResults.commands.length + searchResults.files.length + searchResults.clips.length;
 
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -1347,8 +1416,15 @@ export const SuperNotch: React.FC = () => {
           } else if (searchSelectedIndex < searchResults.apps.length + searchResults.commands.length) {
             const cmdIdx = searchSelectedIndex - searchResults.apps.length;
             searchResults.commands[cmdIdx].action();
+          } else if (searchSelectedIndex < searchResults.apps.length + searchResults.commands.length + searchResults.files.length) {
+            const fileIdx = searchSelectedIndex - searchResults.apps.length - searchResults.commands.length;
+            const file = searchResults.files[fileIdx];
+            if (file) {
+              invoke('reveal_path_in_finder', { path: file.path });
+              closeShelf();
+            }
           } else {
-            const clipIdx = searchSelectedIndex - searchResults.apps.length - searchResults.commands.length;
+            const clipIdx = searchSelectedIndex - searchResults.apps.length - searchResults.commands.length - searchResults.files.length;
             const clip = searchResults.clips[clipIdx];
             if (clip) handlePaste(clip);
           }
@@ -1706,7 +1782,22 @@ export const SuperNotch: React.FC = () => {
                                       {model.description}
                                     </p>
                                   </div>
-                                  {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {model.isLocal && !isReady && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownloadChatModel(model.id as any);
+                                        }}
+                                        disabled={downloadingChatModel === model.id}
+                                        className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] text-white shrink-0 font-mono transition-colors"
+                                      >
+                                        {downloadingChatModel === model.id ? `${chatModelDownloadPct}%` : 'Download'}
+                                      </button>
+                                    )}
+                                    {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0 ml-1" />}
+                                  </div>
                                 </button>
                               );
                             })}
@@ -1821,6 +1912,56 @@ export const SuperNotch: React.FC = () => {
                   WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 14px, black calc(100% - 14px), transparent 100%)',
                 }}
               >
+                {/* 1-Click Local Model Download Banner if Not Installed */}
+                {(() => {
+                  const isLocal = selectedAIModel === 'qwen2.5-0.5b' || selectedAIModel === 'smollm2-135m';
+                  const targetOllama = selectedAIModel === 'qwen2.5-0.5b' ? 'qwen2.5:0.5b' : 'smollm2:135m';
+                  const isReady =
+                    localOllamaHealth.isOnline &&
+                    localOllamaHealth.installedModels.some((m) => m.toLowerCase().includes(targetOllama));
+
+                  if (!isLocal || isReady) return null;
+
+                  return (
+                    <div className="mb-2 p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-white/[0.06] text-zinc-300 flex items-center justify-center shrink-0">
+                          <Bot className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-white">
+                              {selectedAIModel === 'qwen2.5-0.5b' ? 'Qwen 2.5 (0.5B)' : 'SmolLM2 (135M)'}
+                            </span>
+                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-400">
+                              {selectedAIModel === 'qwen2.5-0.5b' ? '~397 MB' : '~92 MB'}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-zinc-400 font-mono truncate mt-0.5">
+                            {downloadingChatModel ? chatModelStatusText : 'Featherweight on-device AI. 1-click download.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {downloadingChatModel ? (
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs font-mono text-zinc-200">{chatModelDownloadPct}%</span>
+                          <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadChatModel(selectedAIModel as any)}
+                          className="px-2.5 py-1 rounded-lg bg-white text-black text-xs font-semibold hover:bg-zinc-200 transition-all flex items-center gap-1 shrink-0 shadow-sm"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Download</span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {chatMessages.map((msg) => {
                   const isUser = msg.role === 'user';
                   return (
@@ -2971,160 +3112,59 @@ export const SuperNotch: React.FC = () => {
 
                     {/* Web Asset & Palette Inspector Live Card */}
                     {(inspectLiveMatch || inspectedWebData) && (
-                      <div className="mb-2 p-3 rounded-xl bg-white/[0.06] border border-cyan-500/25 flex flex-col gap-2.5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Globe className="w-4 h-4 text-cyan-400" />
-                            <span className="text-xs font-semibold text-white font-mono">
-                              Web Asset & Palette Inspector
-                            </span>
-                            {inspectedWebData && (
-                              <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-bold">
-                                {inspectedWebData.total_assets_count} Items
-                              </span>
-                            )}
+                      <div className="mb-2 p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-white/[0.06] text-zinc-300 flex items-center justify-center shrink-0">
+                            <Layers className="w-4 h-4" />
                           </div>
-
-                          <div className="flex items-center gap-1.5">
-                            {inspectLiveMatch && !isInspectingWeb && (
-                              <button
-                                type="button"
-                                onClick={() => handleRunWebInspection(inspectLiveMatch.url)}
-                                className="px-2.5 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black text-[11px] font-semibold flex items-center gap-1 transition-all"
-                              >
-                                <Search className="w-3 h-3" />
-                                <span>Inspect ↵</span>
-                              </button>
-                            )}
-                            {inspectedWebData && (
-                              <button
-                                type="button"
-                                onClick={() => setInspectedWebData(null)}
-                                className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-white truncate">
+                                Web & HTML Asset Inspector
+                              </span>
+                              {inspectedWebData && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-semibold shrink-0">
+                                  {inspectedWebData.total_assets_count} Items
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-zinc-400 font-mono truncate mt-0.5">
+                              {isInspectingWeb
+                                ? 'Extracting DOM colors, SVGs, images & typography...'
+                                : inspectedWebData
+                                ? `${inspectedWebData.title || inspectedWebData.url}`
+                                : 'Extracts image previews, vector SVGs, and palettes into a floating window'}
+                            </p>
                           </div>
                         </div>
 
-                        {isInspectingWeb ? (
-                          <div className="p-4 rounded-lg bg-black/40 border border-white/[0.06] flex items-center justify-center gap-2 text-xs font-mono text-cyan-300">
-                            <span className="w-3 h-3 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-                            <span>Scraping DOM colors, SVGs, images & OpenGraph tags...</span>
-                          </div>
-                        ) : inspectedWebData ? (
-                          <div className="space-y-2">
-                            {/* Tab switcher */}
-                            <div className="flex items-center gap-1 border-b border-white/[0.08] pb-1.5">
-                              {[
-                                { id: 'palette', label: `Palette (${inspectedWebData.colors.length})`, icon: Palette },
-                                { id: 'media', label: `SVGs & Images (${inspectedWebData.svgs.length + inspectedWebData.images.length})`, icon: Layers },
-                                { id: 'fonts', label: `Typography (${inspectedWebData.fonts.length})`, icon: Type },
-                                { id: 'meta', label: 'Meta & OG', icon: ExternalLink },
-                              ].map((tab) => {
-                                const Icon = tab.icon;
-                                const isTabActive = webInspectorTab === tab.id;
-                                return (
-                                  <button
-                                    key={tab.id}
-                                    type="button"
-                                    onClick={() => setWebInspectorTab(tab.id as any)}
-                                    className={`px-2.5 py-1 rounded-md text-[11px] font-mono flex items-center gap-1.5 transition-all ${
-                                      isTabActive
-                                        ? 'bg-cyan-500/20 text-cyan-300 font-semibold'
-                                        : 'text-zinc-400 hover:text-white hover:bg-white/[0.06]'
-                                    }`}
-                                  >
-                                    <Icon className="w-3 h-3" />
-                                    <span>{tab.label}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {/* Tab 1: Palette */}
-                            {webInspectorTab === 'palette' && (
-                              <div className="flex items-center gap-2 overflow-x-auto py-1 custom-slim-scrollbar">
-                                {inspectedWebData.colors.length === 0 ? (
-                                  <span className="text-[11px] font-mono text-zinc-500">No color swatches extracted</span>
-                                ) : (
-                                  inspectedWebData.colors.map((c, i) => (
-                                    <button
-                                      key={i}
-                                      type="button"
-                                      onClick={() => handlePaste(c)}
-                                      className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/40 hover:bg-white/10 border border-white/10 transition-all shrink-0 cursor-pointer group"
-                                    >
-                                      <span
-                                        className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
-                                        style={{ backgroundColor: c }}
-                                      />
-                                      <span className="text-[11px] font-mono text-zinc-300 group-hover:text-white">
-                                        {c}
-                                      </span>
-                                    </button>
-                                  ))
-                                )}
-                              </div>
-                            )}
-
-                            {/* Tab 2: Media & SVGs */}
-                            {webInspectorTab === 'media' && (
-                              <div className="space-y-1.5 max-h-36 overflow-y-auto custom-slim-scrollbar p-1">
-                                {inspectedWebData.images.concat(inspectedWebData.svgs).slice(0, 10).map((img, i) => (
-                                  <div
-                                    key={i}
-                                    className="flex items-center justify-between p-1.5 rounded-lg bg-black/40 border border-white/[0.06] text-xs font-mono"
-                                  >
-                                    <span className="text-zinc-300 truncate max-w-[420px]">{img}</span>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => handlePaste(img)}
-                                        className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-[10px] text-white"
-                                      >
-                                        Copy URL
-                                      </button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Tab 3: Typography */}
-                            {webInspectorTab === 'fonts' && (
-                              <div className="flex flex-wrap gap-1.5 p-1">
-                                {inspectedWebData.fonts.length === 0 ? (
-                                  <span className="text-[11px] font-mono text-zinc-500">No custom fonts detected</span>
-                                ) : (
-                                  inspectedWebData.fonts.map((f, i) => (
-                                    <span
-                                      key={i}
-                                      onClick={() => handlePaste(f)}
-                                      className="px-2.5 py-1 rounded-lg bg-black/40 border border-white/10 text-[11px] font-mono text-zinc-300 hover:text-white cursor-pointer hover:border-cyan-500/40"
-                                    >
-                                      {f}
-                                    </span>
-                                  ))
-                                )}
-                              </div>
-                            )}
-
-                            {/* Tab 4: Meta */}
-                            {webInspectorTab === 'meta' && (
-                              <div className="p-2 rounded-lg bg-black/40 border border-white/[0.06] space-y-1 text-xs">
-                                <div className="font-semibold text-white truncate">{inspectedWebData.title || 'No Title'}</div>
-                                <div className="text-zinc-400 text-[11px] line-clamp-2">{inspectedWebData.description || 'No description meta tag'}</div>
-                                <div className="text-cyan-400 font-mono text-[10px] truncate">{inspectedWebData.url}</div>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-2 rounded-lg bg-black/40 border border-white/[0.06] text-xs font-mono text-zinc-400">
-                            Type <span className="text-cyan-300 font-bold">/inspect &lt;url&gt;</span> (e.g. /inspect https://linear.app) and press ↵ to extract design assets.
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isInspectingWeb ? (
+                            <span className="w-4 h-4 border-2 border-white/40 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleRunWebInspection(inspectLiveMatch?.url || 'active')}
+                                className="px-2.5 py-1 rounded-lg bg-white text-black text-xs font-semibold hover:bg-zinc-200 transition-all flex items-center gap-1 shadow-sm"
+                              >
+                                <span>{inspectedWebData ? 'Rescan' : 'Inspect'}</span>
+                                <CornerDownLeft className="w-3 h-3" />
+                              </button>
+                              {inspectedWebData && (
+                                <button
+                                  type="button"
+                                  onClick={() => invoke('open_inspector_window')}
+                                  title="Open Floating Inspector Window"
+                                  className="px-2.5 py-1 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-xs font-medium text-white transition-colors flex items-center gap-1"
+                                >
+                                  <span>Pop Out</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -3285,6 +3325,55 @@ export const SuperNotch: React.FC = () => {
                             </div>
                           )}
 
+                          {/* Section: Spotlight Files */}
+                          {searchResults.files.length > 0 && (
+                            <div className="mb-2">
+                              <div className="flex items-center justify-between px-2.5 py-1 text-[11px] font-semibold text-zinc-400 font-sans tracking-normal">
+                                <span>Spotlight Files</span>
+                                <span className="text-[10px] font-mono text-zinc-500 font-normal">
+                                  {searchResults.files.length}
+                                </span>
+                              </div>
+                              {searchResults.files.map((file, i) => {
+                                const overallFileIndex = searchResults.apps.length + searchResults.commands.length + i;
+                                const isSelected = searchSelectedIndex === overallFileIndex;
+
+                                return (
+                                  <div
+                                    key={file.path}
+                                    onClick={() => {
+                                      invoke('reveal_path_in_finder', { path: file.path });
+                                      closeShelf();
+                                    }}
+                                    onMouseEnter={() => setSearchSelectedIndex(overallFileIndex)}
+                                    className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-all ${
+                                      isSelected
+                                        ? 'bg-white/[0.1] text-white shadow-sm'
+                                        : 'hover:bg-white/[0.04] text-zinc-300'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0 text-xs">
+                                        <FolderSearch className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div className="flex items-center gap-2 truncate">
+                                        <span className="text-xs font-medium text-white truncate font-sans">
+                                          {file.name}
+                                        </span>
+                                        <span className="text-[11px] text-zinc-500 truncate hidden md:inline font-mono">
+                                          {file.path}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.2 rounded bg-white/[0.04] uppercase">
+                                      {file.kind}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
                           {/* Section: Clips & Dictations */}
                           {searchResults.clips.length > 0 && (
                             <div>
@@ -3295,7 +3384,7 @@ export const SuperNotch: React.FC = () => {
                                 </span>
                               </div>
                               {searchResults.clips.map((item, idx) => {
-                                const overallIndex = searchResults.apps.length + searchResults.commands.length + idx;
+                                const overallIndex = searchResults.apps.length + searchResults.commands.length + searchResults.files.length + idx;
                                 const isSelected = searchSelectedIndex === overallIndex;
                                 const isColor = item.category === 'color';
 

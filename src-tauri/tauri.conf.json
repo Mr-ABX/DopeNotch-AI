@@ -73,6 +73,21 @@
         "visible": false,
         "shadow": false,
         "focus": true
+      },
+      {
+        "label": "inspector",
+        "title": "DopeNotch Asset Inspector",
+        "url": "/",
+        "width": 860,
+        "height": 640,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": true,
+        "focus": true
       }
     ]
   },
