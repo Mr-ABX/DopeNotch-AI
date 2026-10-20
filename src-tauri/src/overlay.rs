@@ -85,8 +85,8 @@ pub fn show_visualizer(app: &AppHandle, _settings: &AppSettings) {
                             let _: () = msg_send![ns_win, setWorksWhenModal: true];
                         }
 
-                        // Level 2147483647 = CGShieldingWindowLevel (maximum possible window level to float ON TOP of everything, including menu bar)
-                        let _: () = msg_send![ns_win, setLevel: 2147483647i64];
+                        // Level 25 = kCGStatusWindowLevel (floats on top of all windows and menu bar, but strictly BELOW kCGDraggingWindowLevel 500 so dragged files stay visibly on top of the notch)
+                        let _: () = msg_send![ns_win, setLevel: 25i64];
                         
                         // CanJoinAllSpaces(1) | Stationary(16) | IgnoresCycle(64) | FullScreenAuxiliary(256) = 337
                         let _: () = msg_send![ns_win, setCollectionBehavior: 337u64];
@@ -374,6 +374,8 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
                                 },
                             };
                             let _: () = msg_send![ns_win, setFrame: target_frame, display: true, animate: false];
+                            let _: () = msg_send![ns_win, setHasShadow: false];
+                            let _: () = msg_send![ns_win, invalidateShadow];
                         }
 
                         if expanded {
@@ -382,24 +384,14 @@ pub fn resize_notch(app: &AppHandle, expanded: bool, width: Option<f64>, height:
                             }
                             record_target_application();
 
-                            let _: () = msg_send![ns_win, makeKeyAndOrderFront: std::ptr::null_mut::<AnyObject>()];
-                            let app_cls = objc2::ffi::objc_getClass(b"NSApplication\0".as_ptr() as *const _);
-                            if !app_cls.is_null() {
-                                let ns_app: *mut AnyObject = msg_send![app_cls as *mut AnyObject, sharedApplication];
-                                if !ns_app.is_null() {
-                                    let _: () = msg_send![ns_app, activateIgnoringOtherApps: true];
-                                }
-                            }
+                            // Keep window in front without stealing active drag focus from Finder/Figma
+                            let _: () = msg_send![ns_win, orderFrontRegardless];
                         } else {
                             let _: () = msg_send![ns_win, orderFrontRegardless];
                         }
                     }
                 }
             });
-
-            if expanded {
-                let _ = window.set_focus();
-            }
         }
 
         #[cfg(not(target_os = "macos"))]
@@ -436,8 +428,8 @@ pub fn show_ruler_overlay(app: &AppHandle) {
                             let _: () = msg_send![ns_win, setWorksWhenModal: true];
                         }
 
-                        // Max shielding window level (floats on top of all windows and menu bar)
-                        let _: () = msg_send![ns_win, setLevel: 2147483647i64];
+                        // Level 25 = kCGStatusWindowLevel (floats on top of all windows, but below drag layer 500)
+                        let _: () = msg_send![ns_win, setLevel: 25i64];
                         let _: () = msg_send![ns_win, setCollectionBehavior: 337u64];
                         let _: () = msg_send![ns_win, setStyleMask: 0u64];
                         let _: () = msg_send![ns_win, setHasShadow: false];

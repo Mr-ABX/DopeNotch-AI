@@ -219,6 +219,7 @@ pub fn run() {
             commands::process_dropped_stash_files,
             commands::copy_file_to_system_clipboard,
             commands::save_data_to_stash,
+            commands::open_stash_directory,
             commands::get_storage_info,
             commands::open_storage_directory,
             commands::change_storage_directory,

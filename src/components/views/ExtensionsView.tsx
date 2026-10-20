@@ -146,10 +146,9 @@ export const ExtensionsView: React.FC = () => {
       status: 'active',
       actionLabel: 'Open Stash Shelf',
       onExecute: () => {
-        invoke('set_notch_expanded', { expanded: true, width: 860, height: 220 }).catch(() => {});
+        invoke('set_notch_expanded', { expanded: true, width: 480, height: 132 }).catch(() => {});
         setSuperNotchMode('shelf');
-        setSuperNotchHudView('shelf');
-        setActiveClipboardCategory('stash');
+        setSuperNotchHudView('stash');
         showNotification('Magnetic Stash Shelf opened');
       },
     },

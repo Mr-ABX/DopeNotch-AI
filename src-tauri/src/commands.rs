@@ -2097,5 +2097,16 @@ pub async fn save_data_to_stash(
     })
 }
 
+#[tauri::command]
+pub async fn open_stash_directory() -> Result<String, String> {
+    let stash_dir = dirs::document_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("DopeNotch")
+        .join("stash");
+    std::fs::create_dir_all(&stash_dir).map_err(|e| e.to_string())?;
+    crate::storage::DopeNotchStorage::reveal_path(&stash_dir)?;
+    Ok(stash_dir.to_string_lossy().to_string())
+}
+
 
 

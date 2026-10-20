@@ -58,6 +58,7 @@ import {
   ClipboardItem,
   NoteItem,
   StashItem,
+  SuperNotchHudView,
 } from '../../stores/appStore';
 import {
   AIModelId,
@@ -266,7 +267,10 @@ export const SuperNotch: React.FC = () => {
     }, 2200);
   }, []);
 
-  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets' | 'chat') => {
+  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets' | 'chat' | 'stash') => {
+    if (view === 'stash') {
+      return { width: 480, height: 132 };
+    }
     if (view === 'chat') {
       return { width: 600, height: 460 };
     }
@@ -292,7 +296,7 @@ export const SuperNotch: React.FC = () => {
     }, 250);
   }, [setSuperNotchMode]);
 
-  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets' | 'chat') => {
+  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets' | 'chat' | 'stash') => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -302,6 +306,9 @@ export const SuperNotch: React.FC = () => {
     const view = targetView || superNotchHudView;
     if (targetView) {
       setSuperNotchHudView(targetView);
+    }
+    if (view === 'stash') {
+      setIsNotchPinned(true);
     }
     const dims = getExpandedDimensions(view);
 
@@ -314,14 +321,16 @@ export const SuperNotch: React.FC = () => {
     setSuperNotchMode('shelf');
     getCurrentWindow().setFocus().catch(() => {});
 
-    const focusSearch = () => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    };
-    setTimeout(focusSearch, 50);
-    setTimeout(focusSearch, 150);
-    setTimeout(focusSearch, 280);
+    if (view !== 'stash' && view !== 'widgets') {
+      const focusSearch = () => {
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      };
+      setTimeout(focusSearch, 50);
+      setTimeout(focusSearch, 150);
+      setTimeout(focusSearch, 280);
+    }
   }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView, setSuperNotchHudView]);
 
   const handleCopyStashFile = useCallback(async (item: StashItem, e: React.MouseEvent) => {
@@ -364,9 +373,8 @@ export const SuperNotch: React.FC = () => {
           if (event.payload.type === 'enter' || event.payload.type === 'over') {
             if (dragOverTimeoutRef.current) clearTimeout(dragOverTimeoutRef.current);
             setIsDraggingOverNotch(true);
-            if (activeMode === 'idle') {
-              openShelf('shelf');
-              setActiveClipboardCategory('stash');
+            if (activeMode === 'idle' || superNotchHudView !== 'stash') {
+              openShelf('stash');
               setIsNotchPinned(true);
             }
           } else if (event.payload.type === 'leave') {
@@ -386,8 +394,7 @@ export const SuperNotch: React.FC = () => {
                 if (items && items.length > 0) {
                   addStashItems(items);
                   showStatus(`${items.length} item${items.length > 1 ? 's' : ''} stashed in Shelf 🧲`);
-                  openShelf('shelf');
-                  setActiveClipboardCategory('stash');
+                  openShelf('stash');
                   setIsNotchPinned(true);
                 }
               } catch (err: any) {
@@ -733,8 +740,8 @@ export const SuperNotch: React.FC = () => {
     };
   }, [triggerNoteSavedAnimation, setNotes, updateNote, setIsRecording]);
 
-  // Switch between Shelf (SuperShelf), Search (Raycast), Widgets, and AI Chat views
-  const handleToggleView = (newView: 'shelf' | 'search' | 'widgets' | 'chat') => {
+  // Switch between Shelf (SuperShelf), Search (Raycast), Widgets, AI Chat, and Stash views
+  const handleToggleView = (newView: SuperNotchHudView) => {
     setSuperNotchHudView(newView);
     const dims = getExpandedDimensions(newView);
     invoke('set_notch_expanded', {
@@ -1173,8 +1180,7 @@ export const SuperNotch: React.FC = () => {
       subtitle: `View ${stashItems.length} stashed files & images (Drop files onto Notch to stash)`,
       icon: Magnet,
       action: () => {
-        setActiveClipboardCategory('stash');
-        handleToggleView('shelf');
+        openShelf('stash');
       },
     },
     {
@@ -1443,7 +1449,7 @@ export const SuperNotch: React.FC = () => {
 
     currentWin
       .listen('tauri://blur', () => {
-        if (isDraggingRef.current || isDraggingOverNotch || isNotchPinnedRef.current) {
+        if (isDraggingRef.current || isDraggingOverNotch || isNotchPinnedRef.current || superNotchHudView === 'stash') {
           return;
         }
         if (Date.now() - openedAtRef.current > 400) {
@@ -1456,7 +1462,7 @@ export const SuperNotch: React.FC = () => {
       .catch(() => {});
 
     const handleWindowBlur = () => {
-      if (isDraggingRef.current || isDraggingOverNotch || isNotchPinnedRef.current) {
+      if (isDraggingRef.current || isDraggingOverNotch || isNotchPinnedRef.current || superNotchHudView === 'stash') {
         return;
       }
       if (Date.now() - openedAtRef.current > 400) {
@@ -1483,18 +1489,18 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
-      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> AI Chat
+      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> AI Chat -> Stash
       if (e.key === 'Tab') {
         e.preventDefault();
-        const views: ('shelf' | 'widgets' | 'search' | 'chat')[] = ['shelf', 'widgets', 'search', 'chat'];
+        const views: SuperNotchHudView[] = ['shelf', 'widgets', 'search', 'chat', 'stash'];
         const currentIdx = views.indexOf(superNotchHudView);
         const nextView = views[(currentIdx + 1) % views.length];
         handleToggleView(nextView);
         return;
       }
 
-      // In Chat and Widgets views, prevent shelf / search navigation and enter-to-paste
-      if (superNotchHudView === 'chat' || superNotchHudView === 'widgets') {
+      // In Chat, Widgets, and Stash views, prevent shelf / search navigation and enter-to-paste
+      if (superNotchHudView === 'chat' || superNotchHudView === 'widgets' || superNotchHudView === 'stash') {
         return;
       }
 
@@ -1637,12 +1643,15 @@ export const SuperNotch: React.FC = () => {
   // - recording: strictly locked at 28px height (menu bar level), width smoothly expands to 220px
   // - idle: 160px width, 28px height
   const isChatView = superNotchHudView === 'chat' && (activeMode === 'shelf' || isChatDictating || (activeMode === 'recording' && isChatDictating));
+  const isStashView = superNotchHudView === 'stash';
 
   const targetWidth =
     isChatView
       ? 600
+      : isStashView && activeMode === 'shelf'
+      ? 480
       : isDraggingOverNotch && activeMode === 'idle'
-      ? 340
+      ? 480
       : activeMode === 'shelf'
       ? 860
       : activeMode === 'recording'
@@ -1658,8 +1667,10 @@ export const SuperNotch: React.FC = () => {
   const targetHeight =
     isChatView
       ? 460
+      : isStashView && activeMode === 'shelf'
+      ? 132
       : isDraggingOverNotch && activeMode === 'idle'
-      ? 52
+      ? 132
       : activeMode === 'shelf'
       ? superNotchHudView === 'search'
         ? 410
@@ -1670,7 +1681,9 @@ export const SuperNotch: React.FC = () => {
 
   const targetRadius =
     activeMode === 'shelf'
-      ? '0 0 24px 24px'
+      ? isStashView
+        ? '0 0 20px 20px'
+        : '0 0 24px 24px'
       : '0 0 14px 14px';
 
   return (
@@ -1680,7 +1693,7 @@ export const SuperNotch: React.FC = () => {
         <div
           className="fixed inset-0 pointer-events-auto z-0 bg-transparent"
           onClick={() => {
-            if (!isNotchPinnedRef.current && !isDraggingRef.current) {
+            if (!isNotchPinnedRef.current && !isDraggingRef.current && superNotchHudView !== 'stash') {
               closeShelf();
             }
           }}
@@ -1708,9 +1721,8 @@ export const SuperNotch: React.FC = () => {
           e.stopPropagation();
           if (!isDraggingOverNotch) {
             setIsDraggingOverNotch(true);
-            if (activeMode === 'idle') {
-              openShelf('shelf');
-              setActiveClipboardCategory('stash');
+            if (activeMode === 'idle' || superNotchHudView !== 'stash') {
+              openShelf('stash');
               setIsNotchPinned(true);
             }
           }
@@ -1737,8 +1749,7 @@ export const SuperNotch: React.FC = () => {
                 if (items && items.length > 0) {
                   addStashItems(items);
                   showStatus(`${items.length} item${items.length > 1 ? 's' : ''} stashed in Shelf 🧲`);
-                  openShelf('shelf');
-                  setActiveClipboardCategory('stash');
+                  openShelf('stash');
                   setIsNotchPinned(true);
                 }
               } catch (err) {
@@ -2613,8 +2624,226 @@ export const SuperNotch: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.16 }}
-              className="w-full h-full p-3 flex flex-col justify-between text-[#ededed] bg-black"
+              className={`w-full h-full flex flex-col justify-between text-[#ededed] bg-black ${
+                isStashView ? 'p-2.5' : 'p-3'
+              }`}
             >
+              {isStashView ? (
+                /* CONCISE DEDICATED STASH DROP TRAY (480px x 132px - ZERO SEARCH BAR, ZERO OVERLAP WITH CAMERA NOTCH) */
+                <div className="w-full h-full flex flex-col justify-between overflow-hidden select-none">
+                  {/* Top Bar: Title, Count, Open Folder, Clear, Pin, Close */}
+                  <div className="flex items-center justify-between px-1 pb-1.5 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-5 h-5 rounded-md bg-white/10 flex items-center justify-center text-white shrink-0">
+                        <Magnet className="w-3 h-3 text-white" />
+                      </div>
+                      <span className="text-[12px] font-semibold text-white tracking-tight">Stash Shelf</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300">
+                        {stashItems.length} {stashItems.length === 1 ? 'item' : 'items'}
+                      </span>
+                      {statusFeedback && (
+                        <span className="text-[10px] font-mono text-zinc-400 pl-1 truncate max-w-[120px]">
+                          {statusFeedback}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {/* Switch to Full Clipboard Shelf */}
+                      <button
+                        onClick={() => openShelf('shelf')}
+                        className="px-2 py-1 rounded-lg text-[10.5px] text-zinc-400 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Switch to Full Clipboard Shelf"
+                      >
+                        <LayoutGrid className="w-3 h-3" />
+                        <span>Shelf</span>
+                      </button>
+
+                      {/* Open Stash Cache Directory in Finder */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            await invoke('open_stash_directory');
+                            showStatus('Opened Stash Folder');
+                          } catch (e) {
+                            showStatus('Error opening folder');
+                          }
+                        }}
+                        className="px-2 py-1 rounded-lg text-[10.5px] text-zinc-400 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Open Stash directory in Finder"
+                      >
+                        <FolderOpen className="w-3 h-3" />
+                        <span>Folder</span>
+                      </button>
+
+                      {stashItems.length > 0 && (
+                        <button
+                          onClick={() => {
+                            clearStashItems();
+                            showStatus('Cleared Stash');
+                          }}
+                          className="px-2 py-1 rounded-lg text-[10.5px] text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Clear all stashed items"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Clear</span>
+                        </button>
+                      )}
+
+                      {/* Pin Toggle */}
+                      <button
+                        onClick={() => {
+                          const next = !isNotchPinned;
+                          setIsNotchPinned(next);
+                          showStatus(next ? 'Pinned 📌' : 'Unpinned');
+                        }}
+                        className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                          isNotchPinned
+                            ? 'text-amber-400 bg-amber-400/15 border border-amber-400/25'
+                            : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        }`}
+                        title={isNotchPinned ? 'Pinned (Stays open while dragging to apps)' : 'Pin Stash'}
+                      >
+                        <Pin className={`w-3.5 h-3.5 ${isNotchPinned ? 'fill-current' : ''}`} />
+                      </button>
+
+                      {/* Close Stash */}
+                      <button
+                        onClick={closeShelf}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                        title="Close Stash"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Body: Horizontal Stream of Compact Cards or Sleek Drop Target */}
+                  <div
+                    ref={shelfScrollRef}
+                    className="flex-1 flex items-center overflow-x-auto overflow-y-hidden pt-1.5 pb-0.5 custom-slim-scrollbar gap-2 px-0.5"
+                  >
+                    {stashItems.length === 0 ? (
+                      <div className="w-full h-full border border-dashed border-white/15 rounded-xl flex items-center justify-center gap-2.5 text-zinc-400 bg-white/[0.02]">
+                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-zinc-300">
+                          <Download className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[11.5px] font-medium text-white">Drop files or images here</span>
+                          <span className="text-[9.5px] text-zinc-500">Auto-saved to stash • Drag out to Figma or Slack anytime</span>
+                        </div>
+                      </div>
+                    ) : (
+                      stashItems.map((item) => {
+                        const isCopied = stashedCopiedId === item.id;
+                        return (
+                          <div
+                            key={item.id}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              isDraggingRef.current = true;
+                              e.dataTransfer.effectAllowed = 'copyMove';
+                              e.dataTransfer.setData('text/plain', item.path);
+                              e.dataTransfer.setData('text/uri-list', `file://${item.path}`);
+                              if (item.kind === 'image' && item.previewData) {
+                                e.dataTransfer.setData(
+                                  'text/html',
+                                  `<img src="${item.previewData}" alt="${item.name}" />`
+                                );
+                                try {
+                                  const b64Parts = item.previewData.split(',');
+                                  const b64Data = b64Parts.length > 1 ? b64Parts[1] : b64Parts[0];
+                                  const byteChars = atob(b64Data);
+                                  const byteArr = new Uint8Array(byteChars.length);
+                                  for (let i = 0; i < byteChars.length; i++) {
+                                    byteArr[i] = byteChars.charCodeAt(i);
+                                  }
+                                  const blob = new Blob([byteArr], { type: 'image/png' });
+                                  const file = new window.File([blob], item.name || `stash-${Date.now()}.png`, { type: 'image/png' });
+                                  e.dataTransfer.items.add(file);
+                                } catch {}
+                              }
+                            }}
+                            onDragEnd={() => {
+                              setTimeout(() => {
+                                isDraggingRef.current = false;
+                              }, 500);
+                            }}
+                            onClick={(e) => {
+                              if (isDraggingRef.current) return;
+                              handleCopyStashFile(item, e);
+                            }}
+                            onDoubleClick={(e) => {
+                              handleOpenStashFile(item.path, e);
+                            }}
+                            className="w-[116px] min-w-[116px] h-[78px] rounded-xl p-1.5 flex flex-col justify-between bg-[#141416] border border-white/[0.08] hover:bg-[#1a1a1e] hover:border-white/20 transition-all cursor-pointer group relative overflow-hidden select-none shrink-0"
+                          >
+                            {/* Hover Quick Actions */}
+                            <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                              <button
+                                onClick={(e) => handleRevealStashInFinder(item.path, e)}
+                                className="p-1 rounded bg-black/80 backdrop-blur-md text-zinc-400 hover:text-white"
+                                title="Reveal in Finder"
+                              >
+                                <FolderOpen className="w-2.5 h-2.5" />
+                              </button>
+                              <button
+                                onClick={(e) => handleCopyStashFile(item, e)}
+                                className={`p-1 rounded bg-black/80 backdrop-blur-md ${
+                                  isCopied ? 'text-emerald-400' : 'text-zinc-400 hover:text-white'
+                                }`}
+                                title="Copy File (⌘V pastes real file)"
+                              >
+                                {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeStashItem(item.id);
+                                  showStatus('Removed item');
+                                }}
+                                className="p-1 rounded bg-black/80 backdrop-blur-md text-zinc-400 hover:text-rose-400"
+                                title="Remove from stash"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+
+                            {/* Center Preview */}
+                            <div className="flex-1 flex items-center justify-center overflow-hidden rounded-lg bg-black/40">
+                              {item.kind === 'image' && item.previewData ? (
+                                <img
+                                  src={item.previewData}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover rounded-lg pointer-events-none"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-1 text-zinc-400">
+                                  <FileText className="w-4 h-4 text-zinc-300" />
+                                  <span className="text-[10px] uppercase font-mono font-bold text-zinc-400">
+                                    {item.name.split('.').pop() || 'FILE'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer: Name and Size */}
+                            <div className="pt-1 flex items-center justify-between text-[10px] leading-tight">
+                              <span className="truncate text-zinc-200 font-medium max-w-[66px]" title={item.name}>
+                                {item.name}
+                              </span>
+                              <span className="text-zinc-500 font-mono text-[9px] shrink-0">
+                                {item.formattedSize}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
               {/* TOP HEADER: Clean Minimal Search + Unboxed Icon Toggles (SuperShelf) */}
               <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-transparent">
                 {/* Left: Roomy Search Bar + Action Toggles positioned immediately after it */}
@@ -2796,7 +3025,13 @@ export const SuperNotch: React.FC = () => {
                         return (
                           <button
                             key={cat.id}
-                            onClick={() => setActiveClipboardCategory(cat.id)}
+                            onClick={() => {
+                              if (cat.id === 'stash') {
+                                openShelf('stash');
+                              } else {
+                                setActiveClipboardCategory(cat.id);
+                              }
+                            }}
                             className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] transition-all whitespace-nowrap cursor-pointer ${
                               isActive
                                 ? 'bg-white text-black font-semibold shadow-sm'
@@ -3922,6 +4157,8 @@ export const SuperNotch: React.FC = () => {
                 <div className="flex-1 flex flex-col justify-start pt-0.5 overflow-hidden">
                   <WidgetsView />
                 </div>
+              )}
+                </>
               )}
             </motion.div>
           )}
