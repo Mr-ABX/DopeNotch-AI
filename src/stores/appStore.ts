@@ -37,7 +37,18 @@ export type RecordingMode = 'dictate' | 'prompt' | 'rewrite' | 'command';
 export type SuperNotchMode = 'idle' | 'recording' | 'shelf';
 export type SuperNotchHudView = 'search' | 'shelf' | 'widgets' | 'chat';
 export type OrbTheme = 'aurora' | 'brand';
-export type ClipboardCategory = 'all' | 'image' | 'dictation' | 'clipboard' | 'pinned' | 'code' | 'link' | 'color';
+export type ClipboardCategory = 'all' | 'stash' | 'image' | 'dictation' | 'clipboard' | 'pinned' | 'code' | 'link' | 'color';
+
+export interface StashItem {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  formattedSize: string;
+  kind: 'image' | 'code' | 'document' | 'archive' | 'file' | 'link' | 'text';
+  previewData?: string;
+  timestamp?: number;
+}
 
 export interface ClipboardItem {
   id: string;
@@ -209,6 +220,12 @@ interface AppState {
   togglePinClipboardItem: (id: string) => void;
   deleteClipboardItem: (id: string) => void;
   clearClipboardItems: () => void;
+
+  // Magnetic Stash Shelf (Drop-to-Notch)
+  stashItems: StashItem[];
+  addStashItems: (items: StashItem[]) => void;
+  removeStashItem: (id: string) => void;
+  clearStashItems: () => void;
 
   // Audio Devices
   inputDevices: Array<{ id: string; name: string }>;
@@ -599,6 +616,51 @@ export const useAppStore = create<AppState>((set) => ({
       clipboardItems: state.clipboardItems.filter((c) => c.id !== id),
     })),
   clearClipboardItems: () => set({ clipboardItems: [] }),
+
+  // Magnetic Stash Shelf (Drop-to-Notch)
+  stashItems: (() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('dopenotch_stash_items');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  addStashItems: (newItems) =>
+    set((state) => {
+      const withTimestamp = newItems.map((item) => ({
+        ...item,
+        timestamp: item.timestamp || Date.now(),
+      }));
+      const existingPaths = new Set(state.stashItems.map((i) => i.path));
+      const filtered = withTimestamp.filter((i) => !existingPaths.has(i.path));
+      const updated = [...filtered, ...state.stashItems].slice(0, 60);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('dopenotch_stash_items', JSON.stringify(updated));
+        } catch {}
+      }
+      return { stashItems: updated };
+    }),
+  removeStashItem: (id) =>
+    set((state) => {
+      const updated = state.stashItems.filter((i) => i.id !== id);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('dopenotch_stash_items', JSON.stringify(updated));
+        } catch {}
+      }
+      return { stashItems: updated };
+    }),
+  clearStashItems: () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('dopenotch_stash_items');
+      } catch {}
+    }
+    set({ stashItems: [] });
+  },
 
   // Audio Devices
   inputDevices: [

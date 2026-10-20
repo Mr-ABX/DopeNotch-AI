@@ -419,4 +419,21 @@ char* capture_screen_as_base64(void) {
     }
 }
 
+bool copy_file_path_to_pasteboard(const char* file_path) {
+    if (!file_path) return false;
+    @autoreleasepool {
+        NSString *path = [NSString stringWithUTF8String:file_path];
+        if (!path || ![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+            return false;
+        }
+        NSURL *fileUrl = [NSURL fileURLWithPath:path];
+        if (!fileUrl) return false;
+        
+        NSPasteboard *pb = [NSPasteboard generalPasteboard];
+        [pb clearContents];
+        return [pb writeObjects:@[fileUrl]];
+    }
+}
+
+
 

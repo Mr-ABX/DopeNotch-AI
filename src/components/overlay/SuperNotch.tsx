@@ -45,6 +45,9 @@ import {
   ArrowUp,
   Download,
   FolderSearch,
+  File as FileIcon,
+  Magnet,
+  Archive,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -54,6 +57,7 @@ import {
   ClipboardCategory,
   ClipboardItem,
   NoteItem,
+  StashItem,
 } from '../../stores/appStore';
 import {
   AIModelId,
@@ -144,12 +148,21 @@ export const SuperNotch: React.FC = () => {
     updateNote,
     setActiveTab,
     apiKeys,
+    stashItems,
+    addStashItems,
+    removeStashItem,
+    clearStashItems,
   } = useAppStore();
+
+  const activeMode = isRecording ? 'recording' : superNotchMode;
 
   const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false);
   const [shelfSelectedIndex, setShelfSelectedIndex] = useState<number>(0);
   const [searchSelectedIndex, setSearchSelectedIndex] = useState<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [stashedCopiedId, setStashedCopiedId] = useState<string | null>(null);
+  const [isDraggingOverNotch, setIsDraggingOverNotch] = useState(false);
+  const dragOverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
   const [noteSavedFeedback, setNoteSavedFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
@@ -305,6 +318,90 @@ export const SuperNotch: React.FC = () => {
     setTimeout(focusSearch, 150);
     setTimeout(focusSearch, 280);
   }, [getExpandedDimensions, setSuperNotchMode, superNotchHudView, setSuperNotchHudView]);
+
+  const handleCopyStashFile = useCallback(async (item: StashItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const ok = await invoke<boolean>('copy_file_to_system_clipboard', { path: item.path });
+      setStashedCopiedId(item.id);
+      showStatus(ok ? `Copied ${item.name} to clipboard ✓` : 'Path copied');
+      setTimeout(() => setStashedCopiedId(null), 1800);
+    } catch {
+      showStatus('Copy failed');
+    }
+  }, [showStatus]);
+
+  const handleRevealStashInFinder = useCallback(async (path: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await invoke('reveal_path_in_finder', { path });
+      showStatus('Revealed in Finder');
+    } catch {
+      showStatus('Reveal failed');
+    }
+  }, [showStatus]);
+
+  const handleOpenStashFile = useCallback(async (path: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await invoke('open_path_in_os', { path });
+    } catch {
+      showStatus('Open failed');
+    }
+  }, [showStatus]);
+
+  useEffect(() => {
+    let unlistenDragDrop: (() => void) | null = null;
+
+    const setupDragDropListener = async () => {
+      try {
+        const unlisten = await getCurrentWindow().onDragDropEvent(async (event) => {
+          if (event.payload.type === 'enter' || event.payload.type === 'over') {
+            if (dragOverTimeoutRef.current) clearTimeout(dragOverTimeoutRef.current);
+            setIsDraggingOverNotch(true);
+            if (activeMode === 'idle') {
+              invoke('resize_notch', { expanded: true, width: 340, height: 56 }).catch(() => {});
+            }
+          } else if (event.payload.type === 'leave') {
+            dragOverTimeoutRef.current = setTimeout(() => {
+              setIsDraggingOverNotch(false);
+              if (activeMode === 'idle') {
+                invoke('resize_notch', { expanded: false, width: 160, height: 28 }).catch(() => {});
+              }
+            }, 300);
+          } else if (event.payload.type === 'drop') {
+            if (dragOverTimeoutRef.current) clearTimeout(dragOverTimeoutRef.current);
+            setIsDraggingOverNotch(false);
+            const paths = event.payload.paths;
+            if (paths && paths.length > 0) {
+              try {
+                const items = await invoke<StashItem[]>('process_dropped_stash_files', { paths });
+                if (items && items.length > 0) {
+                  addStashItems(items);
+                  showStatus(`${items.length} item${items.length > 1 ? 's' : ''} stashed in Shelf 🧲`);
+                  openShelf('shelf');
+                  setActiveClipboardCategory('stash');
+                }
+              } catch (err: any) {
+                console.warn('Failed to process dropped stash files:', err);
+                showStatus('Stash failed');
+              }
+            }
+          }
+        });
+        unlistenDragDrop = unlisten;
+      } catch (e) {
+        console.warn('DragDropEvent setup failed:', e);
+      }
+    };
+
+    setupDragDropListener();
+
+    return () => {
+      if (unlistenDragDrop) unlistenDragDrop();
+      if (dragOverTimeoutRef.current) clearTimeout(dragOverTimeoutRef.current);
+    };
+  }, [activeMode, addStashItems, openShelf, setActiveClipboardCategory, showStatus]);
 
   // In-Place /prompt & /fix live match (direct to chat box, zero friction)
   const promptLiveMatch = useMemo(() => {
@@ -524,8 +621,6 @@ export const SuperNotch: React.FC = () => {
       hasExplicitMins: Boolean(match[1]),
     };
   }, [clipboardSearchQuery]);
-
-  const activeMode = isRecording ? 'recording' : superNotchMode;
 
   // Active Focus Timer Interval
   useEffect(() => {
@@ -1064,6 +1159,17 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-stash',
+      command: '/stash',
+      title: 'Magnetic Stash Shelf (Drop-to-Notch)',
+      subtitle: `View ${stashItems.length} stashed files & images (Drop files onto Notch to stash)`,
+      icon: Magnet,
+      action: () => {
+        setActiveClipboardCategory('stash');
+        handleToggleView('shelf');
+      },
+    },
+    {
       id: 'cmd-widgets',
       command: '/widgets',
       title: 'Widgets & Vitals',
@@ -1208,6 +1314,15 @@ export const SuperNotch: React.FC = () => {
     return items;
   }, [clipboardItems, activeClipboardCategory, clipboardSearchQuery]);
 
+  // Filtered stash items
+  const filteredStashItems = useMemo(() => {
+    if (!clipboardSearchQuery.trim()) return stashItems;
+    const q = clipboardSearchQuery.toLowerCase();
+    return stashItems.filter(
+      (item) => item.name.toLowerCase().includes(q) || item.path.toLowerCase().includes(q)
+    );
+  }, [stashItems, clipboardSearchQuery]);
+
   // Adaptive horizontal scroll edge detection for shelf stream
   const [shelfCanScrollLeft, setShelfCanScrollLeft] = useState(false);
   const [shelfCanScrollRight, setShelfCanScrollRight] = useState(false);
@@ -1225,7 +1340,7 @@ export const SuperNotch: React.FC = () => {
     updateShelfScrollState();
     el.addEventListener('scroll', updateShelfScrollState, { passive: true });
     return () => el.removeEventListener('scroll', updateShelfScrollState);
-  }, [updateShelfScrollState, filteredShelfItems.length, superNotchHudView]);
+  }, [updateShelfScrollState, filteredShelfItems.length, filteredStashItems.length, activeClipboardCategory, superNotchHudView]);
 
   const shelfMask = useMemo(() => {
     const leftFade = shelfCanScrollLeft ? 'transparent 0%, black 14px' : 'black 0%, black 14px';
@@ -1237,6 +1352,7 @@ export const SuperNotch: React.FC = () => {
   const categories: { id: ClipboardCategory; label: string; count: number }[] = useMemo(() => {
     return [
       { id: 'all', label: 'All', count: clipboardItems.length },
+      { id: 'stash', label: '🧲 Stash', count: stashItems.length },
       {
         id: 'image',
         label: 'Images',
@@ -1511,6 +1627,8 @@ export const SuperNotch: React.FC = () => {
   const targetWidth =
     isChatView
       ? 600
+      : isDraggingOverNotch && activeMode === 'idle'
+      ? 340
       : activeMode === 'shelf'
       ? 860
       : activeMode === 'recording'
@@ -1526,6 +1644,8 @@ export const SuperNotch: React.FC = () => {
   const targetHeight =
     isChatView
       ? 460
+      : isDraggingOverNotch && activeMode === 'idle'
+      ? 52
       : activeMode === 'shelf'
       ? superNotchHudView === 'search'
         ? 410
@@ -1575,6 +1695,50 @@ export const SuperNotch: React.FC = () => {
           mass: 0.8,
         }}
         onWheel={handleWheel}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!isDraggingOverNotch) {
+            setIsDraggingOverNotch(true);
+            if (activeMode === 'idle') {
+              invoke('resize_notch', { expanded: true, width: 340, height: 56 }).catch(() => {});
+            }
+          }
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+          setIsDraggingOverNotch(false);
+          if (activeMode === 'idle') {
+            invoke('resize_notch', { expanded: false, width: 160, height: 28 }).catch(() => {});
+          }
+        }}
+        onDrop={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDraggingOverNotch(false);
+          if (activeMode === 'idle') {
+            invoke('resize_notch', { expanded: false, width: 160, height: 28 }).catch(() => {});
+          }
+          const files = Array.from(e.dataTransfer.files || []);
+          if (files.length > 0) {
+            const paths = files.map((f: any) => f.path || f.name).filter(Boolean);
+            if (paths.length > 0) {
+              try {
+                const items = await invoke<StashItem[]>('process_dropped_stash_files', { paths });
+                if (items && items.length > 0) {
+                  addStashItems(items);
+                  showStatus(`${items.length} item${items.length > 1 ? 's' : ''} stashed in Shelf 🧲`);
+                  openShelf('shelf');
+                  setActiveClipboardCategory('stash');
+                }
+              } catch (err) {
+                console.warn('Drop error:', err);
+              }
+            }
+          }
+        }}
         onClick={(e) => {
           if (activeMode === 'idle') {
             e.stopPropagation();
@@ -2296,7 +2460,17 @@ export const SuperNotch: React.FC = () => {
                   : 'Click or press ⌥V to open SuperShelf'
               }
             >
-              {noteSavedFeedback ? (
+              {isDraggingOverNotch ? (
+                <div className="flex items-center justify-center gap-2 text-white animate-pulse">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Download className="w-3 h-3" />
+                  </div>
+                  <span className="text-[11px] font-medium tracking-tight text-white flex items-center gap-1.5">
+                    Drop to Stash in Shelf
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-zinc-300">🧲 Stash</span>
+                  </span>
+                </div>
+              ) : noteSavedFeedback ? (
                 <div className="flex items-center justify-center gap-1.5 text-amber-300">
                   <div className="w-3.5 h-3.5 rounded-full bg-amber-400/20 flex items-center justify-center text-amber-400">
                     <FileText className="w-2.5 h-2.5" />
@@ -2571,34 +2745,50 @@ export const SuperNotch: React.FC = () => {
               {/* ================================================================= */}
               {superNotchHudView === 'shelf' && (
                 <div className="flex-1 flex flex-col justify-between pt-1.5 overflow-hidden">
-                  {/* Category Filter Pills */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1.5">
-                    {categories.map((cat) => {
-                      const isActive = activeClipboardCategory === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          onClick={() => setActiveClipboardCategory(cat.id)}
-                          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] transition-all whitespace-nowrap cursor-pointer ${
-                            isActive
-                              ? 'bg-white text-black font-semibold shadow-sm'
-                              : 'bg-[#18181c] text-zinc-400 hover:text-white'
-                          }`}
-                        >
-                          <span>{cat.label}</span>
-                          <span
-                            className={`text-[9.5px] font-mono ${
-                              isActive ? 'text-zinc-600 font-bold' : 'text-zinc-500'
+                  {/* Category Filter Pills & Stash Actions */}
+                  <div className="flex items-center justify-between gap-2 pb-1.5 px-0.5">
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+                      {categories.map((cat) => {
+                        const isActive = activeClipboardCategory === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            onClick={() => setActiveClipboardCategory(cat.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] transition-all whitespace-nowrap cursor-pointer ${
+                              isActive
+                                ? 'bg-white text-black font-semibold shadow-sm'
+                                : 'bg-[#18181c] text-zinc-400 hover:text-white'
                             }`}
                           >
-                            {cat.count}
-                          </span>
-                        </button>
-                      );
-                    })}
+                            <span>{cat.label}</span>
+                            <span
+                              className={`text-[9.5px] font-mono ${
+                                isActive ? 'text-zinc-600 font-bold' : 'text-zinc-500'
+                              }`}
+                            >
+                              {cat.count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Stash Specific Quick Action: Clear Stash */}
+                    {activeClipboardCategory === 'stash' && stashItems.length > 0 && (
+                      <button
+                        onClick={() => {
+                          clearStashItems();
+                          showStatus('Cleared Stash Shelf');
+                        }}
+                        className="px-2 py-0.5 rounded text-[10px] text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        title="Clear all stashed items"
+                      >
+                        Clear Stash
+                      </button>
+                    )}
                   </div>
 
-                  {/* Horizontal Shelf Stream (155px x 120px cards with adaptive soft edge scroll dissolve) */}
+                  {/* Horizontal Shelf Stream (155px x 120px clips / 165px x 122px stash cards with adaptive soft edge scroll dissolve) */}
                   <div
                     ref={shelfScrollRef}
                     className="flex flex-row gap-2.5 overflow-x-auto pt-1 pb-1.5 px-3 items-stretch flex-1 custom-slim-scrollbar"
@@ -2607,7 +2797,165 @@ export const SuperNotch: React.FC = () => {
                       WebkitMaskImage: shelfMask,
                     }}
                   >
-                    {filteredShelfItems.length === 0 ? (
+                    {activeClipboardCategory === 'stash' ? (
+                      filteredStashItems.length === 0 ? (
+                        <div className="w-full py-7 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1.5">
+                          <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400 mb-0.5">
+                            <Magnet className="w-4 h-4 text-zinc-300" />
+                          </div>
+                          <p className="font-medium text-zinc-300 text-xs">Stash Shelf is Ready</p>
+                          <p className="text-[11px] text-zinc-500 max-w-sm">
+                            Drag &amp; drop files, images, snippets, or links directly onto the top Notch to stash them here.
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-zinc-400 bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full font-mono">
+                              Drop anywhere on top Notch 🧲
+                            </span>
+                            <span className="text-[10px] text-zinc-400 bg-white/5 border border-white/10 px-2.5 py-0.5 rounded-full font-mono">
+                              Copy File puts real file on ⌘V
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        filteredStashItems.map((item, index) => {
+                          const isCopied = stashedCopiedId === item.id;
+                          const isSelected = shelfSelectedIndex === index;
+
+                          return (
+                            <div
+                              key={item.id}
+                              draggable={true}
+                              onDragStart={(e) => {
+                                isDraggingRef.current = true;
+                                e.dataTransfer.effectAllowed = 'copyMove';
+                                e.dataTransfer.setData('text/plain', item.path);
+                                e.dataTransfer.setData('text/uri-list', `file://${item.path}`);
+                                if (item.kind === 'image' && item.previewData) {
+                                  e.dataTransfer.setData(
+                                    'text/html',
+                                    `<img src="${item.previewData}" alt="${item.name}" />`
+                                  );
+                                }
+                              }}
+                              onDragEnd={() => {
+                                setTimeout(() => {
+                                  isDraggingRef.current = false;
+                                }, 180);
+                              }}
+                              onClick={(e) => {
+                                if (isDraggingRef.current) return;
+                                handleCopyStashFile(item, e);
+                              }}
+                              onDoubleClick={(e) => {
+                                handleOpenStashFile(item.path, e);
+                              }}
+                              onMouseEnter={() => setShelfSelectedIndex(index)}
+                              className={`w-[165px] min-w-[165px] h-[122px] rounded-xl p-2.5 flex flex-col justify-between transition-all duration-100 cursor-pointer select-none group relative overflow-hidden ${
+                                isSelected
+                                  ? 'bg-[#1e1e22] border border-white/30 shadow-md'
+                                  : 'bg-[#141416] border border-white/[0.08] hover:bg-[#1a1a1e] hover:border-white/20'
+                              }`}
+                            >
+                              {/* Top Quick Actions on Hover */}
+                              <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                <button
+                                  onClick={(e) => handleRevealStashInFinder(item.path, e)}
+                                  className="p-1 rounded bg-black/75 backdrop-blur-md text-zinc-400 hover:text-white transition-colors"
+                                  title="Reveal in Finder"
+                                >
+                                  <FolderOpen className="w-2.5 h-2.5" />
+                                </button>
+
+                                <button
+                                  onClick={(e) => handleOpenStashFile(item.path, e)}
+                                  className="p-1 rounded bg-black/75 backdrop-blur-md text-zinc-400 hover:text-white transition-colors"
+                                  title="Open File"
+                                >
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </button>
+
+                                <button
+                                  onClick={(e) => handleCopyStashFile(item, e)}
+                                  className={`p-1 rounded bg-black/75 backdrop-blur-md transition-colors ${
+                                    isCopied ? 'text-emerald-400' : 'text-zinc-400 hover:text-white'
+                                  }`}
+                                  title="Copy File (⌘V pastes real file)"
+                                >
+                                  {isCopied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5" />}
+                                </button>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeStashItem(item.id);
+                                    showStatus(`Removed ${item.name}`);
+                                  }}
+                                  className="p-1 rounded bg-black/75 backdrop-blur-md text-zinc-400 hover:text-rose-400 transition-colors"
+                                  title="Remove from Stash"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+
+                              {/* Card Content Body */}
+                              {item.kind === 'image' && item.previewData ? (
+                                <div className="flex-1 overflow-hidden min-h-0 relative rounded-lg bg-black/40 flex items-center justify-center">
+                                  <img
+                                    src={item.previewData}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover rounded-lg pointer-events-none"
+                                  />
+                                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-md text-[8.5px] font-mono text-zinc-300">
+                                    {item.formattedSize}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex-1 overflow-hidden pr-0.5 min-h-0 flex flex-col justify-between">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-mono">
+                                    {item.kind === 'code' ? (
+                                      <Code className="w-3 h-3 text-emerald-400 shrink-0" />
+                                    ) : item.kind === 'document' ? (
+                                      <FileText className="w-3 h-3 text-cyan-400 shrink-0" />
+                                    ) : item.kind === 'archive' ? (
+                                      <Archive className="w-3 h-3 text-amber-400 shrink-0" />
+                                    ) : (
+                                      <FileIcon className="w-3 h-3 text-zinc-400 shrink-0" />
+                                    )}
+                                    <span className="truncate uppercase text-[9px] tracking-wider text-zinc-400 font-semibold">
+                                      {item.kind}
+                                    </span>
+                                  </div>
+                                  <div className="py-1">
+                                    <p className="text-[11px] font-semibold text-zinc-200 truncate" title={item.name}>
+                                      {item.name}
+                                    </p>
+                                    <p className="text-[10px] text-zinc-500 font-mono truncate mt-0.5">
+                                      {item.formattedSize}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Card Footer */}
+                              <div className="flex items-center justify-between text-[10px] text-zinc-400 pt-1 font-mono shrink-0 border-t border-white/[0.04]">
+                                <span className="truncate max-w-[95px] text-[10px] text-zinc-300" title={item.name}>
+                                  {item.name}
+                                </span>
+                                <span
+                                  className={`text-[9.5px] flex items-center gap-0.5 ${
+                                    isCopied
+                                      ? 'text-emerald-400 font-semibold'
+                                      : 'opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400'
+                                  }`}
+                                >
+                                  {isCopied ? 'Copied ✓' : '⌘V Copy'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )
+                    ) : filteredShelfItems.length === 0 ? (
                       <div className="w-full py-8 text-center text-xs text-zinc-500 flex flex-col items-center justify-center gap-1">
                         <p className="font-medium text-zinc-400">No clips found</p>
                         <p className="text-[11px] text-zinc-600">

@@ -15,6 +15,7 @@ import {
   Music,
   Layers,
   FolderSearch,
+  Magnet,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
@@ -130,6 +131,26 @@ export const ExtensionsView: React.FC = () => {
         setSuperNotchMode('shelf');
         setSuperNotchHudView('shelf');
         showNotification('SuperShelf expanded at screen top');
+      },
+    },
+    {
+      id: 'ext-stash',
+      command: '/stash',
+      title: 'Magnetic Stash Shelf (Drop-to-Notch)',
+      category: 'clipboard',
+      description: 'Drag & drop any files, images, snippets, or folders directly onto the Notch to stash and copy back out.',
+      howItWorks: 'Tauri native drag-and-drop listener intercepts files dragged from Finder or browsers. Objective-C Cocoa bridge writes true file URLs to the macOS pasteboard for native ⌘V pasting anywhere.',
+      howToUse: 'Drag any file from Finder onto the top dynamic Notch. Or type /stash to view stashed files, copy them (⌘V), or reveal in Finder.',
+      icon: Magnet,
+      hotkey: '⌥V (Stash)',
+      status: 'active',
+      actionLabel: 'Open Stash Shelf',
+      onExecute: () => {
+        invoke('set_notch_expanded', { expanded: true, width: 860, height: 220 }).catch(() => {});
+        setSuperNotchMode('shelf');
+        setSuperNotchHudView('shelf');
+        setActiveClipboardCategory('stash');
+        showNotification('Magnetic Stash Shelf opened');
       },
     },
     {

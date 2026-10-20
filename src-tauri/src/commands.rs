@@ -1915,5 +1915,187 @@ pub fn capture_screen_vision() -> Result<crate::screen_vision::ScreenVisionPaylo
     crate::screen_vision::capture_screen_snapshot()
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StashItemPayload {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub formatted_size: String,
+    pub kind: String,
+    pub preview_data: Option<String>,
+}
+
+#[tauri::command]
+pub async fn process_dropped_stash_files(paths: Vec<String>) -> Result<Vec<StashItemPayload>, String> {
+    let mut items = Vec::new();
+
+    for p_str in paths {
+        let p = std::path::Path::new(&p_str);
+        if !p.exists() {
+            continue;
+        }
+
+        let name = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file")
+            .to_string();
+
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        let metadata = std::fs::metadata(p).ok();
+        let size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+
+        let formatted_size = if size < 1024 {
+            format!("{} B", size)
+        } else if size < 1024 * 1024 {
+            format!("{:.1} KB", size as f64 / 1024.0)
+        } else if size < 1024 * 1024 * 1024 {
+            format!("{:.1} MB", size as f64 / (1024.0 * 1024.0))
+        } else {
+            format!("{:.2} GB", size as f64 / (1024.0 * 1024.0 * 1024.0))
+        };
+
+        let is_image = matches!(
+            ext.as_str(),
+            "png" | "jpg" | "jpeg" | "webp" | "gif" | "svg" | "ico" | "bmp"
+        );
+
+        let kind = if is_image {
+            "image"
+        } else if matches!(
+            ext.as_str(),
+            "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "html" | "css" | "json" | "sh" | "sql" | "toml" | "yaml" | "yml"
+        ) {
+            "code"
+        } else if matches!(ext.as_str(), "pdf" | "doc" | "docx" | "txt" | "md") {
+            "document"
+        } else if matches!(ext.as_str(), "zip" | "tar" | "gz" | "dmg" | "pkg") {
+            "archive"
+        } else {
+            "file"
+        };
+
+        let mut preview_data = None;
+        if is_image && size < 15 * 1024 * 1024 {
+            if let Ok(bytes) = std::fs::read(p) {
+                use base64::Engine;
+                let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                let mime = match ext.as_str() {
+                    "png" => "image/png",
+                    "jpg" | "jpeg" => "image/jpeg",
+                    "webp" => "image/webp",
+                    "gif" => "image/gif",
+                    "svg" => "image/svg+xml",
+                    _ => "image/png",
+                };
+                preview_data = Some(format!("data:{};base64,{}", mime, b64));
+            }
+        }
+
+        items.push(StashItemPayload {
+            id: format!("stash-{}", uuid::Uuid::new_v4().simple()),
+            name,
+            path: p_str,
+            size,
+            formatted_size,
+            kind: kind.to_string(),
+            preview_data,
+        });
+    }
+
+    Ok(items)
+}
+
+#[tauri::command]
+pub fn copy_file_to_system_clipboard(path: String) -> Result<bool, String> {
+    #[cfg(target_os = "macos")]
+    {
+        extern "C" {
+            fn copy_file_path_to_pasteboard(file_path: *const std::os::raw::c_char) -> bool;
+        }
+        use std::ffi::CString;
+        if let Ok(c_path) = CString::new(path) {
+            let success = unsafe { copy_file_path_to_pasteboard(c_path.as_ptr()) };
+            return Ok(success);
+        }
+        Err("Failed to convert path string".to_string())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+pub async fn save_data_to_stash(
+    name: String,
+    data_or_text: String,
+    is_image: bool,
+) -> Result<StashItemPayload, String> {
+    let stash_dir = dirs::document_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("DopeNotch")
+        .join("stash");
+
+    std::fs::create_dir_all(&stash_dir).map_err(|e| e.to_string())?;
+
+    let safe_name: String = name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+
+    let target_path = stash_dir.join(&safe_name);
+
+    let mut preview_data = None;
+    let size: u64;
+
+    if is_image {
+        if data_or_text.starts_with("data:") {
+            if let Some(comma_pos) = data_or_text.find(',') {
+                let b64 = &data_or_text[comma_pos + 1..];
+                use base64::Engine;
+                let decoded = base64::engine::general_purpose::STANDARD
+                    .decode(b64)
+                    .map_err(|e| format!("Base64 decode failed: {}", e))?;
+                std::fs::write(&target_path, &decoded).map_err(|e| e.to_string())?;
+                size = decoded.len() as u64;
+                preview_data = Some(data_or_text.clone());
+            } else {
+                return Err("Invalid data URI".to_string());
+            }
+        } else {
+            return Err("Expected data URI for image".to_string());
+        }
+    } else {
+        std::fs::write(&target_path, data_or_text.as_bytes()).map_err(|e| e.to_string())?;
+        size = data_or_text.len() as u64;
+    }
+
+    let formatted_size = if size < 1024 {
+        format!("{} B", size)
+    } else if size < 1024 * 1024 {
+        format!("{:.1} KB", size as f64 / 1024.0)
+    } else {
+        format!("{:.1} MB", size as f64 / (1024.0 * 1024.0))
+    };
+
+    Ok(StashItemPayload {
+        id: format!("stash-{}", uuid::Uuid::new_v4().simple()),
+        name: safe_name,
+        path: target_path.to_string_lossy().to_string(),
+        size,
+        formatted_size,
+        kind: if is_image { "image".to_string() } else { "text".to_string() },
+        preview_data,
+    })
+}
+
 
 
