@@ -163,6 +163,10 @@ export const SuperNotch: React.FC = () => {
   const [stashedCopiedId, setStashedCopiedId] = useState<string | null>(null);
   const [isDraggingOverNotch, setIsDraggingOverNotch] = useState(false);
   const dragOverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isNotchPinned, setIsNotchPinned] = useState(false);
+  const isNotchPinnedRef = useRef(false);
+  isNotchPinnedRef.current = isNotchPinned;
+  const hoverExpandTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
   const [noteSavedFeedback, setNoteSavedFeedback] = useState<string | null>(null);
   const [userExtensions, setUserExtensions] = useState<UserExtension[]>([]);
@@ -276,6 +280,7 @@ export const SuperNotch: React.FC = () => {
   }, []);
 
   const closeShelf = useCallback(() => {
+    setIsNotchPinned(false);
     setSuperNotchMode('idle');
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
     closeTimerRef.current = setTimeout(() => {
@@ -360,15 +365,17 @@ export const SuperNotch: React.FC = () => {
             if (dragOverTimeoutRef.current) clearTimeout(dragOverTimeoutRef.current);
             setIsDraggingOverNotch(true);
             if (activeMode === 'idle') {
-              invoke('resize_notch', { expanded: true, width: 340, height: 56 }).catch(() => {});
+              openShelf('shelf');
+              setActiveClipboardCategory('stash');
+              setIsNotchPinned(true);
             }
           } else if (event.payload.type === 'leave') {
             dragOverTimeoutRef.current = setTimeout(() => {
               setIsDraggingOverNotch(false);
-              if (activeMode === 'idle') {
-                invoke('resize_notch', { expanded: false, width: 160, height: 28 }).catch(() => {});
+              if (!isNotchPinnedRef.current && activeMode === 'idle') {
+                closeShelf();
               }
-            }, 300);
+            }, 500);
           } else if (event.payload.type === 'drop') {
             if (dragOverTimeoutRef.current) clearTimeout(dragOverTimeoutRef.current);
             setIsDraggingOverNotch(false);
@@ -381,6 +388,7 @@ export const SuperNotch: React.FC = () => {
                   showStatus(`${items.length} item${items.length > 1 ? 's' : ''} stashed in Shelf 🧲`);
                   openShelf('shelf');
                   setActiveClipboardCategory('stash');
+                  setIsNotchPinned(true);
                 }
               } catch (err: any) {
                 console.warn('Failed to process dropped stash files:', err);
@@ -1435,7 +1443,10 @@ export const SuperNotch: React.FC = () => {
 
     currentWin
       .listen('tauri://blur', () => {
-        if (Date.now() - openedAtRef.current > 350) {
+        if (isDraggingRef.current || isDraggingOverNotch || isNotchPinnedRef.current) {
+          return;
+        }
+        if (Date.now() - openedAtRef.current > 400) {
           closeShelf();
         }
       })
@@ -1445,7 +1456,10 @@ export const SuperNotch: React.FC = () => {
       .catch(() => {});
 
     const handleWindowBlur = () => {
-      if (Date.now() - openedAtRef.current > 350) {
+      if (isDraggingRef.current || isDraggingOverNotch || isNotchPinnedRef.current) {
+        return;
+      }
+      if (Date.now() - openedAtRef.current > 400) {
         closeShelf();
       }
     };
@@ -1661,21 +1675,15 @@ export const SuperNotch: React.FC = () => {
 
   return (
     <div className="fixed top-0 left-0 w-full h-full pointer-events-none flex flex-col items-center select-none overflow-visible bg-transparent">
-      {/* Click-outside backdrop: in normal shelf, apply soft darkening; in chat, keep fully transparent */}
-      {activeMode === 'shelf' && !isChatView && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          className="fixed inset-0 pointer-events-auto z-0 bg-black/40 backdrop-blur-[6px]"
-          onClick={closeShelf}
-        />
-      )}
-      {isChatView && (
+      {/* Click-outside backdrop: 100% transparent so zero gray shadow box appears around the notch */}
+      {activeMode === 'shelf' && (
         <div
           className="fixed inset-0 pointer-events-auto z-0 bg-transparent"
-          onClick={closeShelf}
+          onClick={() => {
+            if (!isNotchPinnedRef.current && !isDraggingRef.current) {
+              closeShelf();
+            }
+          }}
         />
       )}
 
@@ -1701,7 +1709,9 @@ export const SuperNotch: React.FC = () => {
           if (!isDraggingOverNotch) {
             setIsDraggingOverNotch(true);
             if (activeMode === 'idle') {
-              invoke('resize_notch', { expanded: true, width: 340, height: 56 }).catch(() => {});
+              openShelf('shelf');
+              setActiveClipboardCategory('stash');
+              setIsNotchPinned(true);
             }
           }
         }}
@@ -1710,17 +1720,14 @@ export const SuperNotch: React.FC = () => {
           e.stopPropagation();
           if (e.currentTarget.contains(e.relatedTarget as Node)) return;
           setIsDraggingOverNotch(false);
-          if (activeMode === 'idle') {
-            invoke('resize_notch', { expanded: false, width: 160, height: 28 }).catch(() => {});
+          if (!isNotchPinnedRef.current && activeMode === 'idle') {
+            closeShelf();
           }
         }}
         onDrop={async (e) => {
           e.preventDefault();
           e.stopPropagation();
           setIsDraggingOverNotch(false);
-          if (activeMode === 'idle') {
-            invoke('resize_notch', { expanded: false, width: 160, height: 28 }).catch(() => {});
-          }
           const files = Array.from(e.dataTransfer.files || []);
           if (files.length > 0) {
             const paths = files.map((f: any) => f.path || f.name).filter(Boolean);
@@ -1732,6 +1739,7 @@ export const SuperNotch: React.FC = () => {
                   showStatus(`${items.length} item${items.length > 1 ? 's' : ''} stashed in Shelf 🧲`);
                   openShelf('shelf');
                   setActiveClipboardCategory('stash');
+                  setIsNotchPinned(true);
                 }
               } catch (err) {
                 console.warn('Drop error:', err);
@@ -2453,6 +2461,20 @@ export const SuperNotch: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
+              onMouseEnter={() => {
+                if (hoverExpandTimeoutRef.current) clearTimeout(hoverExpandTimeoutRef.current);
+                hoverExpandTimeoutRef.current = setTimeout(() => {
+                  if (activeMode === 'idle' && !isRecording) {
+                    openShelf('shelf');
+                  }
+                }, 220);
+              }}
+              onMouseLeave={() => {
+                if (hoverExpandTimeoutRef.current) {
+                  clearTimeout(hoverExpandTimeoutRef.current);
+                  hoverExpandTimeoutRef.current = null;
+                }
+              }}
               className="w-full h-full cursor-pointer bg-black flex items-center justify-center px-3"
               title={
                 focusTimerRunning
@@ -2720,6 +2742,27 @@ export const SuperNotch: React.FC = () => {
                     <Star className="w-4 h-4 fill-current" />
                   </button>
 
+                  {/* Pin / Keep Open Toggle (Stays on screen while switching apps, dragging to Figma, Slack, etc.) */}
+                  <button
+                    onClick={() => {
+                      const next = !isNotchPinned;
+                      setIsNotchPinned(next);
+                      showStatus(next ? 'Shelf Pinned Open 📌' : 'Auto-close restored');
+                    }}
+                    className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                      isNotchPinned
+                        ? 'text-amber-400 bg-amber-400/15 border border-amber-400/25 shadow-sm'
+                        : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                    }`}
+                    title={
+                      isNotchPinned
+                        ? 'Shelf Pinned (Stays open while dragging to Figma, Slack, Finder)'
+                        : 'Pin Shelf (Keep notch open while switching apps)'
+                    }
+                  >
+                    <Pin className={`w-4 h-4 ${isNotchPinned ? 'fill-current' : ''}`} />
+                  </button>
+
                   {/* Open Dashboard Settings */}
                   <button
                     onClick={handleOpenDashboard}
@@ -2835,12 +2878,24 @@ export const SuperNotch: React.FC = () => {
                                     'text/html',
                                     `<img src="${item.previewData}" alt="${item.name}" />`
                                   );
+                                  try {
+                                    const b64Parts = item.previewData.split(',');
+                                    const b64Data = b64Parts.length > 1 ? b64Parts[1] : b64Parts[0];
+                                    const byteChars = atob(b64Data);
+                                    const byteArr = new Uint8Array(byteChars.length);
+                                    for (let i = 0; i < byteChars.length; i++) {
+                                      byteArr[i] = byteChars.charCodeAt(i);
+                                    }
+                                    const blob = new Blob([byteArr], { type: 'image/png' });
+                                    const file = new window.File([blob], item.name || `stash-${Date.now()}.png`, { type: 'image/png' });
+                                    e.dataTransfer.items.add(file);
+                                  } catch {}
                                 }
                               }}
                               onDragEnd={() => {
                                 setTimeout(() => {
                                   isDraggingRef.current = false;
-                                }, 180);
+                                }, 500);
                               }}
                               onClick={(e) => {
                                 if (isDraggingRef.current) return;
