@@ -241,10 +241,10 @@ export const NotesView: React.FC = () => {
         </div>
       )}
 
-      {/* Filter and Search Bar */}
-      <div className="flex items-center justify-between gap-3 my-4 shrink-0">
-        <div className="flex items-center gap-2 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-1.5 w-72">
-          <Search className="w-3.5 h-3.5 text-zinc-500" />
+      {/* Filter and Search Bar with Segmented Control */}
+      <div className="flex items-center justify-between gap-4 my-3 shrink-0">
+        <div className="flex items-center gap-2.5 bg-[#121216] border border-white/[0.08] focus-within:border-white/20 rounded-xl px-3 py-1.5 w-72 transition-all">
+          <Search className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
           <input
             type="text"
             placeholder="Search notes & tasks..."
@@ -252,33 +252,61 @@ export const NotesView: React.FC = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-transparent text-xs text-white placeholder-zinc-500 focus:outline-none"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="text-zinc-500 hover:text-white text-xs cursor-pointer"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
-        {/* Tag Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto custom-slim-scrollbar">
+        {/* Clean Segmented Filter Bar (No messy #hashtag clutter) */}
+        <div className="flex items-center gap-1 bg-[#121216] border border-white/[0.08] p-1 rounded-xl overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTag('all')}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all ${
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               activeTag === 'all'
-                ? 'bg-white text-black font-semibold'
-                : 'bg-white/[0.05] text-zinc-400 hover:text-white'
+                ? 'bg-white text-black font-semibold shadow-sm'
+                : 'text-zinc-400 hover:text-white'
             }`}
           >
-            #all
-          </button>
-          {allTags.map((tag) => (
-            <button
-              key={tag}
-              onClick={() => setActiveTag(tag)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono transition-all flex items-center gap-1 ${
-                activeTag === tag
-                  ? 'bg-amber-400 text-black font-semibold'
-                  : 'bg-white/[0.05] text-zinc-400 hover:text-white'
+            <span>All Notes</span>
+            <span
+              className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full ${
+                activeTag === 'all' ? 'bg-black/10 text-black font-bold' : 'bg-white/[0.06] text-zinc-400'
               }`}
             >
-              #{tag}
-            </button>
-          ))}
+              {notes.length}
+            </span>
+          </button>
+
+          {allTags.map((tag) => {
+            const count = notes.filter((n) => n.tags.some((t) => t.toLowerCase() === tag.toLowerCase())).length;
+            const capitalized = tag.charAt(0).toUpperCase() + tag.slice(1);
+            const isActive = activeTag === tag;
+            return (
+              <button
+                key={tag}
+                onClick={() => setActiveTag(tag)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-white text-black font-semibold shadow-sm'
+                    : 'text-zinc-400 hover:text-white'
+                }`}
+              >
+                <span>{capitalized}</span>
+                <span
+                  className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full ${
+                    isActive ? 'bg-black/10 text-black font-bold' : 'bg-white/[0.06] text-zinc-400'
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

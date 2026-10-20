@@ -16,6 +16,7 @@ import {
   Sparkles,
   RotateCcw,
   ExternalLink,
+  ChevronDown,
 } from 'lucide-react';
 import { useAppStore, OverlayStyle } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -60,6 +61,8 @@ export const PreferencesView: React.FC = () => {
     orbTheme,
     setOrbTheme,
     clearHistory,
+    simulateNotchCutout,
+    setSimulateNotchCutout,
   } = useAppStore();
 
   const [isRecordingPrimary, setIsRecordingPrimary] = useState(false);
@@ -262,30 +265,54 @@ export const PreferencesView: React.FC = () => {
             </div>
 
             <div className="rounded-xl bg-[#111114] border border-[#1e1e24] divide-y divide-[#1e1e24]">
+              {/* Audio Feedback Switch */}
               <div className="flex items-center justify-between p-3.5">
                 <div>
                   <p className="text-xs font-medium text-white">Audio Feedback</p>
                   <p className="text-[11px] text-zinc-500">Chime on recording start and stop</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={soundEffects}
-                  onChange={(e) => setSoundEffects(e.target.checked)}
-                  className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
-                />
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={soundEffects}
+                  onClick={() => setSoundEffects(!soundEffects)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    soundEffects ? 'bg-amber-400' : 'bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      soundEffects ? 'translate-x-4 bg-black' : 'translate-x-0 bg-zinc-300'
+                    }`}
+                  />
+                </button>
               </div>
 
+              {/* Typing Speed (WPM) Stepper Counter */}
               <div className="flex items-center justify-between p-3.5">
                 <div>
                   <p className="text-xs font-medium text-white">Typing Speed (WPM)</p>
                   <p className="text-[11px] text-zinc-500">Used for time-saved calculation</p>
                 </div>
-                <input
-                  type="number"
-                  value={typingWPM}
-                  onChange={(e) => setTypingWPM(Number(e.target.value))}
-                  className="w-16 bg-[#09090b] border border-[#1e1e24] rounded-md px-2 py-1 text-xs text-white text-right font-mono"
-                />
+                <div className="flex items-center gap-1.5 bg-[#09090b] border border-[#1e1e24] rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setTypingWPM(Math.max(10, typingWPM - 5))}
+                    className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-white/10 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    −
+                  </button>
+                  <span className="w-10 text-center text-xs font-mono font-medium text-white">
+                    {typingWPM}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setTypingWPM(typingWPM + 5)}
+                    className="w-6 h-6 flex items-center justify-center rounded text-zinc-400 hover:text-white hover:bg-white/10 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -416,15 +443,25 @@ export const PreferencesView: React.FC = () => {
                     {pushToTalk ? 'Hold to talk, release to paste' : 'Press to start, press again to stop'}
                   </p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={pushToTalk}
-                  onChange={(e) => {
-                    setPushToTalk(e.target.checked);
-                    syncBackend({ activationMode: e.target.checked ? 'hold' : 'toggle' });
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={pushToTalk}
+                  onClick={() => {
+                    const next = !pushToTalk;
+                    setPushToTalk(next);
+                    syncBackend({ activationMode: next ? 'hold' : 'toggle' });
                   }}
-                  className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
-                />
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    pushToTalk ? 'bg-amber-400' : 'bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      pushToTalk ? 'translate-x-4 bg-black' : 'translate-x-0 bg-zinc-300'
+                    }`}
+                  />
+                </button>
               </div>
 
               <div className="flex items-center justify-between p-3.5">
@@ -432,15 +469,25 @@ export const PreferencesView: React.FC = () => {
                   <p className="text-xs font-medium text-white">Auto-Paste</p>
                   <p className="text-[11px] text-zinc-500">Insert text directly at active cursor</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={autoPaste}
-                  onChange={(e) => {
-                    setAutoPaste(e.target.checked);
-                    syncBackend({ autoPaste: e.target.checked });
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={autoPaste}
+                  onClick={() => {
+                    const next = !autoPaste;
+                    setAutoPaste(next);
+                    syncBackend({ autoPaste: next });
                   }}
-                  className="w-4 h-4 accent-amber-500 rounded cursor-pointer"
-                />
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    autoPaste ? 'bg-amber-400' : 'bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      autoPaste ? 'translate-x-4 bg-black' : 'translate-x-0 bg-zinc-300'
+                    }`}
+                  />
+                </button>
               </div>
             </div>
           </div>
@@ -457,17 +504,20 @@ export const PreferencesView: React.FC = () => {
               <label className="block text-xs font-medium text-zinc-300">
                 Microphone Input
               </label>
-              <select
-                value={selectedInputDevice}
-                onChange={(e) => setSelectedInputDevice(e.target.value)}
-                className="w-full bg-[#09090b] border border-[#1e1e24] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-700"
-              >
-                {inputDevices.map((dev) => (
-                  <option key={dev.id} value={dev.id}>
-                    {dev.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={selectedInputDevice}
+                  onChange={(e) => setSelectedInputDevice(e.target.value)}
+                  className="w-full appearance-none bg-[#09090b] border border-[#1e1e24] hover:border-white/20 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-white/30 cursor-pointer pr-9 font-sans transition-colors"
+                >
+                  {inputDevices.map((dev) => (
+                    <option key={dev.id} value={dev.id} className="bg-[#141418] text-white">
+                      {dev.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
             </div>
           </div>
         )}
@@ -564,6 +614,38 @@ export const PreferencesView: React.FC = () => {
                   Warm amber, fiery orange, and energetic emerald glowing aura. Matches the signature DopeNotch brand palette.
                 </p>
               </button>
+            </div>
+
+            {/* Developer Testing: Hardware Camera Cutout Simulator */}
+            <div className="pt-2">
+              <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs font-semibold text-white">Simulate Hardware Camera Cutout</p>
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-400/10 text-amber-300 border border-amber-400/20">
+                      Developer Testing
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Overlays a 180×34px physical MacBook camera silhouette so you can verify notch clearance on Intel Macs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={simulateNotchCutout}
+                  onClick={() => setSimulateNotchCutout(!simulateNotchCutout)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    simulateNotchCutout ? 'bg-amber-400' : 'bg-white/10'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      simulateNotchCutout ? 'translate-x-4 bg-black' : 'translate-x-0 bg-zinc-300'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         )}

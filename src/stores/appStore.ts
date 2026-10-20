@@ -120,6 +120,8 @@ interface AppState {
   // Navigation
   activeTab: SidebarTab;
   setActiveTab: (tab: SidebarTab) => void;
+  isSidebarCollapsed: boolean;
+  toggleSidebarCollapsed: () => void;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
   settingsSection: 'general' | 'dictation' | 'audio' | 'overlay' | 'data' | 'experimental';
@@ -133,6 +135,8 @@ interface AppState {
   pushToTalk: boolean;
   autoPaste: boolean;
   soundEffects: boolean;
+  simulateNotchCutout: boolean;
+  setSimulateNotchCutout: (sim: boolean) => void;
   launchAtStartup: boolean;
   overlayStyle: OverlayStyle;
   typingWPM: number;
@@ -424,6 +428,8 @@ export const useAppStore = create<AppState>((set) => ({
   // Navigation
   activeTab: 'welcome',
   setActiveTab: (tab) => set({ activeTab: tab }),
+  isSidebarCollapsed: false,
+  toggleSidebarCollapsed: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
   isSettingsOpen: false,
   setIsSettingsOpen: (open) => set({ isSettingsOpen: open }),
   settingsSection: 'general',
@@ -437,6 +443,8 @@ export const useAppStore = create<AppState>((set) => ({
   pushToTalk: false,
   autoPaste: true,
   soundEffects: true,
+  simulateNotchCutout: false,
+  setSimulateNotchCutout: (sim) => set({ simulateNotchCutout: sim }),
   launchAtStartup: false,
   overlayStyle: 'notch',
   typingWPM: 45,

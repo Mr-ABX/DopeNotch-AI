@@ -133,72 +133,104 @@ export const WelcomeView: React.FC = () => {
         </div>
       )}
 
-      {/* Quick Status & Shortcuts Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Active Engine */}
+      {/* Quick Status & Shortcuts Strip (Bento Layout - Clean Hierarchy, No Collisions) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {/* Card 1: Active Speech Engine */}
         <button
           onClick={() => setActiveTab('voiceEngine')}
-          className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] hover:border-zinc-700 transition-colors text-left flex items-center justify-between group"
+          className="p-4 rounded-2xl bg-[#0e0e11] border border-white/[0.08] hover:border-white/25 hover:bg-[#121216] transition-all text-left flex flex-col justify-between h-[112px] group cursor-pointer shadow-sm relative overflow-hidden"
         >
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
-              <Zap className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-[8px] bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 group-hover:text-amber-400 group-hover:scale-105 transition-all">
+                <Zap className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-[11px] font-medium text-zinc-400">Speech Engine</span>
             </div>
-            <div>
-              <p className="text-[11px] text-zinc-400">Speech Engine</p>
-              <p className="text-xs font-medium text-white">{activeModel.name}</p>
-            </div>
+            <span className="text-[10px] font-medium text-zinc-500 group-hover:text-white transition-colors flex items-center gap-0.5">
+              Change →
+            </span>
           </div>
-          <span className="text-[10px] text-zinc-400 group-hover:text-white transition-colors">Change →</span>
+
+          <div className="min-w-0 pr-1">
+            <p className="text-[13.5px] font-semibold text-white truncate" title={activeModel.name}>
+              {activeModel.name}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span>On-Device • ~120ms Latency</span>
+          </div>
         </button>
 
-        {/* Dictation Shortcut */}
-        <div className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
-              <Mic className="w-3.5 h-3.5" />
+        {/* Card 2: Voice Dictation Shortcut */}
+        <div className="p-4 rounded-2xl bg-[#0e0e11] border border-white/[0.08] flex flex-col justify-between h-[112px] shadow-sm">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-[8px] bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
+                <Mic className="w-3.5 h-3.5 text-zinc-300" />
+              </div>
+              <span className="text-[11px] font-medium text-zinc-400">Voice Dictation</span>
             </div>
-            <div>
-              <p className="text-[11px] text-zinc-400">Dictation Shortcut</p>
-              <p className="text-xs font-medium text-white">Press or Hold</p>
-            </div>
+            <span className="text-[10px] font-mono text-zinc-500">Global</span>
           </div>
-          <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-zinc-200 border border-[#2a2a32] font-mono text-xs">
-            {hotkey || '⌥Space'}
-          </kbd>
+
+          <div>
+            <p className="text-[13.5px] font-semibold text-white">Press &amp; Hold to Speak</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-zinc-500">Hold key while talking</span>
+            <kbd className="px-2 py-0.5 rounded-md bg-[#16161a] text-zinc-200 border border-white/10 font-mono text-xs shadow-inner">
+              {hotkey || '⌥Space'}
+            </kbd>
+          </div>
         </div>
 
-        {/* Search HUD */}
-        <div className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
-              <Search className="w-3.5 h-3.5" />
+        {/* Card 3: SuperNotch HUD */}
+        <div className="p-4 rounded-2xl bg-[#0e0e11] border border-white/[0.08] flex flex-col justify-between h-[112px] shadow-sm">
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-[8px] bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300">
+                <Search className="w-3.5 h-3.5 text-zinc-300" />
+              </div>
+              <span className="text-[11px] font-medium text-zinc-400">SuperNotch HUD</span>
             </div>
-            <div>
-              <p className="text-[11px] text-zinc-400">SuperNotch HUD</p>
-              <p className="text-xs font-medium text-white">Search & Clipboard</p>
-            </div>
+            <span className="text-[10px] font-mono text-zinc-500">Top Bezel</span>
           </div>
-          <kbd className="px-2 py-0.5 rounded-md bg-[#18181c] text-zinc-200 border border-[#2a2a32] font-mono text-xs">
-            ⌥V
-          </kbd>
+
+          <div>
+            <p className="text-[13.5px] font-semibold text-white">Search, Stash &amp; Shelf</p>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-zinc-500">Hover or Trigger</span>
+            <kbd className="px-2 py-0.5 rounded-md bg-[#16161a] text-zinc-200 border border-white/10 font-mono text-xs shadow-inner">
+              ⌥V
+            </kbd>
+          </div>
         </div>
       </div>
 
-      {/* Mic Test Sandbox */}
-      <div className="p-5 rounded-2xl bg-[#111114] border border-[#1e1e24] space-y-4">
+      {/* Mic Test Sandbox (Interactive Live Audio Equalizer & Latency Tester) */}
+      <div className="p-4.5 rounded-2xl bg-[#0e0e11] border border-white/[0.08] space-y-3.5 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xs font-semibold text-white tracking-wide uppercase">Microphone & Transcription Test</h2>
-            <p className="text-[11px] text-zinc-400 mt-0.5">Speak to verify microphone levels and Whisper speech-to-text.</p>
+            <h2 className="text-[12px] font-semibold text-white tracking-wide uppercase font-mono">
+              Microphone &amp; Transcription Sandbox
+            </h2>
+            <p className="text-[11px] text-zinc-400 mt-0.5">
+              Speak freely to verify microphone gain and local Whisper latency.
+            </p>
           </div>
 
           <button
             onClick={handleToggleLocalTest}
-            className={`px-4 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm ${
               isRecording
                 ? 'bg-rose-500 text-white hover:bg-rose-600 animate-pulse'
-                : 'bg-amber-500 text-black hover:bg-amber-400'
+                : 'bg-white text-black hover:bg-zinc-200'
             }`}
           >
             <Mic className="w-3.5 h-3.5" />
@@ -206,30 +238,36 @@ export const WelcomeView: React.FC = () => {
           </button>
         </div>
 
-        {/* Live Audio or Result Box */}
-        <div className="rounded-xl bg-[#09090b] border border-[#1e1e24] p-4 min-h-[90px] flex flex-col justify-center">
+        {/* Live Audio & Transcript Result Box */}
+        <div className="rounded-xl bg-[#08080a] border border-white/[0.06] p-4 min-h-[95px] flex flex-col justify-center">
           {isRecording ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2 text-rose-400 font-medium">
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                  <span>Listening... Speak into microphone</span>
+                  <span>Listening... Speak into your microphone</span>
                 </div>
-                <span className="text-[11px] text-zinc-500 font-mono">
-                  {Math.round(audioLevel * 100)}%
+                <span className="text-[11px] text-zinc-400 font-mono">
+                  Gain: {Math.round(audioLevel * 100)}%
                 </span>
               </div>
 
-              {/* Minimal Waveform Bar */}
-              <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden border border-zinc-800">
-                <div
-                  className="h-full bg-rose-500 rounded-full transition-all duration-75"
-                  style={{ width: `${Math.min(100, Math.max(6, audioLevel * 100 * 2.5))}%` }}
-                />
+              {/* Dynamic 8-bar equalizer */}
+              <div className="flex items-center justify-center gap-1.5 h-6">
+                {[0.4, 0.7, 1.0, 0.6, 0.9, 1.2, 0.5, 0.8].map((factor, i) => {
+                  const h = Math.max(4, Math.min(24, audioLevel * factor * 70));
+                  return (
+                    <div
+                      key={i}
+                      className="w-1.5 bg-rose-500 rounded-full transition-all duration-75"
+                      style={{ height: `${h}px` }}
+                    />
+                  );
+                })}
               </div>
 
               {streamingText && (
-                <p className="text-xs text-zinc-200 font-mono bg-zinc-900/60 p-2 rounded-lg border border-zinc-800">
+                <p className="text-xs text-zinc-200 font-mono bg-white/[0.03] p-2.5 rounded-lg border border-white/[0.08]">
                   {streamingText}
                 </p>
               )}
@@ -240,19 +278,19 @@ export const WelcomeView: React.FC = () => {
                 <span className="text-[10px] uppercase font-mono text-zinc-400">Latest Transcription:</span>
                 <button
                   onClick={() => handleCopyTranscript(latestTranscript)}
-                  className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1 transition-colors"
+                  className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1 transition-colors cursor-pointer"
                 >
-                  {copied ? <Check className="w-3 h-3 text-amber-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copied ? 'Copied' : 'Copy'}</span>
+                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                  <span>{copied ? 'Copied' : 'Copy Text'}</span>
                 </button>
               </div>
-              <p className="text-xs text-zinc-200 leading-relaxed font-sans bg-zinc-900/50 p-2.5 rounded-lg border border-zinc-800/80">
+              <p className="text-xs text-zinc-200 leading-relaxed font-sans bg-white/[0.03] p-3 rounded-lg border border-white/[0.06]">
                 "{latestTranscript}"
               </p>
             </div>
           ) : (
-            <p className="text-xs text-zinc-400 text-center py-2">
-              Click <span className="text-zinc-200 font-medium">"Test Mic"</span> or press <kbd className="px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-200 font-mono text-[10px]">{hotkey || '⌥Space'}</kbd> to test voice dictation.
+            <p className="text-xs text-zinc-400 text-center py-2 font-mono">
+              Click <span className="text-zinc-200 font-medium">"Test Mic"</span> or hold <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-zinc-200 font-mono text-[10px]">{hotkey || '⌥Space'}</kbd> to test voice dictation.
             </p>
           )}
         </div>

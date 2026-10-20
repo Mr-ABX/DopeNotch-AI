@@ -48,7 +48,10 @@ import {
   File as FileIcon,
   Magnet,
   Archive,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import { aiVoiceService } from '../../services/aiVoiceService';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -153,6 +156,7 @@ export const SuperNotch: React.FC = () => {
     addStashItems,
     removeStashItem,
     clearStashItems,
+    simulateNotchCutout,
   } = useAppStore();
 
   const activeMode = isRecording ? 'recording' : superNotchMode;
@@ -174,6 +178,7 @@ export const SuperNotch: React.FC = () => {
   const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
 
   // AI Chat & Screen Copilot State
+  const [isAIVoiceActive, setIsAIVoiceActive] = useState(true);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome-msg',
@@ -284,6 +289,7 @@ export const SuperNotch: React.FC = () => {
   }, []);
 
   const closeShelf = useCallback(() => {
+    aiVoiceService.stop();
     setIsNotchPinned(false);
     setSuperNotchMode('idle');
     if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
@@ -854,6 +860,9 @@ export const SuperNotch: React.FC = () => {
         modelUsed: effectiveModelId,
       };
       setChatMessages((prev) => [...prev, assistantMsg]);
+      if (isAIVoiceActive) {
+        aiVoiceService.speak(reply);
+      }
     } catch (err: any) {
       setChatMessages((prev) => [
         ...prev,
@@ -2044,8 +2053,32 @@ export const SuperNotch: React.FC = () => {
                   </button>
                 </div>
 
-                {/* Right: Dictate Mic + Reset + Close */}
+                {/* Right: Voice Audio + Dictate Mic + Reset + Close */}
                 <div className="flex items-center gap-1">
+                  {/* Husky AI Voice Output Toggle */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const next = !isAIVoiceActive;
+                      setIsAIVoiceActive(next);
+                      aiVoiceService.setVoiceEnabled(next);
+                      showStatus(next ? 'AI Voice Active 🔊' : 'AI Voice Muted 🔇');
+                    }}
+                    className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                      isAIVoiceActive
+                        ? 'text-white bg-white/10 hover:bg-white/15'
+                        : 'text-zinc-600 hover:text-zinc-400'
+                    }`}
+                    title={isAIVoiceActive ? 'Mute AI Voice Output' : 'Enable Husky AI Voice Output'}
+                  >
+                    {isAIVoiceActive ? (
+                      <Volume2 className="w-3.5 h-3.5 text-white" />
+                    ) : (
+                      <VolumeX className="w-3.5 h-3.5 text-zinc-500" />
+                    )}
+                  </button>
+
                   <button
                     type="button"
                     onClick={(e) => {
@@ -2233,6 +2266,22 @@ export const SuperNotch: React.FC = () => {
                           >
                             <Copy className="w-3 h-3" />
                           </button>
+
+                          {/* Speak Aloud Button for Assistant */}
+                          {!isUser && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                aiVoiceService.speak(msg.content);
+                                showStatus('Speaking response...');
+                              }}
+                              className="text-zinc-500 hover:text-white p-0.5 transition-colors cursor-pointer bg-transparent"
+                              title="Speak aloud in husky AI voice"
+                            >
+                              <Volume2 className="w-3 h-3" />
+                            </button>
+                          )}
 
                           {/* Save to Notes Button for Assistant */}
                           {!isUser && (
@@ -2547,6 +2596,13 @@ export const SuperNotch: React.FC = () => {
                   <span className="font-mono text-[11px] font-bold text-amber-300 tracking-wider">
                     {formatTime(focusTimerRemaining)}
                   </span>
+                </div>
+              ) : simulateNotchCutout ? (
+                <div className="flex items-center justify-center gap-2 opacity-70 pointer-events-none" title="Simulated Hardware Camera Notch Cutout">
+                  <div className="w-2.5 h-2.5 rounded-full bg-zinc-950 border border-zinc-800 flex items-center justify-center">
+                    <div className="w-1 h-1 rounded-full bg-zinc-800/80" />
+                  </div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/40 animate-pulse" />
                 </div>
               ) : null}
             </motion.div>

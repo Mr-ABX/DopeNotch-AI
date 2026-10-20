@@ -8,7 +8,6 @@ import {
   Settings,
   Trash2,
   Search,
-  CheckCircle2,
   Sparkles,
   Command,
   Play,
@@ -16,6 +15,7 @@ import {
   Layers,
   FolderSearch,
   Magnet,
+  Eye,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
@@ -317,10 +317,10 @@ export const ExtensionsView: React.FC = () => {
           )}
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5">
+        {/* Category Filter Pills (Apple Segmented Bar) */}
+        <div className="flex items-center gap-1 bg-[#121216] border border-white/[0.08] p-1 rounded-xl">
           {[
-            { id: 'all', label: 'All Extensions' },
+            { id: 'all', label: 'All Tools' },
             { id: 'developer', label: 'Developer' },
             { id: 'clipboard', label: 'Clipboard' },
             { id: 'ai', label: 'Voice & AI' },
@@ -331,10 +331,10 @@ export const ExtensionsView: React.FC = () => {
               <button
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id as any)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                   isActive
                     ? 'bg-white text-black font-semibold shadow-sm'
-                    : 'bg-[#121215] text-zinc-400 border border-[#1e1e24] hover:text-white hover:border-zinc-700'
+                    : 'text-zinc-400 hover:text-white'
                 }`}
               >
                 {cat.label}
@@ -344,77 +344,83 @@ export const ExtensionsView: React.FC = () => {
         </div>
       </div>
 
-      {/* Extensions Grid */}
-      <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-slim-scrollbar">
+      {/* Extensions List: Compact, Scannable & Noise-Free */}
+      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-slim-scrollbar">
         {filteredExtensions.map((ext) => {
           const Icon = ext.icon;
           return (
             <div
               key={ext.id}
-              className="p-4 rounded-2xl bg-[#0a0a0c] border border-[#1e1e24] hover:border-zinc-700 transition-all duration-150 flex flex-col justify-between group"
+              className="p-3.5 rounded-2xl bg-[#0d0d10] border border-white/[0.08] hover:border-white/20 transition-all duration-150 flex items-center justify-between group relative"
             >
-              <div className="flex items-start justify-between gap-4">
-                {/* Icon & Title info */}
-                <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-zinc-200 shrink-0 group-hover:scale-105 transition-transform">
-                    <Icon className="w-5 h-5" />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-2.5">
-                      <h3 className="text-sm font-semibold text-white tracking-tight">
-                        {ext.title}
-                      </h3>
-                      <span className="px-2 py-0.5 rounded-md text-[11px] font-mono bg-white/5 border border-white/10 text-amber-400 font-medium">
-                        {ext.command}
-                      </span>
-                      {ext.hotkey && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-zinc-800/80 text-zinc-400">
-                          {ext.hotkey}
-                        </span>
-                      )}
-                      <span className="flex items-center gap-1 text-[11px] text-emerald-400 font-mono">
-                        <CheckCircle2 className="w-3 h-3" /> Built-in
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-zinc-300 mt-1 leading-relaxed">
-                      {ext.description}
-                    </p>
-
-                    {/* How It Works & How To Use Accordion / Details */}
-                    <div className="mt-3 pt-3 border-t border-white/[0.04] grid grid-cols-2 gap-4 text-[11.5px]">
-                      <div>
-                        <span className="text-zinc-500 font-mono uppercase tracking-wider text-[10px] block mb-0.5">
-                          How it works
-                        </span>
-                        <p className="text-zinc-400 leading-normal">
-                          {ext.howItWorks}
-                        </p>
-                      </div>
-
-                      <div>
-                        <span className="text-zinc-500 font-mono uppercase tracking-wider text-[10px] block mb-0.5">
-                          How to use
-                        </span>
-                        <p className="text-zinc-400 leading-normal">
-                          {ext.howToUse}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-3.5 min-w-0 pr-3">
+                {/* 36px Squircle Icon Container */}
+                <div className="w-9 h-9 rounded-[10px] bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-zinc-200 shrink-0 group-hover:scale-105 group-hover:text-amber-400 transition-all">
+                  <Icon className="w-4 h-4" />
                 </div>
 
-                {/* Direct Action Trigger */}
-                <div className="shrink-0 flex flex-col items-end gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-[13px] font-semibold text-white tracking-tight truncate">
+                      {ext.title}
+                    </h3>
+                    <span className="px-2 py-0.2 rounded-md text-[10.5px] font-mono bg-white/5 border border-white/10 text-amber-400 font-medium shrink-0">
+                      {ext.command}
+                    </span>
+                    {ext.hotkey && (
+                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-mono bg-white/[0.06] text-zinc-400 shrink-0">
+                        {ext.hotkey}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-[11.5px] text-zinc-400 mt-0.5 truncate leading-tight">
+                    {ext.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Trigger + Eye Info Tooltip */}
+              <div className="shrink-0 flex items-center gap-2">
+                {/* Interactive Eye Tooltip */}
+                <div className="relative group/eye">
                   <button
-                    onClick={() => ext.onExecute()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white text-zinc-200 hover:text-black text-xs font-semibold transition-all cursor-pointer shadow-sm border border-white/10 hover:border-white"
+                    type="button"
+                    className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                    title="View extension details"
                   >
-                    <Play className="w-3 h-3 fill-current" />
-                    <span>{ext.actionLabel}</span>
+                    <Eye className="w-3.5 h-3.5" />
                   </button>
+
+                  {/* Floating Tooltip Popover */}
+                  <div className="absolute right-0 bottom-full mb-2 hidden group-hover/eye:flex flex-col gap-2 w-72 p-3 rounded-xl bg-[#16161b] border border-white/10 shadow-2xl z-30 pointer-events-none text-left">
+                    <div>
+                      <span className="text-zinc-500 font-mono uppercase tracking-wider text-[9.5px] block font-semibold mb-0.5">
+                        How it works
+                      </span>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed">
+                        {ext.howItWorks}
+                      </p>
+                    </div>
+                    <div className="pt-1.5 border-t border-white/[0.06]">
+                      <span className="text-zinc-500 font-mono uppercase tracking-wider text-[9.5px] block font-semibold mb-0.5">
+                        How to use
+                      </span>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed">
+                        {ext.howToUse}
+                      </p>
+                    </div>
+                  </div>
                 </div>
+
+                {/* Primary Action Button */}
+                <button
+                  onClick={() => ext.onExecute()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.08] hover:bg-white text-zinc-200 hover:text-black text-xs font-semibold transition-all cursor-pointer shadow-sm border border-white/10 hover:border-white"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>{ext.actionLabel}</span>
+                </button>
               </div>
             </div>
           );
