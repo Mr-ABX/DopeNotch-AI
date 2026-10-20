@@ -62,6 +62,7 @@ import {
   ScreenVisionPayload,
   captureScreenVision,
   sendAIChatRequest,
+  resolveVisionModel,
   checkLocalOllamaHealth,
   pullOllamaModel,
 } from '../../services/aiChatService';
@@ -700,6 +701,16 @@ export const SuperNotch: React.FC = () => {
       }
     }
 
+    const { effectiveModelId, autoRoutedReason } = resolveVisionModel(
+      selectedAIModel,
+      Boolean(screenPayload),
+      apiKeys
+    );
+
+    if (autoRoutedReason && effectiveModelId !== selectedAIModel) {
+      showStatus(autoRoutedReason);
+    }
+
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
@@ -709,7 +720,7 @@ export const SuperNotch: React.FC = () => {
       screenThumbnail: screenPayload
         ? `data:${screenPayload.mime_type};base64,${screenPayload.base64_image}`
         : undefined,
-      modelUsed: selectedAIModel,
+      modelUsed: effectiveModelId,
     };
 
     setChatMessages((prev) => [...prev, userMsg]);
@@ -718,7 +729,7 @@ export const SuperNotch: React.FC = () => {
     try {
       const reply = await sendAIChatRequest(
         userText,
-        selectedAIModel,
+        effectiveModelId,
         screenPayload,
         apiKeys['gemini'],
         apiKeys['openai'],
@@ -730,7 +741,7 @@ export const SuperNotch: React.FC = () => {
         role: 'assistant',
         content: reply,
         timestamp: Date.now(),
-        modelUsed: selectedAIModel,
+        modelUsed: effectiveModelId,
       };
       setChatMessages((prev) => [...prev, assistantMsg]);
     } catch (err: any) {
@@ -1821,7 +1832,8 @@ export const SuperNotch: React.FC = () => {
                           const snapshot = await captureScreenVision();
                           setCurrentScreenThumbnail(snapshot);
                           setIsScreenVisionEnabled(true);
-                          showStatus(`${snapshot.width}×${snapshot.height} captured`);
+                          const isLocalTextOnly = selectedAIModel === 'qwen2.5-0.5b' || selectedAIModel === 'smollm2-135m';
+                          showStatus(isLocalTextOnly ? 'Screen captured • Vision Auto-Router active' : `${snapshot.width}×${snapshot.height} captured`);
                         } catch (err: any) {
                           showStatus('Screen capture failed');
                         }

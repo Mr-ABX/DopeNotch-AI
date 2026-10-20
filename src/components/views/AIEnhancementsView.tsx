@@ -394,6 +394,22 @@ export const AIEnhancementsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Smart Vision Auto-Router Banner */}
+      <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.08] flex items-start gap-3">
+        <div className="p-2 rounded-xl bg-white/[0.06] text-white shrink-0">
+          <Eye className="w-4 h-4" />
+        </div>
+        <div className="space-y-0.5 text-xs">
+          <div className="font-medium text-white flex items-center gap-2">
+            <span>Intelligent Vision Auto-Router</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] bg-white/[0.1] text-zinc-300 font-mono">0 MB Local RAM</span>
+          </div>
+          <p className="text-zinc-400 leading-relaxed text-[11px]">
+            Text and dictation run 100% locally on-device at 0.0% idle memory. When you toggle Screen Vision or attach a screen snapshot, DopeNotch automatically routes image understanding to Gemini 2.0 Flash or OpenRouter Vision—saving 2GB+ of RAM and eliminating Intel Mac fan noise.
+          </p>
+        </div>
+      </div>
+
       {/* Cloud API Keys: Google AI Studio, Grok, OpenRouter */}
       <div className="p-4 rounded-2xl bg-[#18181b] border border-white/[0.06] space-y-3.5">
         <div className="flex items-center justify-between">

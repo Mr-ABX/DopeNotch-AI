@@ -4,6 +4,8 @@ export type AIModelId =
   | 'qwen2.5-0.5b'
   | 'smollm2-135m'
   | 'gemini-2.0-flash'
+  | 'openrouter-free'
+  | 'openrouter-auto'
   | 'grok'
   | 'claude-3-5'
   | 'gpt-4o';
@@ -37,8 +39,24 @@ export const AVAILABLE_AI_MODELS: AIModelOption[] = [
   {
     id: 'gemini-2.0-flash',
     name: 'Gemini 2.0 Flash',
-    badge: 'Google AI Studio',
-    description: 'Ultra-fast multimodal vision • Analyzes full screen in <800ms',
+    badge: 'Google AI Studio • Free Vision',
+    description: 'Ultra-fast multimodal vision • 15 RPM free • Analyzes full screen in <800ms',
+    isLocal: false,
+    supportsVision: true,
+  },
+  {
+    id: 'openrouter-free',
+    name: 'OpenRouter Free Vision',
+    badge: 'OpenRouter Free',
+    description: 'Auto-routes to free vision models (Llama 3.2 Vision, Gemini Free)',
+    isLocal: false,
+    supportsVision: true,
+  },
+  {
+    id: 'openrouter-auto',
+    name: 'OpenRouter (Auto / 200+ Models)',
+    badge: 'OpenRouter Key',
+    description: 'Access 200+ models with your free or paid OpenRouter key',
     isLocal: false,
     supportsVision: true,
   },
@@ -46,7 +64,7 @@ export const AVAILABLE_AI_MODELS: AIModelOption[] = [
     id: 'grok',
     name: 'xAI Grok',
     badge: 'Grok API',
-    description: 'Real-time reasoning & technical answers via xAI API',
+    description: 'Grok-2 Vision & real-time reasoning via xAI API',
     isLocal: false,
     supportsVision: true,
   },
@@ -90,6 +108,54 @@ export async function captureScreenVision(): Promise<ScreenVisionPayload> {
   return await invoke<ScreenVisionPayload>('capture_screen_vision');
 }
 
+/**
+ * Intelligent Auto-Router for Vision:
+ * If the user enables vision / attaches a screen snapshot, auto-routes to a vision-capable
+ * cloud model (Gemini 2.0 Flash, OpenRouter Vision, or Grok Vision) instead of failing on
+ * local text-only models (Qwen 0.5B / SmolLM2 135M).
+ */
+export function resolveVisionModel(
+  currentModelId: AIModelId,
+  hasScreenPayload: boolean,
+  apiKeys: Record<string, string> = {}
+): { effectiveModelId: AIModelId; autoRoutedReason?: string } {
+  if (!hasScreenPayload) {
+    return { effectiveModelId: currentModelId };
+  }
+
+  // If already vision-capable, keep it!
+  const currentModel = AVAILABLE_AI_MODELS.find((m) => m.id === currentModelId);
+  if (currentModel?.supportsVision) {
+    return { effectiveModelId: currentModelId };
+  }
+
+  // Model is local text-only (Qwen 0.5B / SmolLM2) -> Auto-route to best vision model
+  if (apiKeys['gemini']) {
+    return {
+      effectiveModelId: 'gemini-2.0-flash',
+      autoRoutedReason: 'Auto-routed to Gemini 2.0 Flash for Screen Vision',
+    };
+  }
+  if (apiKeys['openrouter']) {
+    return {
+      effectiveModelId: 'openrouter-auto',
+      autoRoutedReason: 'Auto-routed to OpenRouter Vision for Screen Vision',
+    };
+  }
+  if (apiKeys['grok']) {
+    return {
+      effectiveModelId: 'grok',
+      autoRoutedReason: 'Auto-routed to Grok Vision for Screen Vision',
+    };
+  }
+
+  // Free default fallback (Gemini 2.0 Flash free tier)
+  return {
+    effectiveModelId: 'gemini-2.0-flash',
+    autoRoutedReason: 'Auto-routed to Gemini 2.0 Flash (Free Vision Tier)',
+  };
+}
+
 export async function sendAIChatRequest(
   prompt: string,
   modelId: AIModelId,
@@ -108,7 +174,8 @@ export async function sendAIChatRequest(
     if (!key) {
       return (
         `### 🔑 Google AI Studio Key Needed\n\n` +
-        `Add your free Gemini API key in **AI Models & Vision** tab to enable full screen vision.\n\n` +
+        `Add your free Gemini API key in **AI Models & Vision** tab to enable full screen vision (15 RPM completely free).\n\n` +
+        `Get key in 30 seconds at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)\n\n` +
         generateLocalFallbackResponse(trimmed, screenPayload)
       );
     }
@@ -154,7 +221,7 @@ export async function sendAIChatRequest(
     }
   }
 
-  // 2. xAI Grok
+  // 2. xAI Grok (Multimodal Vision supported via grok-2-vision-latest)
   if (modelId === 'grok') {
     const key = grokApiKey || customApiKey;
     if (!key) {
@@ -166,6 +233,22 @@ export async function sendAIChatRequest(
     }
 
     try {
+      let userContent: any = trimmed;
+      const targetModel =
+        screenPayload && screenPayload.base64_image ? 'grok-2-vision-latest' : 'grok-2-latest';
+
+      if (screenPayload && screenPayload.base64_image) {
+        userContent = [
+          { type: 'text', text: trimmed },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${screenPayload.mime_type || 'image/jpeg'};base64,${screenPayload.base64_image}`,
+            },
+          },
+        ];
+      }
+
       const res = await fetch('https://api.x.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -173,8 +256,8 @@ export async function sendAIChatRequest(
           Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
-          model: 'grok-2-latest',
-          messages: [{ role: 'user', content: trimmed }],
+          model: targetModel,
+          messages: [{ role: 'user', content: userContent }],
           temperature: 0.5,
         }),
       });
@@ -191,13 +274,21 @@ export async function sendAIChatRequest(
     }
   }
 
-  // 3. Claude 3.5 / GPT-4o via OpenRouter or Direct
-  if (modelId === 'claude-3-5' || modelId === 'gpt-4o') {
+  // 3. OpenRouter (Free Vision, Auto 200+ Models, Claude 3.5, GPT-4o)
+  if (
+    modelId === 'openrouter-free' ||
+    modelId === 'openrouter-auto' ||
+    modelId === 'claude-3-5' ||
+    modelId === 'gpt-4o'
+  ) {
     const key = openRouterApiKey || customApiKey;
-    if (!key) {
+    if (!key && modelId !== 'openrouter-free') {
       return (
-        `### 🔑 OpenRouter / API Key Needed\n\n` +
-        `Add your OpenRouter key in **AI Models & Vision** tab to run ${modelId === 'claude-3-5' ? 'Claude 3.5' : 'GPT-4o'}.\n\n` +
+        `### 🔑 OpenRouter API Key Needed\n\n` +
+        `Add your OpenRouter key in **AI Models & Vision** to run ${
+          modelId === 'claude-3-5' ? 'Claude 3.5' : modelId === 'gpt-4o' ? 'GPT-4o' : 'OpenRouter'
+        }.\n\n` +
+        `Get a free key in 30 seconds at [openrouter.ai/keys](https://openrouter.ai/keys)\n\n` +
         generateLocalFallbackResponse(trimmed, screenPayload)
       );
     }
@@ -206,32 +297,53 @@ export async function sendAIChatRequest(
       const targetModel =
         modelId === 'claude-3-5'
           ? 'anthropic/claude-3.5-sonnet'
-          : 'openai/gpt-4o';
+          : modelId === 'gpt-4o'
+          ? 'openai/gpt-4o'
+          : modelId === 'openrouter-free'
+          ? 'openrouter/free'
+          : 'openrouter/auto';
+
+      let userContent: any = trimmed;
+      if (screenPayload && screenPayload.base64_image) {
+        userContent = [
+          { type: 'text', text: trimmed },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${screenPayload.mime_type || 'image/jpeg'};base64,${screenPayload.base64_image}`,
+            },
+          },
+        ];
+      }
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://dopenotch.ai',
+        'X-Title': 'DopeNotch AI',
+      };
+      if (key) {
+        headers['Authorization'] = `Bearer ${key}`;
+      }
 
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-          'HTTP-Referer': 'https://dopenotch.app',
-          'X-Title': 'DopeNotch Desktop',
-        },
+        headers,
         body: JSON.stringify({
           model: targetModel,
-          messages: [{ role: 'user', content: trimmed }],
+          messages: [{ role: 'user', content: userContent }],
           temperature: 0.4,
         }),
       });
 
       if (!res.ok) {
         const errText = await res.text();
-        throw new Error(`OpenRouter (${res.status}): ${errText.slice(0, 120)}`);
+        throw new Error(`OpenRouter (${res.status}): ${errText.slice(0, 150)}`);
       }
 
       const json = await res.json();
       return json.choices?.[0]?.message?.content || generateLocalFallbackResponse(trimmed, screenPayload);
     } catch (e: any) {
-      return `*(API error: ${e.message})*\n\n` + generateLocalFallbackResponse(trimmed, screenPayload);
+      return `*(OpenRouter error: ${e.message})*\n\n` + generateLocalFallbackResponse(trimmed, screenPayload);
     }
   }
 

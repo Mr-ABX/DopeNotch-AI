@@ -21,11 +21,27 @@ pub struct OllamaManager;
 impl OllamaManager {
     /// Detects candidate locations for the Ollama binary
     pub fn find_binary() -> Option<PathBuf> {
-        let candidates = [
+        let mut candidates = vec![
             PathBuf::from("/usr/local/bin/ollama"),
             PathBuf::from("/opt/homebrew/bin/ollama"),
             PathBuf::from("/Applications/Ollama.app/Contents/Resources/ollama"),
         ];
+
+        // 1. Check portable user directory ~/Documents/DopeNotch/bin/ollama
+        if let Some(doc_dir) = dirs::document_dir() {
+            candidates.push(doc_dir.join("DopeNotch").join("bin").join("ollama"));
+            candidates.push(doc_dir.join("DopeNotch").join("bin").join("ollama.exe"));
+        }
+
+        // 2. Check bundled inside macOS .app Resources or MacOS folder
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                candidates.push(exe_dir.join("ollama"));
+                if let Some(app_bundle) = exe_dir.parent() {
+                    candidates.push(app_bundle.join("Resources").join("ollama"));
+                }
+            }
+        }
 
         for cand in &candidates {
             if cand.exists() && cand.is_file() {
