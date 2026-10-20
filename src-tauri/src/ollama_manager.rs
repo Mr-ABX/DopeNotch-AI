@@ -21,13 +21,9 @@ pub struct OllamaManager;
 impl OllamaManager {
     /// Detects candidate locations for the Ollama binary
     pub fn find_binary() -> Option<PathBuf> {
-        let mut candidates = vec![
-            PathBuf::from("/usr/local/bin/ollama"),
-            PathBuf::from("/opt/homebrew/bin/ollama"),
-            PathBuf::from("/Applications/Ollama.app/Contents/Resources/ollama"),
-        ];
+        let mut candidates = Vec::new();
 
-        // 1. Check portable user directory ~/Documents/DopeNotch/bin/ollama
+        // 1. Check portable user directory ~/Documents/DopeNotch/bin/ollama (First priority!)
         if let Some(doc_dir) = dirs::document_dir() {
             candidates.push(doc_dir.join("DopeNotch").join("bin").join("ollama"));
             candidates.push(doc_dir.join("DopeNotch").join("bin").join("ollama.exe"));
@@ -42,6 +38,11 @@ impl OllamaManager {
                 }
             }
         }
+
+        // 3. System candidate locations
+        candidates.push(PathBuf::from("/usr/local/bin/ollama"));
+        candidates.push(PathBuf::from("/opt/homebrew/bin/ollama"));
+        candidates.push(PathBuf::from("/Applications/Ollama.app/Contents/Resources/ollama"));
 
         for cand in &candidates {
             if cand.exists() && cand.is_file() {
@@ -98,10 +99,18 @@ impl OllamaManager {
 
         log::info!("Starting background Ollama daemon via {:?}", binary);
 
-        // Spawn detached process
-        let spawn_res = Command::new(&binary)
-            .arg("serve")
-            .env("OLLAMA_ORIGINS", "*")
+        // Spawn detached process with models pointing to ~/Documents/DopeNotch/models/ai
+        let mut cmd = Command::new(&binary);
+        cmd.arg("serve")
+            .env("OLLAMA_ORIGINS", "*");
+
+        if let Some(doc_dir) = dirs::document_dir() {
+            let ai_models_dir = doc_dir.join("DopeNotch").join("models").join("ai");
+            let _ = std::fs::create_dir_all(&ai_models_dir);
+            cmd.env("OLLAMA_MODELS", &ai_models_dir);
+        }
+
+        let spawn_res = cmd
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn();
