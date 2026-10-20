@@ -157,6 +157,8 @@ export const SuperNotch: React.FC = () => {
     removeStashItem,
     clearStashItems,
     simulateNotchCutout,
+    aiVoicePersona,
+    setAIVoicePersona,
   } = useAppStore();
 
   const activeMode = isRecording ? 'recording' : superNotchMode;
@@ -2054,30 +2056,55 @@ export const SuperNotch: React.FC = () => {
                 </div>
 
                 {/* Right: Voice Audio + Dictate Mic + Reset + Close */}
-                <div className="flex items-center gap-1">
-                  {/* Husky AI Voice Output Toggle */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const next = !isAIVoiceActive;
-                      setIsAIVoiceActive(next);
-                      aiVoiceService.setVoiceEnabled(next);
-                      showStatus(next ? 'AI Voice Active 🔊' : 'AI Voice Muted 🔇');
-                    }}
-                    className={`p-1.5 rounded-xl transition-all cursor-pointer ${
-                      isAIVoiceActive
-                        ? 'text-white bg-white/10 hover:bg-white/15'
-                        : 'text-zinc-600 hover:text-zinc-400'
-                    }`}
-                    title={isAIVoiceActive ? 'Mute AI Voice Output' : 'Enable Husky AI Voice Output'}
-                  >
-                    {isAIVoiceActive ? (
-                      <Volume2 className="w-3.5 h-3.5 text-white" />
-                    ) : (
-                      <VolumeX className="w-3.5 h-3.5 text-zinc-500" />
+                <div className="flex items-center gap-1.5">
+                  {/* Natural AI Voice Switcher & Toggle */}
+                  <div className="flex items-center gap-1 bg-white/[0.04] border border-white/[0.08] rounded-xl px-1.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const next = !isAIVoiceActive;
+                        setIsAIVoiceActive(next);
+                        aiVoiceService.setVoiceEnabled(next);
+                        showStatus(next ? 'AI Speech Active 🔊' : 'AI Speech Muted 🔇');
+                      }}
+                      className={`p-1 rounded-lg transition-all cursor-pointer ${
+                        isAIVoiceActive
+                          ? 'text-emerald-400 hover:text-emerald-300'
+                          : 'text-zinc-500 hover:text-zinc-400'
+                      }`}
+                      title={isAIVoiceActive ? 'Mute AI Voice' : 'Enable Natural AI Voice'}
+                    >
+                      {isAIVoiceActive ? (
+                        <Volume2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <VolumeX className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+
+                    {isAIVoiceActive && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const nextPersona =
+                            aiVoicePersona === 'female-cheerful' ? 'male-jolly' : 'female-cheerful';
+                          setAIVoicePersona(nextPersona);
+                          aiVoiceService.playPreview(nextPersona);
+                          showStatus(
+                            nextPersona === 'female-cheerful'
+                              ? 'Voice: Nova (Cheerful Female) 🌟'
+                              : 'Voice: Leo (Jolly Male) ⚡'
+                          );
+                        }}
+                        className="text-[10px] font-mono text-zinc-300 hover:text-white px-1 py-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1"
+                        title="Click to switch between Cheerful Female (Nova) and Jolly Male (Leo)"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>{aiVoicePersona === 'female-cheerful' ? 'Nova' : 'Leo'}</span>
+                      </button>
                     )}
-                  </button>
+                  </div>
 
                   <button
                     type="button"

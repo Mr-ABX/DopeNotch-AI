@@ -227,6 +227,8 @@ pub fn run() {
             commands::pick_storage_folder,
             commands::check_or_start_ollama,
             commands::get_ollama_status,
+            commands::speak_text_native,
+            commands::stop_speech_native,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

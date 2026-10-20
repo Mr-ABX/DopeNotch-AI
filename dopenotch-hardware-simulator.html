@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DopeNotch — Hardware Notch & Dynamic Island Simulation</title>
+  <style>
+    :root {
+      --bg: #09090b;
+      --card-bg: #121215;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #10b981;
+      --accent-purple: #8b5cf6;
+      --accent-blue: #3b82f6;
+      --text: #f4f4f5;
+      --text-muted: #71717a;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    /* Top Header */
+    .header-bar {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .logo-squircle {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #18181b, #27272a);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+    .brand-title h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand-title span {
+      font-size: 12px;
+      color: var(--accent);
+      background: rgba(16, 185, 129, 0.12);
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      font-weight: 500;
+    }
+
+    /* Controller Panel */
+    .controls-panel {
+      width: 100%;
+      max-width: 1100px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 24px;
+      align-items: center;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+    }
+
+    .segmented-control {
+      display: flex;
+      background: #09090c;
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      gap: 2px;
+    }
+    .segmented-control button {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .segmented-control button.active {
+      background: #27272a;
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .state-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .state-pill {
+      background: #18181b;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      color: #a1a1aa;
+      padding: 6px 12px;
+      font-size: 11px;
+      font-weight: 500;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .state-pill:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+    }
+    .state-pill.active {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.3);
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    .interval-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+      padding-left: 20px;
+    }
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #1c1c20;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .icon-btn:hover {
+      background: #27272a;
+    }
+    .icon-btn.playing {
+      background: var(--accent);
+      color: #000;
+      border-color: transparent;
+    }
+    .interval-badge {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* MacBook Stage Mockup */
+    .laptop-chassis {
+      width: 1000px;
+      background: #1a1a1c;
+      border-radius: 20px 20px 6px 6px;
+      padding: 12px 12px 0 12px;
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      position: relative;
+    }
+    .screen-bezel {
+      background: #000000;
+      border-radius: 12px 12px 0 0;
+      overflow: hidden;
+      position: relative;
+      height: 560px;
+      border: 1px solid #222225;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    }
+    .laptop-base {
+      width: 1080px;
+      height: 14px;
+      background: linear-gradient(180deg, #2a2a2d 0%, #171719 100%);
+      border-radius: 0 0 16px 16px;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.9);
+      position: relative;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: center;
+    }
+    .base-indent {
+      width: 140px;
+      height: 4px;
+      background: #101012;
+      border-radius: 0 0 6px 6px;
+    }
+
+    /* Screen Content & Wallpaper */
+    .screen-display {
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 50% 20%, #1e1b4b 0%, #0f172a 45%, #050508 100%);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* macOS Menu Bar */
+    .macos-menubar {
+      width: 100%;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: rgba(255, 255, 255, 0.85);
+      position: relative;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .menubar-left, .menubar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .menubar-item {
+      cursor: default;
+      transition: opacity 0.15s;
+    }
+    .menubar-item:hover {
+      opacity: 0.7;
+    }
+    .apple-icon {
+      font-size: 14px;
+    }
+
+    /* PHYSICAL NOTCH HARDWARE PIECE */
+    .physical-notch-housing {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 204px;
+      height: 34px;
+      background: #000000;
+      border-radius: 0 0 16px 16px;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.9);
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .notch-camera-lens {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #2b3042 0%, #0d0f15 70%);
+      border: 1px solid #1c1e28;
+      box-shadow: inset 0 0 2px rgba(255, 255, 255, 0.2);
+      margin-left: -2px;
+      position: relative;
+    }
+    .notch-mic-hole {
+      width: 3.5px;
+      height: 3.5px;
+      border-radius: 50%;
+      background: #111;
+      margin-left: 20px;
+    }
+    .notch-led-indicator {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: transparent;
+      margin-right: 20px;
+      transition: background-color 0.2s;
+    }
+    .notch-led-indicator.active {
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+    }
+
+    /* THE DOPENOTCH COMPONENT */
+    .dopenotch-overlay {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #000000;
+      border-radius: 0 0 22px 22px;
+      color: #fff;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: none;
+      box-shadow: 0 14px 40px -10px rgba(0, 0, 0, 0.85);
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  height 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  border-radius 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  top 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.35s ease;
+    }
+
+    /* Virtual Notch Mode (Intel 2018) */
+    .virtual-mode .physical-notch-housing {
+      display: none !important;
+    }
+    .virtual-mode .dopenotch-overlay {
+      top: 8px;
+      border-radius: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    /* DOPENOTCH INTERNAL STATES */
+    /* 1. IDLE */
+    .state-idle.physical-mode .dopenotch-overlay {
+      width: 204px;
+      height: 34px;
+      background: #000000;
+      border-color: transparent;
+      box-shadow: none;
+    }
+    .state-idle.virtual-mode .dopenotch-overlay {
+      width: 150px;
+      height: 28px;
+      padding: 0 12px;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* 2. PROXIMITY PEEK */
+    .state-peek.physical-mode .dopenotch-overlay {
+      width: 260px;
+      height: 48px;
+      border-color: rgba(255, 255, 255, 0.14);
+      padding-top: 34px;
+    }
+    .state-peek.virtual-mode .dopenotch-overlay {
+      width: 220px;
+      height: 38px;
+      padding: 0 14px;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* 3. VOICE RECORDING */
+    .state-dictate.physical-mode .dopenotch-overlay {
+      width: 380px;
+      height: 64px;
+      border-color: rgba(16, 185, 129, 0.35);
+      padding-top: 34px;
+      box-shadow: 0 20px 50px -10px rgba(16, 185, 129, 0.25);
+    }
+    .state-dictate.virtual-mode .dopenotch-overlay {
+      width: 380px;
+      height: 48px;
+      border-color: rgba(16, 185, 129, 0.35);
+      box-shadow: 0 20px 50px -10px rgba(16, 185, 129, 0.25);
+      flex-direction: row;
+      align-items: center;
+      padding: 0 16px;
+    }
+
+    /* 4. ANNOTATION HUD (The Big Question Answered!) */
+    .state-annotate.physical-mode .dopenotch-overlay {
+      width: 520px;
+      height: 84px;
+      border-color: rgba(59, 130, 246, 0.4);
+      padding-top: 36px;
+      box-shadow: 0 24px 60px -10px rgba(59, 130, 246, 0.25);
+    }
+    .state-annotate.virtual-mode .dopenotch-overlay {
+      width: 520px;
+      height: 52px;
+      border-color: rgba(59, 130, 246, 0.4);
+      box-shadow: 0 24px 60px -10px rgba(59, 130, 246, 0.25);
+      flex-direction: row;
+      align-items: center;
+      padding: 0 16px;
+    }
+
+    /* 5. STASH DROP SHELF */
+    .state-stash.physical-mode .dopenotch-overlay {
+      width: 440px;
+      height: 100px;
+      border-color: rgba(245, 158, 11, 0.35);
+      padding-top: 34px;
+      box-shadow: 0 20px 50px -10px rgba(245, 158, 11, 0.2);
+    }
+    .state-stash.virtual-mode .dopenotch-overlay {
+      width: 440px;
+      height: 80px;
+      border-color: rgba(245, 158, 11, 0.35);
+      box-shadow: 0 20px 50px -10px rgba(245, 158, 11, 0.2);
+    }
+
+    /* 6. AI ASSISTANT & HUSKY VOICE */
+    .state-chat.physical-mode .dopenotch-overlay {
+      width: 560px;
+      height: 380px;
+      border-color: rgba(139, 92, 246, 0.4);
+      padding-top: 36px;
+      border-radius: 0 0 24px 24px;
+      box-shadow: 0 30px 80px -15px rgba(139, 92, 246, 0.3);
+    }
+    .state-chat.virtual-mode .dopenotch-overlay {
+      width: 560px;
+      height: 360px;
+      border-color: rgba(139, 92, 246, 0.4);
+      border-radius: 20px;
+      box-shadow: 0 30px 80px -15px rgba(139, 92, 246, 0.3);
+    }
+
+    /* Dynamic Content Container inside DopeNotch */
+    .notch-inner-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 0 16px 10px 16px;
+      position: relative;
+    }
+
+    /* Waveform Equalizer */
+    .eq-wave-row {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 18px;
+    }
+    .eq-bar {
+      width: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      animation: eqBounce 0.8s ease-in-out infinite alternate;
+    }
+    .eq-bar:nth-child(1) { height: 6px; animation-delay: 0.1s; }
+    .eq-bar:nth-child(2) { height: 14px; animation-delay: 0.25s; }
+    .eq-bar:nth-child(3) { height: 18px; animation-delay: 0.15s; }
+    .eq-bar:nth-child(4) { height: 10px; animation-delay: 0.35s; }
+    .eq-bar:nth-child(5) { height: 16px; animation-delay: 0.05s; }
+    .eq-bar:nth-child(6) { height: 8px; animation-delay: 0.2s; }
+
+    @keyframes eqBounce {
+      0% { transform: scaleY(0.4); }
+      100% { transform: scaleY(1.3); }
+    }
+
+    /* Annotation Toolbar Styles */
+    .annotation-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      height: 100%;
+      gap: 8px;
+    }
+    .tool-group {
+      display: flex;
+      align-items: center;
+      background: #18181c;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 3px;
+      gap: 4px;
+    }
+    .tool-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: #9ca3af;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    .tool-btn.active {
+      background: var(--accent-blue);
+      color: #fff;
+    }
+
+    /* Screen Annotation Simulation Overlay */
+    .screen-annotation-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 15;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .state-annotate .screen-annotation-layer {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Safe Zone X-Ray Overlay */
+    .safe-zone-guide {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 204px;
+      height: 34px;
+      border: 2px dashed rgba(239, 68, 68, 0.85);
+      background: rgba(239, 68, 68, 0.15);
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #fca5a5;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .xray-active .safe-zone-guide {
+      display: flex;
+    }
+    .virtual-mode .safe-zone-guide {
+      display: none !important;
+    }
+
+    .safe-zone-margin {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 240px;
+      height: 44px;
+      border: 1px dashed rgba(245, 158, 11, 0.6);
+      background: rgba(245, 158, 11, 0.05);
+      z-index: 75;
+      display: none;
+    }
+    .xray-active .safe-zone-margin {
+      display: block;
+    }
+
+    /* Educational Comparison Drawer */
+    .explanation-card {
+      width: 100%;
+      max-width: 1100px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .expl-box {
+      background: #0d0d10;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 16px 20px;
+    }
+    .expl-box h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .expl-box p {
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: #a1a1aa;
+    }
+    .badge-intel {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    .badge-silicon {
+      background: rgba(168, 85, 247, 0.15);
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body class="physical-mode state-idle">
+
+  <!-- TOP HEADER -->
+  <div class="header-bar">
+    <div class="brand-title">
+      <div class="logo-squircle">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" x2="12" y1="19" y2="22"/>
+        </svg>
+      </div>
+      <div>
+        <h1>DopeNotch Architecture Simulator</h1>
+      </div>
+      <span>v0.4.0 High-Tech</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <button id="toggleXRayBtn" class="state-pill" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        X-Ray Safe Zones
+      </button>
+      <div style="font-size: 12px; color: #71717a;">Press <kbd style="background: #27272a; padding: 2px 6px; border-radius: 4px; color: #fff;">Space</kbd> to Auto-Tour</div>
+    </div>
+  </div>
+
+  <!-- CONTROL CONSOLE -->
+  <div class="controls-panel">
+    <!-- Mode Switcher -->
+    <div class="segmented-control">
+      <button id="btnPhysical" class="active" onclick="switchHardware('physical')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="12" x="3" y="4" rx="2"/><path d="M2 20h20"/><path d="M9 4v2h6V4"/></svg>
+        Physical Notch (M-Series)
+      </button>
+      <button id="btnVirtual" onclick="switchHardware('virtual')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="12" x="3" y="4" rx="2"/><path d="M2 20h20"/></svg>
+        Virtual Island (Intel 2018)
+      </button>
+    </div>
+
+    <!-- State Pills -->
+    <div class="state-pills">
+      <button class="state-pill active" onclick="setState('idle')">💤 Idle</button>
+      <button class="state-pill" onclick="setState('peek')">👀 Proximity</button>
+      <button class="state-pill" onclick="setState('dictate')">🎙️ Dictate (Whisper)</button>
+      <button class="state-pill" onclick="setState('annotate')">✏️ Annotate & Vision</button>
+      <button class="state-pill" onclick="setState('stash')">📦 Stash Shelf</button>
+      <button class="state-pill" onclick="setState('chat')">🤖 AI Assistant & Voice</button>
+    </div>
+
+    <!-- Auto Tour / Interval Controller -->
+    <div class="interval-controls">
+      <button id="playPauseBtn" class="icon-btn playing" onclick="togglePlayPause()" title="Play / Pause Auto Tour">
+        <svg id="playIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display: none;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <svg id="pauseIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+      </button>
+      <div style="display: flex; flex-direction: column;">
+        <span style="font-size: 11px; font-weight: 600;">Auto-Cycle</span>
+        <span id="intervalStatus" class="interval-badge">Interval: 3.5s</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MACBOOK HARDWARE MOCKUP -->
+  <div class="laptop-chassis">
+    <div class="screen-bezel">
+      <div class="screen-display">
+
+        <!-- HARDWARE SAFE ZONE OVERLAYS (FOR X-RAY MODE) -->
+        <div class="safe-zone-guide">Hardware Camera Dead Zone (0 Pixels)</div>
+        <div class="safe-zone-margin"></div>
+
+        <!-- macOS MENUBAR -->
+        <div class="macos-menubar">
+          <div class="menubar-left">
+            <span class="menubar-item apple-icon"></span>
+            <span class="menubar-item" style="font-weight: 700;">DopeNotch</span>
+            <span class="menubar-item">File</span>
+            <span class="menubar-item">Edit</span>
+            <span class="menubar-item">View</span>
+            <span class="menubar-item">AI Models</span>
+          </div>
+
+          <div class="menubar-right">
+            <span class="menubar-item" style="display: flex; align-items: center; gap: 4px;">
+              <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981;"></span>
+              Local GGML
+            </span>
+            <span class="menubar-item">􀙇 84%</span>
+            <span class="menubar-item">􀌌</span>
+            <span class="menubar-item">Tue 9:41 AM</span>
+          </div>
+        </div>
+
+        <!-- PHYSICAL NOTCH PIECE (HARDWARE BEZEL HOUSING) -->
+        <div class="physical-notch-housing">
+          <div class="notch-led-indicator" id="camLed"></div>
+          <div class="notch-camera-lens"></div>
+          <div class="notch-mic-hole"></div>
+        </div>
+
+        <!-- DOPENOTCH ADAPTIVE OVERLAY COMPONENT -->
+        <div class="dopenotch-overlay" id="dopenotchMain">
+
+          <!-- 1. IDLE CONTENT (INTEL MODE ONLY) -->
+          <div id="idleVirtualContent" style="display: none; width: 100%; justify-content: space-between; align-items: center; font-size: 11px; color: #a1a1aa;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
+              <span>DopeNotch</span>
+            </div>
+            <span style="font-size: 10px; color: #52525b;">⌥Space</span>
+          </div>
+
+          <!-- 2. PROXIMITY PEEK CONTENT -->
+          <div id="peekContent" style="display: none; width: 100%; justify-content: space-between; align-items: center; font-size: 11.5px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="width: 7px; height: 7px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981;"></span>
+              <span style="font-weight: 500;">Ready to Transcribe</span>
+            </div>
+            <span style="font-size: 10.5px; color: #71717a;">Press ⌥Space</span>
+          </div>
+
+          <!-- 3. DICTATE CONTENT (LIVE WAVEFORM & TRANSCRIPTION) -->
+          <div id="dictateContent" style="display: none; width: 100%; align-items: center; justify-content: space-between; font-size: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444;"></span>
+              <span style="font-weight: 600; font-variant-numeric: tabular-nums;">00:04.2</span>
+              <div class="eq-wave-row">
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+              </div>
+            </div>
+            <div style="color: #d4d4d8; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px;">
+              "Writing the quarterly update..."
+            </div>
+          </div>
+
+          <!-- 4. ANNOTATE & VISION CONTENT (SOLVES THE NOTCH OCCLUSION ISSUE) -->
+          <div id="annotateContent" style="display: none; width: 100%; height: 100%; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 10px; font-weight: 700; background: rgba(59, 130, 246, 0.2); color: #60a5fa; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.3);">
+                VISION HUD
+              </span>
+              <div class="tool-group">
+                <button class="tool-btn active" title="Pointer">↖</button>
+                <button class="tool-btn" title="Arrow Tool">➔</button>
+                <button class="tool-btn" title="Pencil">✎</button>
+                <button class="tool-btn" title="Highlighter">🖌</button>
+                <button class="tool-btn" title="Blur Sensitive Info">▦</button>
+                <button class="tool-btn" title="Text Box">T</button>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <button style="background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); color: #c084fc; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                <span>✨</span> Ask AI
+              </button>
+              <button style="background: #27272a; border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;">
+                Done
+              </button>
+            </div>
+          </div>
+
+          <!-- 5. STASH SHELF CONTENT -->
+          <div id="stashContent" style="display: none; width: 100%; height: 100%; flex-direction: column; justify-content: center; gap: 6px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #a1a1aa;">
+              <span style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #fbbf24;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>
+                Magnetic Stash Drop Shelf
+              </span>
+              <span>Drop files here to pin</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <div style="background: #18181c; border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 6px 10px; font-size: 11px; color: #d4d4d8; display: flex; align-items: center; gap: 6px;">
+                📄 quarterly-spec.pdf
+              </div>
+              <div style="background: #18181c; border: 1px dashed rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 6px 10px; font-size: 11px; color: #d4d4d8; display: flex; align-items: center; gap: 6px;">
+                🖼 app-mockup.png
+              </div>
+            </div>
+          </div>
+
+          <!-- 6. AI ASSISTANT & HUSKY VOICE CHAT CONTENT -->
+          <div id="chatContent" style="display: none; width: 100%; height: 100%; flex-direction: column; justify-content: space-between;">
+            <!-- Chat Header -->
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 10px;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 22px; height: 22px; border-radius: 6px; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); display: flex; align-items: center; justify-content: center; color: #c084fc; font-size: 11px;">
+                  ✨
+                </div>
+                <div>
+                  <div style="font-size: 12px; font-weight: 600;">DopeNotch AI</div>
+                  <div style="font-size: 10px; color: #71717a;">SmolLM2-1.7B (Local)</div>
+                </div>
+              </div>
+
+              <!-- Natural AI Voice Indicator & Switcher -->
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button id="simVoiceFemale" onclick="simSetVoice('female-cheerful')" style="display: flex; align-items: center; gap: 4px; background: rgba(236, 72, 153, 0.2); border: 1px solid rgba(236, 72, 153, 0.4); border-radius: 6px; padding: 3px 8px; font-size: 10px; color: #f472b6; cursor: pointer;">
+                  <span>🌟</span>
+                  <span>Nova (Female)</span>
+                </button>
+                <button id="simVoiceMale" onclick="simSetVoice('male-jolly')" style="display: flex; align-items: center; gap: 4px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 6px; padding: 3px 8px; font-size: 10px; color: #93c5fd; cursor: pointer;">
+                  <span>⚡</span>
+                  <span>Leo (Male)</span>
+                </button>
+                <button onclick="simSpeakCurrent()" title="Play Voice Sample" style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 6px; padding: 3px 6px; color: #10b981; font-size: 10px; cursor: pointer;">
+                  🔊 Play
+                </button>
+              </div>
+            </div>
+
+            <!-- Message Stream Bubble -->
+            <div style="display: flex; flex-direction: column; gap: 10px; margin: 12px 0; overflow-y: auto;">
+              <div style="align-self: flex-end; background: #27272a; border-radius: 10px 10px 2px 10px; padding: 8px 12px; font-size: 11.5px; max-width: 80%;">
+                Summarize the architectural advantages of the notch morph.
+              </div>
+              <div style="align-self: flex-start; background: #18181c; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px 10px 10px 2px; padding: 10px 12px; font-size: 11.5px; color: #e4e4e7; line-height: 1.5; max-width: 90%;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px; color: #c084fc; font-weight: 600; font-size: 10.5px;">
+                  <span>🤖 DOPENOTCH</span>
+                  <span style="color: #71717a;">• speaking</span>
+                </div>
+                By morphing outward and downward, DopeNotch turns the static camera housing into an interactive island, keeping annotation tools strictly below Apple's physical hardware safe zone.
+              </div>
+            </div>
+
+            <!-- Chat Input Strip -->
+            <div style="display: flex; align-items: center; gap: 8px; background: #121215; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 6px 12px;">
+              <input type="text" placeholder="Type prompt or speak with ⌥V..." style="background: transparent; border: none; outline: none; color: #fff; font-size: 11px; flex: 1;" readonly value="How does the screen annotation handle the notch?">
+              <button style="background: var(--accent-purple); color: #fff; border: none; border-radius: 6px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+                ↑
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- SCREEN ANNOTATION CANVAS PREVIEW (ACTIVE IN ANNOTATION MODE) -->
+        <div class="screen-annotation-layer" id="annotationCanvas">
+          <!-- Selection Frame with Dimensions -->
+          <div style="position: absolute; top: 120px; left: 180px; width: 420px; height: 240px; border: 2px solid #3b82f6; border-radius: 6px; background: rgba(59, 130, 246, 0.08); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);">
+            <div style="position: absolute; top: -24px; left: 0; background: #3b82f6; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+              420 × 240 — Vision Capture Box
+            </div>
+            <!-- Arrow callout -->
+            <svg style="position: absolute; top: 30px; left: 60px; width: 140px; height: 100px; pointer-events: none;">
+              <defs>
+                <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                  <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444" />
+                </marker>
+              </defs>
+              <line x1="120" y1="80" x2="20" y2="20" stroke="#ef4444" stroke-width="3" marker-end="url(#arrow)" />
+            </svg>
+            <div style="position: absolute; bottom: 20px; left: 30px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #fca5a5; padding: 4px 8px; border-radius: 6px; font-size: 10.5px;">
+              Target Code Module
+            </div>
+          </div>
+        </div>
+
+        <!-- DESKTOP BACKGROUND CARDS -->
+        <div style="display: flex; gap: 20px; padding: 80px 40px 0 40px; z-index: 10;">
+          <div style="width: 240px; background: rgba(20, 20, 24, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px; backdrop-filter: blur(12px);">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">⚡️ DopeNotch Engine</div>
+            <div style="font-size: 11px; color: #71717a;">Offline Whisper GGML Base ready. Zero network overhead.</div>
+          </div>
+          <div style="width: 240px; background: rgba(20, 20, 24, 0.65); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 16px; backdrop-filter: blur(12px);">
+            <div style="font-size: 12px; font-weight: 600; margin-bottom: 6px;">🎙️ High-Tech Husky Voice</div>
+            <div style="font-size: 11px; color: #71717a;">macOS offline speech synthesis with algorithmic pitch downshift.</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="laptop-base">
+    <div class="base-indent"></div>
+  </div>
+
+  <!-- EDUCATIONAL COMPARISON DRAWER -->
+  <div class="explanation-card">
+    <div class="expl-box">
+      <h3>
+        <span class="badge-silicon">Physical Notch Macs</span>
+        MacBook Pro 14" / 16" & Air (M-Series)
+      </h3>
+      <p>
+        <strong>Hardware Reality:</strong> The notch is an actual 204×34px black plastic cut-out in the glass housing the FaceTime camera and mic. <em>There are zero physical pixels behind it.</em><br><br>
+        <strong>How DopeNotch Solves This:</strong> DopeNotch queries <code>NSScreen.safeAreaInsets</code>. Instead of centering annotation tools at the top (where they would disappear behind the plastic camera), DopeNotch <strong>morphs downwards</strong> into an obsidian HUD at Y = 36px–84px, placing every tool safely below the camera cutout!
+      </p>
+    </div>
+
+    <div class="expl-box">
+      <h3>
+        <span class="badge-intel">Virtual Island Macs</span>
+        Your 2018 Intel MacBook Pro
+      </h3>
+      <p>
+        <strong>Hardware Reality:</strong> Continuous screen with 24pt traditional menu bar. There is no physical camera cutout inside the display area.<br><br>
+        <strong>How DopeNotch Solves This:</strong> DopeNotch detects <code>safeAreaInsets.top == 0</code> and renders as an ultra-crisp, floating <strong>Virtual Dynamic Island</strong> at Y = 8px. You get all the futuristic morphing aesthetics, live audio equalizers, and AI vision controls without any screen obstruction.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    // State machine
+    let currentHardware = 'physical'; // 'physical' | 'virtual'
+    let currentState = 'idle';        // 'idle' | 'peek' | 'dictate' | 'annotate' | 'stash' | 'chat'
+    let isPlaying = true;
+    let tourInterval = null;
+    let stepIndex = 0;
+    const states = ['idle', 'peek', 'dictate', 'annotate', 'stash', 'chat'];
+
+    const btnPhysical = document.getElementById('btnPhysical');
+    const btnVirtual = document.getElementById('btnVirtual');
+    const camLed = document.getElementById('camLed');
+    const toggleXRayBtn = document.getElementById('toggleXRayBtn');
+
+    // Content panels
+    const idleVirtualContent = document.getElementById('idleVirtualContent');
+    const peekContent = document.getElementById('peekContent');
+    const dictateContent = document.getElementById('dictateContent');
+    const annotateContent = document.getElementById('annotateContent');
+    const stashContent = document.getElementById('stashContent');
+    const chatContent = document.getElementById('chatContent');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const playIcon = document.getElementById('playIcon');
+    const pauseIcon = document.getElementById('pauseIcon');
+
+    function switchHardware(mode) {
+      currentHardware = mode;
+      document.body.classList.remove('physical-mode', 'virtual-mode');
+      document.body.classList.add(mode + '-mode');
+
+      if (mode === 'physical') {
+        btnPhysical.classList.add('active');
+        btnVirtual.classList.remove('active');
+      } else {
+        btnVirtual.classList.add('active');
+        btnPhysical.classList.remove('active');
+      }
+      render();
+    }
+
+    function setState(state) {
+      currentState = state;
+      stepIndex = states.indexOf(state);
+
+      // Update pill classes
+      document.querySelectorAll('.state-pill').forEach(btn => {
+        if (btn.innerText.toLowerCase().includes(state.slice(0, 4))) {
+          btn.classList.add('active');
+        } else if (!btn.id.includes('toggleXRayBtn')) {
+          btn.classList.remove('active');
+        }
+      });
+
+      // Update body classes
+      states.forEach(s => document.body.classList.remove('state-' + s));
+      document.body.classList.add('state-' + state);
+
+      render();
+    }
+
+    function render() {
+      // Hide all inner contents
+      idleVirtualContent.style.display = 'none';
+      peekContent.style.display = 'none';
+      dictateContent.style.display = 'none';
+      annotateContent.style.display = 'none';
+      stashContent.style.display = 'none';
+      chatContent.style.display = 'none';
+      camLed.classList.remove('active');
+
+      if (currentState === 'idle') {
+        if (currentHardware === 'virtual') {
+          idleVirtualContent.style.display = 'flex';
+        }
+      } else if (currentState === 'peek') {
+        peekContent.style.display = 'flex';
+      } else if (currentState === 'dictate') {
+        dictateContent.style.display = 'flex';
+      } else if (currentState === 'annotate') {
+        annotateContent.style.display = 'flex';
+        camLed.classList.add('active'); // Camera LED activates in vision/capture mode
+      } else if (currentState === 'stash') {
+        stashContent.style.display = 'flex';
+      } else if (currentState === 'chat') {
+        chatContent.style.display = 'flex';
+      }
+    }
+
+    // Auto-Tour interval
+    function startAutoTour() {
+      isPlaying = true;
+      playPauseBtn.classList.add('playing');
+      playIcon.style.display = 'none';
+      pauseIcon.style.display = 'block';
+
+      if (tourInterval) clearInterval(tourInterval);
+      tourInterval = setInterval(() => {
+        stepIndex = (stepIndex + 1) % states.length;
+        setState(states[stepIndex]);
+      }, 3500);
+    }
+
+    function stopAutoTour() {
+      isPlaying = false;
+      playPauseBtn.classList.remove('playing');
+      playIcon.style.display = 'block';
+      pauseIcon.style.display = 'none';
+
+      if (tourInterval) {
+        clearInterval(tourInterval);
+        tourInterval = null;
+      }
+    }
+
+    function togglePlayPause() {
+      if (isPlaying) {
+        stopAutoTour();
+      } else {
+        startAutoTour();
+      }
+    }
+
+    // X-Ray Toggle
+    toggleXRayBtn.addEventListener('click', () => {
+      document.body.classList.toggle('xray-active');
+      toggleXRayBtn.classList.toggle('active');
+    });
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        togglePlayPause();
+      } else if (e.code === 'ArrowRight') {
+        stepIndex = (stepIndex + 1) % states.length;
+        setState(states[stepIndex]);
+      } else if (e.code === 'ArrowLeft') {
+        stepIndex = (stepIndex - 1 + states.length) % states.length;
+        setState(states[stepIndex]);
+      }
+    });
+
+    // Voice simulation
+    let currentSimVoice = 'female-cheerful';
+    function simSetVoice(persona) {
+      currentSimVoice = persona;
+      const btnFemale = document.getElementById('simVoiceFemale');
+      const btnMale = document.getElementById('simVoiceMale');
+
+      if (persona === 'female-cheerful') {
+        btnFemale.style.background = 'rgba(236, 72, 153, 0.25)';
+        btnFemale.style.borderColor = 'rgba(236, 72, 153, 0.5)';
+        btnMale.style.background = 'rgba(59, 130, 246, 0.1)';
+        btnMale.style.borderColor = 'rgba(59, 130, 246, 0.2)';
+      } else {
+        btnMale.style.background = 'rgba(59, 130, 246, 0.25)';
+        btnMale.style.borderColor = 'rgba(59, 130, 246, 0.5)';
+        btnFemale.style.background = 'rgba(236, 72, 153, 0.1)';
+        btnFemale.style.borderColor = 'rgba(236, 72, 153, 0.2)';
+      }
+      simSpeakCurrent();
+    }
+
+    function simSpeakCurrent() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const text = currentSimVoice === 'female-cheerful'
+          ? "Hello! I'm Nova, your cheerful AI companion. I'm feeling wonderful today!"
+          : "Hey there! I'm Leo, your jolly coding buddy. Ready to build something great!";
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices();
+        const targetVoice = currentSimVoice === 'female-cheerful'
+          ? (voices.find(v => v.name.includes('Nicky') || v.name.includes('Samantha') || (v.lang.startsWith('en') && v.name.includes('Female'))))
+          : (voices.find(v => v.name.includes('Aaron') || v.name.includes('Daniel') || (v.lang.startsWith('en') && v.name.includes('Male'))));
+        
+        if (targetVoice) utterance.voice = targetVoice;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0; // Natural formants, no robotic buzzing
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    // Start auto-tour on load
+    startAutoTour();
+    render();
+  </script>
+</body>
+</html>

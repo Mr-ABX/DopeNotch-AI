@@ -17,8 +17,11 @@ import {
   RotateCcw,
   ExternalLink,
   ChevronDown,
+  Play,
+  Square,
 } from 'lucide-react';
-import { useAppStore, OverlayStyle } from '../../stores/appStore';
+import { useAppStore, OverlayStyle, AI_VOICE_PERSONAS, AIVoicePersona } from '../../stores/appStore';
+import { aiVoiceService } from '../../services/aiVoiceService';
 import { invoke } from '@tauri-apps/api/core';
 
 interface StorageInfo {
@@ -63,7 +66,29 @@ export const PreferencesView: React.FC = () => {
     clearHistory,
     simulateNotchCutout,
     setSimulateNotchCutout,
+    aiVoicePersona,
+    setAIVoicePersona,
+    aiVoiceRate,
+    setAIVoiceRate,
+    aiVoiceAutoSpeak,
+    setAIVoiceAutoSpeak,
   } = useAppStore();
+
+  const [previewingPersona, setPreviewingPersona] = useState<AIVoicePersona | null>(null);
+
+  const handleToggleVoicePreview = async (personaId: AIVoicePersona) => {
+    if (previewingPersona === personaId) {
+      aiVoiceService.stop();
+      setPreviewingPersona(null);
+      return;
+    }
+    setPreviewingPersona(personaId);
+    try {
+      await aiVoiceService.playPreview(personaId);
+    } finally {
+      setPreviewingPersona(null);
+    }
+  };
 
   const [isRecordingPrimary, setIsRecordingPrimary] = useState(false);
   const [isRecordingSecondary, setIsRecordingSecondary] = useState(false);
@@ -494,12 +519,13 @@ export const PreferencesView: React.FC = () => {
         )}
 
         {settingsSection === 'audio' && (
-          <div className="space-y-4 max-w-xl">
+          <div className="space-y-6 max-w-xl">
             <div>
-              <h3 className="text-sm font-semibold text-white">Audio</h3>
-              <p className="text-xs text-zinc-400 mt-0.5">Input device configuration</p>
+              <h3 className="text-sm font-semibold text-white">Audio & Speech</h3>
+              <p className="text-xs text-zinc-400 mt-0.5">Input device and natural AI speech synthesis</p>
             </div>
 
+            {/* Microphone Input */}
             <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-2">
               <label className="block text-xs font-medium text-zinc-300">
                 Microphone Input
@@ -517,6 +543,136 @@ export const PreferencesView: React.FC = () => {
                   ))}
                 </select>
                 <ChevronDown className="w-4 h-4 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* AI Speech Persona Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-semibold text-white">AI Spoken Persona</h4>
+                  <p className="text-[11px] text-zinc-400">Natural human voices for assistant conversations</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-zinc-400">Auto-Speak</span>
+                  <button
+                    type="button"
+                    onClick={() => setAIVoiceAutoSpeak(!aiVoiceAutoSpeak)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      aiVoiceAutoSpeak ? 'bg-emerald-500' : 'bg-white/10'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        aiVoiceAutoSpeak ? 'translate-x-4 bg-black' : 'translate-x-0 bg-zinc-300'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Persona Cards */}
+              <div className="grid grid-cols-1 gap-2.5">
+                {AI_VOICE_PERSONAS.map((persona) => {
+                  const isSelected = aiVoicePersona === persona.id;
+                  const isPreviewing = previewingPersona === persona.id;
+
+                  return (
+                    <div
+                      key={persona.id}
+                      onClick={() => setAIVoicePersona(persona.id)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-[#18181c] border-white/20 ring-1 ring-white/10'
+                          : 'bg-[#111114] border-[#1e1e24] hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        {/* Radio indicator */}
+                        <div
+                          className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                            isSelected ? 'border-emerald-500 bg-emerald-500/20' : 'border-zinc-600'
+                          }`}
+                        >
+                          {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-white">{persona.name}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                                persona.gender === 'female'
+                                  ? 'bg-pink-500/10 text-pink-300 border border-pink-500/20'
+                                  : persona.gender === 'male'
+                                  ? 'bg-blue-500/10 text-blue-300 border border-blue-500/20'
+                                  : 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
+                              }`}
+                            >
+                              {persona.tag}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{persona.description}</p>
+                        </div>
+                      </div>
+
+                      {/* Preview Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleVoicePreview(persona.id);
+                        }}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                          isPreviewing
+                            ? 'bg-emerald-500 text-black shadow-md font-semibold'
+                            : 'bg-white/[0.06] hover:bg-white/15 text-zinc-300 hover:text-white border border-white/10'
+                        }`}
+                        title="Listen to sample audio"
+                      >
+                        {isPreviewing ? (
+                          <>
+                            <Square className="w-3 h-3 fill-current" />
+                            <span>Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Preview</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Speech Speed Multiplier */}
+              <div className="p-3.5 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-medium text-zinc-300">Speech Pace</span>
+                  <p className="text-[11px] text-zinc-500">Natural conversation speed rate</p>
+                </div>
+                <div className="flex items-center gap-1.5 bg-[#09090b] p-1 rounded-lg border border-white/5">
+                  {[
+                    { label: '0.85x Relaxed', value: 0.85 },
+                    { label: '1.0x Natural', value: 1.0 },
+                    { label: '1.15x Brisk', value: 1.15 },
+                  ].map((speed) => (
+                    <button
+                      key={speed.value}
+                      type="button"
+                      onClick={() => setAIVoiceRate(speed.value)}
+                      className={`px-2 py-1 text-[11px] rounded-md transition-all font-mono cursor-pointer ${
+                        aiVoiceRate === speed.value
+                          ? 'bg-white/15 text-white font-medium shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      {speed.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

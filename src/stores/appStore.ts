@@ -116,6 +116,78 @@ export interface DailyActivity {
   minutesSaved: number;
 }
 
+export type AIVoicePersona = 'female-cheerful' | 'male-jolly' | 'female-classic' | 'male-british' | 'cyber-husky';
+
+export interface AIVoicePersonaInfo {
+  id: AIVoicePersona;
+  name: string;
+  character: string;
+  gender: 'female' | 'male' | 'ai';
+  description: string;
+  tag: string;
+  macOSVoice: string;
+  browserVoice: string;
+  recommendedRate: number;
+}
+
+export const AI_VOICE_PERSONAS: AIVoicePersonaInfo[] = [
+  {
+    id: 'female-cheerful',
+    name: 'Nova (Cheerful Female)',
+    character: 'Bright, cheerful, and sunny AI companion',
+    gender: 'female',
+    description: 'High-energy, warm, and natural Siri US female voice. Upbeat and enthusiastic tone.',
+    tag: 'Default Female',
+    macOSVoice: 'Nicky',
+    browserVoice: 'Nicky',
+    recommendedRate: 1.0,
+  },
+  {
+    id: 'male-jolly',
+    name: 'Leo (Jolly Male)',
+    character: 'Friendly, upbeat, and enthusiastic assistant',
+    gender: 'male',
+    description: 'Crisp, jolly, natural Siri US male voice. Energetic and encouraging for coding and daily tasks.',
+    tag: 'Default Male',
+    macOSVoice: 'Aaron',
+    browserVoice: 'Aaron',
+    recommendedRate: 1.0,
+  },
+  {
+    id: 'female-classic',
+    name: 'Samantha (Apple Classic)',
+    character: 'Clear, smooth, and friendly American female',
+    gender: 'female',
+    description: 'The iconic Apple US natural voice. Balanced, clear, and articulate.',
+    tag: 'Natural Classic',
+    macOSVoice: 'Samantha',
+    browserVoice: 'Samantha',
+    recommendedRate: 1.0,
+  },
+  {
+    id: 'male-british',
+    name: 'Daniel (British Scholar)',
+    character: 'Warm, refined, and articulate gentleman',
+    gender: 'male',
+    description: 'Distinguished British English male voice. Calm, articulate, and friendly.',
+    tag: 'Refined Male',
+    macOSVoice: 'Daniel',
+    browserVoice: 'Daniel',
+    recommendedRate: 1.0,
+  },
+  {
+    id: 'cyber-husky',
+    name: 'Titan (Cyber Husky)',
+    character: 'Calm, holographic, low-frequency AI presence',
+    gender: 'ai',
+    description: 'Futuristic, algorithmic companion with deep resonant undertones.',
+    tag: 'High-Tech',
+    macOSVoice: 'Fred',
+    browserVoice: 'Daniel',
+    recommendedRate: 0.98,
+  },
+];
+
 interface AppState {
   // Navigation
   activeTab: SidebarTab;
@@ -165,6 +237,14 @@ interface AppState {
   setSelectedAIProvider: (provider: 'groq' | 'gemini' | 'openai' | 'anthropic' | 'ollama' | 'local') => void;
   setApiKey: (provider: string, key: string) => void;
   setModelForProvider: (provider: string, model: string) => void;
+
+  // AI Voice & Speech Output
+  aiVoicePersona: AIVoicePersona;
+  aiVoiceRate: number;
+  aiVoiceAutoSpeak: boolean;
+  setAIVoicePersona: (persona: AIVoicePersona) => void;
+  setAIVoiceRate: (rate: number) => void;
+  setAIVoiceAutoSpeak: (autoSpeak: boolean) => void;
 
   // Per-App Prompt Routing
   promptRules: PromptRoutingRule[];
@@ -488,6 +568,14 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({ apiKeys: { ...state.apiKeys, [provider]: key } })),
   setModelForProvider: (provider, model) =>
     set((state) => ({ selectedModelByProvider: { ...state.selectedModelByProvider, [provider]: model } })),
+
+  // AI Voice & Speech Output
+  aiVoicePersona: 'female-cheerful',
+  aiVoiceRate: 1.0,
+  aiVoiceAutoSpeak: true,
+  setAIVoicePersona: (persona) => set({ aiVoicePersona: persona }),
+  setAIVoiceRate: (rate) => set({ aiVoiceRate: rate }),
+  setAIVoiceAutoSpeak: (autoSpeak) => set({ aiVoiceAutoSpeak: autoSpeak }),
 
   // Prompt Rules
   promptRules: INITIAL_PROMPT_RULES,

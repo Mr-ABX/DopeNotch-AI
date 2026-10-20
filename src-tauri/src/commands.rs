@@ -2108,5 +2108,66 @@ pub async fn open_stash_directory() -> Result<String, String> {
     Ok(stash_dir.to_string_lossy().to_string())
 }
 
+static ACTIVE_SPEECH_PROCESS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+#[tauri::command]
+pub async fn speak_text_native(text: String, voice: Option<String>, rate: Option<u32>) -> Result<(), String> {
+    let _ = stop_speech_native().await;
+
+    tokio::task::spawn_blocking(move || {
+        let clean_text = text
+            .replace("```", " ")
+            .replace('`', "")
+            .replace('#', "")
+            .replace('*', "")
+            .replace('_', "")
+            .replace('~', "")
+            .replace('>', "")
+            .trim()
+            .to_string();
+
+        if clean_text.is_empty() {
+            return Ok(());
+        }
+
+        let voice_name = voice.unwrap_or_else(|| "Nicky".to_string());
+        let speed_wpm = rate.unwrap_or(190).to_string();
+
+        #[cfg(target_os = "macos")]
+        {
+            let mut cmd = std::process::Command::new("say");
+            cmd.arg("-v").arg(&voice_name);
+            cmd.arg("-r").arg(&speed_wpm);
+            cmd.arg(&clean_text);
+
+            if let Ok(mut child) = cmd.spawn() {
+                ACTIVE_SPEECH_PROCESS.store(child.id(), std::sync::atomic::Ordering::SeqCst);
+                let _ = child.wait();
+                ACTIVE_SPEECH_PROCESS.store(0, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn stop_speech_native() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let pid = ACTIVE_SPEECH_PROCESS.swap(0, std::sync::atomic::Ordering::SeqCst);
+        if pid != 0 {
+            let _ = std::process::Command::new("kill")
+                .arg("-9")
+                .arg(pid.to_string())
+                .output();
+        }
+    }
+    Ok(())
+}
+
+
 
 
