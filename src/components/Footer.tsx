@@ -1,8 +1,9 @@
-import React from 'react';
-import { Heart } from 'lucide-react';
+import React, { useState } from 'react';
+import { Heart, X, Shield, FileText } from 'lucide-react';
 import { AppleLogo } from './AppleLogo';
 
 export const Footer: React.FC = () => {
+  const [activeModal, setActiveModal] = useState<'privacy' | 'terms' | null>(null);
   return (
     <footer className="relative bg-black text-white pt-0 pb-16 overflow-hidden select-none rounded-t-[36px] sm:rounded-t-[48px]">
       
@@ -126,11 +127,31 @@ export const Footer: React.FC = () => {
             {/* Column 2: Navigation */}
             <div className="flex flex-col gap-3">
               <span className="font-bold text-white text-xs uppercase tracking-wider">Navigation</span>
-              <a href="#" className="text-zinc-400 hover:text-white transition-colors">Contact</a>
-              <a href="#" className="text-zinc-400 hover:text-white transition-colors">Roadmap</a>
-              <a href="#" className="text-zinc-400 hover:text-white transition-colors">Privacy policy</a>
-              <a href="#" className="text-zinc-400 hover:text-white transition-colors">Terms of service</a>
-              <a href="#" className="text-zinc-400 hover:text-white transition-colors">Customer portal</a>
+              <a href="mailto:support@dopenotch.com" className="text-zinc-400 hover:text-white transition-colors">Contact</a>
+              <a href="#faq" className="text-zinc-400 hover:text-white transition-colors">Roadmap</a>
+              <button 
+                type="button" 
+                onClick={() => setActiveModal('privacy')} 
+                className="text-left text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Privacy policy
+              </button>
+              <button 
+                type="button" 
+                onClick={() => setActiveModal('terms')} 
+                className="text-left text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Terms of service
+              </button>
+              <a 
+                href="https://polar.sh/purchases" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-zinc-400 hover:text-white transition-colors flex items-center gap-1"
+              >
+                <span>Customer portal</span>
+                <span className="text-[10px] text-zinc-500">↗</span>
+              </a>
             </div>
 
             {/* Column 3: More Products */}
@@ -158,6 +179,117 @@ export const Footer: React.FC = () => {
           DopeNotch
         </span>
       </div>
+
+      {/* ─── LEGAL / POLICY MODAL (PRIVACY & TERMS) ────────────────────────── */}
+      {activeModal && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 select-text"
+          onClick={() => setActiveModal(null)}
+        >
+          <div 
+            className="w-full max-w-xl max-h-[85vh] bg-[#161619] border border-white/15 rounded-[28px] shadow-2xl overflow-hidden flex flex-col text-left text-zinc-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-6 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                {activeModal === 'privacy' ? (
+                  <Shield className="w-5 h-5 text-amber-400" />
+                ) : (
+                  <FileText className="w-5 h-5 text-amber-400" />
+                )}
+                <h3 className="text-lg font-bold text-white tracking-tight">
+                  {activeModal === 'privacy' ? 'Privacy Policy' : 'Terms of Service'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto space-y-4 text-xs sm:text-sm leading-relaxed text-zinc-300">
+              {activeModal === 'privacy' ? (
+                <>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">1. 100% On-Device Whisper Dictation</h4>
+                    <p className="text-zinc-400">
+                      By default, all microphone recording and voice-to-text transcription run entirely on your local Mac using embedded Whisper models. Your spoken audio never leaves your machine.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">2. Password Manager & Sensitive Content Protection</h4>
+                    <p className="text-zinc-400">
+                      DopeNotch inspects native macOS pasteboard types and automatically rejects concealed or transient tokens copied from 1Password, Bitwarden, Apple Passwords, Keychain, and KeePass. Passwords are never stored in history.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">3. Local File Storage</h4>
+                    <p className="text-zinc-400">
+                      All clipboard history, voice notes, and custom extensions reside in your local <code className="text-amber-300 font-mono">~/Documents/DopeNotch/</code> directory under your complete control. You can change this path or delete your database at any time.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">4. Optional Cloud Providers</h4>
+                    <p className="text-zinc-400">
+                      If you choose to use cloud AI models (Google Gemini, Groq, or OpenAI), you provide your own API key (BYOK). Requests are transmitted directly and securely to the respective provider without passing through any intermediate DopeNotch servers.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">5. Zero Analytics & Telemetry</h4>
+                    <p className="text-zinc-400">
+                      DopeNotch contains zero tracking scripts, user profiling, or background telemetry.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">1. License Grant & Perpetual Use</h4>
+                    <p className="text-zinc-400">
+                      Purchasing <strong>DopeNotch Pro Core</strong> grants you a perpetual, non-exclusive license to use the purchased release line (<code className="text-amber-300 font-mono">v0.4.x</code>) forever on your licensed number of Macs, including all bug fixes and security patches.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">2. Forever Updates Pass</h4>
+                    <p className="text-zinc-400">
+                      Customers who select the optional <strong>Forever Updates Pass</strong> (+9 USD) receive all future major feature releases and major version upgrades (v1.0, v2.0+) with zero recurring subscription fees.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">3. Device Limits & License Activation</h4>
+                    <p className="text-zinc-400">
+                      Each license key is valid for the number of Macs selected at checkout (1 Mac or 2 Macs). You can manage or transfer your active device seats anytime via the Polar.sh customer portal.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm mb-1">4. 14-Day Money-Back Guarantee</h4>
+                    <p className="text-zinc-400">
+                      If DopeNotch does not meet your workflow needs, you can request a 100% full refund within 14 days of purchase through Polar.sh or by contacting <a href="mailto:support@dopenotch.com" className="text-amber-400 underline">support@dopenotch.com</a>.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white/[0.03] border-t border-white/10 flex items-center justify-between text-xs text-zinc-500">
+              <span>Last updated: October 2026</span>
+              <button
+                type="button"
+                onClick={() => setActiveModal(null)}
+                className="px-4 py-2 rounded-xl bg-white text-black font-semibold hover:bg-amber-400 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </footer>
   );

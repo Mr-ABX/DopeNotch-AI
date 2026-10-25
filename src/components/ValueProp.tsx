@@ -10,17 +10,17 @@ export const ValueProp: React.FC = () => {
   const [activeType, setActiveType] = useState<string>('voice');
 
   const pills = [
-    { label: 'iCloud Sync', icon: Cloud, color: 'text-blue-500' },
-    { label: 'Apple Intelligence', icon: Sparkles, color: 'text-orange-500' },
+    { label: 'Local Whisper AI', icon: Mic, color: 'text-amber-500' },
+    { label: 'On-Device Brain', icon: Sparkles, color: 'text-orange-500' },
     { label: 'Local first', icon: Shield, color: 'text-zinc-700' },
     { label: 'Privacy first', icon: Lock, color: 'text-zinc-700' },
     { label: 'Search anything', icon: Search, color: 'text-zinc-700' },
     { label: 'Screenshots', icon: Camera, color: 'text-zinc-700' },
-    { label: 'Screenshot & image OCR', icon: FileText, color: 'text-zinc-700' },
+    { label: 'Hex Color Sampler', icon: FileText, color: 'text-zinc-700' },
     { label: 'Grouped by App', icon: Layers, color: 'text-zinc-700' },
     { label: 'Type filters', icon: Filter, color: 'text-zinc-700' },
     { label: 'Smart Filter', icon: Zap, color: 'text-amber-500' },
-    { label: 'Sensitive detection', icon: EyeOff, color: 'text-zinc-700' },
+    { label: 'Password Filtered', icon: EyeOff, color: 'text-emerald-600' },
     { label: 'Custom categories', icon: Folder, color: 'text-zinc-700' },
   ];
 
@@ -50,7 +50,7 @@ export const ValueProp: React.FC = () => {
   ];
 
   return (
-    <section className="bg-white text-black pt-8 sm:pt-12 pb-24 px-4 flex flex-col items-center text-center">
+    <section id="features" className="bg-white text-black pt-8 sm:pt-12 pb-24 px-4 flex flex-col items-center text-center">
       
       {/* ─── 1:1 TITLE & SUBTITLE ─────────────────────────────────────────── */}
       <div className="max-w-3xl mx-auto mb-10">
