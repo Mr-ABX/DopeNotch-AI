@@ -170,7 +170,7 @@ async fn transcribe_gemini(wav_bytes: &[u8], api_key: &str) -> Result<String> {
     use base64::{Engine as _, engine::general_purpose::STANDARD as base64_std};
     
     let encoded_audio = base64_std.encode(wav_bytes);
-    let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}", api_key);
+    let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}", api_key);
     
     let body = serde_json::json!({
         "contents": [{
@@ -370,7 +370,7 @@ async fn rewrite_transcript(text: &str, settings: &AppSettings) -> Result<String
             
         return Ok(rewritten.trim().to_string());
     } else if !settings.gemini_api_key.is_empty() {
-        let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}", settings.gemini_api_key);
+        let url = format!("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}", settings.gemini_api_key);
         let body = serde_json::json!({
             "contents": [{
                 "parts": [{ "text": format!("You are a transcript polisher. Fix any grammatical errors, spelling mistakes, or weird stutters in the following text. Maintain the original meaning perfectly. ONLY output the corrected text, without any conversational filler, intro, or markdown formatting.\n\nText to polish:\n{}", text) }]

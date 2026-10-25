@@ -208,7 +208,18 @@ pub async fn inspect_url(target: &str) -> Result<WebInspectionResult, String> {
         } else if let Some(m) = cap.get(0) {
             let svg_content = m.as_str().trim();
             if svg_content.len() < 3500 && svg_content.starts_with("<svg") {
-                svgs_set.insert(svg_content.to_string());
+                let lower = svg_content.to_lowercase();
+                // Security filter: discard SVGs containing embedded scripts, foreign objects, or execution handlers
+                if !lower.contains("<script")
+                    && !lower.contains("<foreignobject")
+                    && !lower.contains("<iframe")
+                    && !lower.contains("javascript:")
+                    && !lower.contains("data:text/html")
+                    && !lower.contains("onload=")
+                    && !lower.contains("onerror=")
+                {
+                    svgs_set.insert(svg_content.to_string());
+                }
             }
         }
     }

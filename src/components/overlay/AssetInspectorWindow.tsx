@@ -33,6 +33,58 @@ export interface WebInspectionResult {
   total_assets_count: number;
 }
 
+/**
+ * Safely sanitizes and converts inline SVG to an inert data: URI.
+ * This completely avoids dangerouslySetInnerHTML and ensures the browser engine
+ * executes the SVG strictly in an isolated, scriptless image container.
+ */
+function sanitizeAndEncodeSvg(raw: string): string | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(raw, 'image/svg+xml');
+
+    // Check for XML parse errors
+    if (doc.querySelector('parsererror')) {
+      return null;
+    }
+
+    const svg = doc.documentElement;
+    if (!svg || svg.tagName.toLowerCase() !== 'svg') {
+      return null;
+    }
+
+    // Completely strip scripts, foreignObjects, iframes, styles with imports, etc.
+    const dangerousTags = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'audio', 'video', 'link', 'style', 'meta'];
+    dangerousTags.forEach((tag) => {
+      const elements = Array.from(doc.getElementsByTagName(tag));
+      elements.forEach((el) => el.parentNode?.removeChild(el));
+    });
+
+    // Strip any on* event attributes and javascript: URIs across all nodes
+    const allElements = Array.from(doc.getElementsByTagName('*'));
+    for (const el of allElements) {
+      const attrs = Array.from(el.attributes);
+      for (const attr of attrs) {
+        const name = attr.name.toLowerCase();
+        const val = attr.value.trim().toLowerCase();
+        if (
+          name.startsWith('on') ||
+          val.startsWith('javascript:') ||
+          val.startsWith('data:text') ||
+          val.startsWith('vbscript:')
+        ) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    }
+
+    const cleanSvg = new XMLSerializer().serializeToString(doc);
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanSvg)}`;
+  } catch {
+    return null;
+  }
+}
+
 export const AssetInspectorWindow: React.FC = () => {
   const [data, setData] = useState<WebInspectionResult | null>(null);
   const [activeTab, setActiveTab] = useState<'images' | 'svgs' | 'palette' | 'fonts' | 'meta'>('images');
@@ -415,10 +467,23 @@ export const AssetInspectorWindow: React.FC = () => {
                     >
                       <div className="h-36 w-full bg-black/60 relative flex items-center justify-center p-4 overflow-hidden">
                         {isInline ? (
-                          <div
-                            className="w-16 h-16 flex items-center justify-center text-zinc-200 fill-current [&>svg]:w-full [&>svg]:h-full"
-                            dangerouslySetInnerHTML={{ __html: svgItem }}
-                          />
+                          (() => {
+                            const safeDataUrl = sanitizeAndEncodeSvg(svgItem);
+                            return safeDataUrl ? (
+                              <img
+                                src={safeDataUrl}
+                                alt="Vector preview"
+                                className="max-h-full max-w-full object-contain filter invert opacity-80 pointer-events-none"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="text-[10px] text-zinc-600 font-mono text-center px-2">
+                                Untrusted / Invalid SVG
+                              </div>
+                            );
+                          })()
                         ) : (
                           <img
                             src={svgItem}

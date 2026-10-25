@@ -1179,25 +1179,57 @@ pub async fn execute_user_extension(
         return Err(format!("Extension file not found at: {}", file_path));
     }
 
-    let ext = path.extension().unwrap_or_default().to_string_lossy().to_lowercase();
+    // Security Gate: Ensure the script resides strictly inside the trusted extensions directory
+    let root = crate::storage::DopeNotchStorage::get_root(None);
+    let trusted_dir = crate::storage::DopeNotchStorage::extensions_dir(&root);
+    let legacy_dir = dirs::home_dir().map(|h| h.join(".dopenotch").join("extensions"));
+
+    let canonical_file = path
+        .canonicalize()
+        .map_err(|e| format!("Invalid extension file path: {}", e))?;
+
+    let in_trusted = if let Ok(canonical_trusted) = trusted_dir.canonicalize() {
+        canonical_file.starts_with(&canonical_trusted)
+    } else {
+        false
+    };
+
+    let in_legacy = if let Some(legacy) = legacy_dir {
+        if let Ok(canonical_legacy) = legacy.canonicalize() {
+            canonical_file.starts_with(&canonical_legacy)
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
+    if !in_trusted && !in_legacy {
+        return Err(format!(
+            "Security restriction: Execution blocked. Extension scripts can only be executed from your trusted DopeNotch extensions folder ({:?})",
+            trusted_dir
+        ));
+    }
+
+    let ext = canonical_file.extension().unwrap_or_default().to_string_lossy().to_lowercase();
     let mut cmd = match ext.as_str() {
         "sh" | "bash" | "zsh" => {
             let mut c = Command::new("/bin/bash");
-            c.arg(&file_path);
+            c.arg(&canonical_file);
             c
         }
         "py" => {
             let mut c = Command::new("python3");
-            c.arg(&file_path);
+            c.arg(&canonical_file);
             c
         }
         "js" | "mjs" => {
             let mut c = Command::new("node");
-            c.arg(&file_path);
+            c.arg(&canonical_file);
             c
         }
         _ => {
-            Command::new(&file_path)
+            Command::new(&canonical_file)
         }
     };
 

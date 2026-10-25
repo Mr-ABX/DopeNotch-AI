@@ -8,14 +8,17 @@ fn test_whisper_context_loads() {
     model_path.push("models");
     model_path.push("ggml-base.bin");
 
-    // Only test loading if the actual model file exists and is not empty (> 1MB)
-    let is_valid = match std::fs::metadata(&model_path) {
-        Ok(meta) => meta.len() > 1_000_000,
+    // Only test loading if the actual model file exists, is readable, and is not empty (> 1MB)
+    let is_valid = match std::fs::File::open(&model_path) {
+        Ok(file) => match file.metadata() {
+            Ok(meta) => meta.len() > 1_000_000,
+            Err(_) => false,
+        },
         Err(_) => false,
     };
 
     if !is_valid {
-        println!("Base whisper model not downloaded yet, skipping test.");
+        println!("Base whisper model not accessible or downloaded yet, skipping test.");
         return;
     }
 
