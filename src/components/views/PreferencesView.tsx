@@ -19,6 +19,14 @@ import {
   ChevronDown,
   Play,
   Square,
+  ShieldCheck,
+  Key,
+  CheckCircle2,
+  AlertCircle,
+  Zap,
+  Check,
+  Copy,
+  Laptop,
 } from 'lucide-react';
 import { useAppStore, OverlayStyle, AI_VOICE_PERSONAS, AIVoicePersona } from '../../stores/appStore';
 import { aiVoiceService } from '../../services/aiVoiceService';
@@ -72,9 +80,82 @@ export const PreferencesView: React.FC = () => {
     setAIVoiceRate,
     aiVoiceAutoSpeak,
     setAIVoiceAutoSpeak,
+    licenseInfo,
+    activateLicense,
+    deactivateLicense,
+    fetchLicenseInfo,
   } = useAppStore();
 
   const [previewingPersona, setPreviewingPersona] = useState<AIVoicePersona | null>(null);
+
+  // License activation / management state
+  const [keyInput, setKeyInput] = useState('');
+  const [deviceLabelInput, setDeviceLabelInput] = useState('');
+  const [isActivating, setIsActivating] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [isKeyCopied, setIsKeyCopied] = useState(false);
+
+  const handleActivate = async () => {
+    if (!keyInput.trim()) {
+      setActionError('Please enter a valid license key');
+      return;
+    }
+    setIsActivating(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await activateLicense(keyInput.trim(), deviceLabelInput.trim() || undefined);
+      if (res.success) {
+        setActionSuccess('DopeNotch Pro successfully activated!');
+        setKeyInput('');
+      } else {
+        setActionError(res.error || 'Activation failed. Please verify your key.');
+      }
+    } catch (err: any) {
+      setActionError(err?.message || 'Network error contacting Polar license server');
+    } finally {
+      setIsActivating(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!window.confirm('Are you sure you want to deactivate your DopeNotch Pro license on this Mac?')) {
+      return;
+    }
+    setIsDeactivating(true);
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const res = await deactivateLicense();
+      if (res.success) {
+        setActionSuccess('License deactivated. App reverted to Community Free edition.');
+      } else {
+        setActionError(res.error || 'Deactivation failed.');
+      }
+    } catch (err: any) {
+      setActionError(err?.message || 'Error contacting license server');
+    } finally {
+      setIsDeactivating(false);
+    }
+  };
+
+  const handleOpenPolarPortal = () => {
+    invoke('open_path_in_os', { path: 'https://polar.sh/purchases' });
+  };
+
+  const handlePurchase = () => {
+    invoke('open_path_in_os', { path: 'https://buy.polar.sh/polar_cl_fby6JW0hZacNedJuyHKQoi5m834UHFEwb9jUk1yBbMp' });
+  };
+
+  const handleCopyKey = () => {
+    if (licenseInfo?.key) {
+      navigator.clipboard.writeText(licenseInfo.key);
+      setIsKeyCopied(true);
+      setTimeout(() => setIsKeyCopied(false), 2000);
+    }
+  };
 
   const handleToggleVoicePreview = async (personaId: AIVoicePersona) => {
     if (previewingPersona === personaId) {
@@ -150,6 +231,8 @@ export const PreferencesView: React.FC = () => {
   useEffect(() => {
     if (settingsSection === 'data') {
       fetchStorageInfo();
+    } else if (settingsSection === 'license') {
+      fetchLicenseInfo().catch(() => {});
     }
   }, [settingsSection]);
 
@@ -234,6 +317,7 @@ export const PreferencesView: React.FC = () => {
     { id: 'audio', label: 'Audio', icon: Speaker },
     { id: 'overlay', label: 'Overlay', icon: Layers },
     { id: 'data', label: 'Data', icon: Database },
+    { id: 'license', label: 'License & Edition', icon: ShieldCheck },
   ] as const;
 
   const PRIMARY_PRESETS = [
@@ -1005,6 +1089,281 @@ export const PreferencesView: React.FC = () => {
                 Clear Cache
               </button>
             </div>
+          </div>
+        )}
+
+        {settingsSection === 'license' && (
+          <div className="space-y-5 max-w-xl">
+            <div>
+              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                License & Edition
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Manage your DopeNotch license, device seat entitlements, and lifetime updates
+              </p>
+            </div>
+
+            {/* Pro Active Card */}
+            {licenseInfo?.is_pro ? (
+              <div className="p-5 rounded-2xl bg-[#111114] border border-[#1e1e24] space-y-4">
+                {/* Tier Header Badge */}
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide uppercase flex items-center gap-1.5 ${
+                        licenseInfo.tier === 'forever'
+                          ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      }`}>
+                        {licenseInfo.tier === 'forever' ? (
+                          <>
+                            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                            DopeNotch Pro — Forever Updates Pass
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-3.5 h-3.5 text-amber-400" />
+                            DopeNotch Pro Core
+                          </>
+                        )}
+                      </span>
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="w-3 h-3" /> Active & Verified
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400">
+                      {licenseInfo.tier === 'forever'
+                        ? 'Lifetime access to all current and future major upgrades (v1.0, v2.0+) forever.'
+                        : 'Permanent access to current release series with all security and maintenance updates.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#1e1e24] text-xs">
+                  <div className="p-3 rounded-xl bg-[#0a0a0c] border border-[#1e1e24]/80 space-y-1">
+                    <span className="text-[11px] text-zinc-500 block">License Key</span>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-zinc-200">
+                        {licenseInfo.key ? `${licenseInfo.key.slice(0, 9)}••••-••••-${licenseInfo.key.slice(-4)}` : '••••••••'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleCopyKey}
+                        className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                        title="Copy full key to clipboard"
+                      >
+                        {isKeyCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#0a0a0c] border border-[#1e1e24]/80 space-y-1">
+                    <span className="text-[11px] text-zinc-500 block">Registered Customer</span>
+                    <span className="font-mono text-zinc-200 truncate block" title={licenseInfo.customer_email || 'INFNI-T Customer'}>
+                      {licenseInfo.customer_email || 'INFNI-T Customer'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#0a0a0c] border border-[#1e1e24]/80 space-y-1">
+                    <span className="text-[11px] text-zinc-500 block">Seat Limit</span>
+                    <span className="font-medium text-zinc-200 flex items-center gap-1.5">
+                      <Laptop className="w-3.5 h-3.5 text-zinc-400" />
+                      {licenseInfo.limit_activations ? `${licenseInfo.limit_activations} Mac${licenseInfo.limit_activations > 1 ? 's' : ''}` : '1 Mac'}
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#0a0a0c] border border-[#1e1e24]/80 space-y-1">
+                    <span className="text-[11px] text-zinc-500 block">Activation Server</span>
+                    <span className="font-mono text-zinc-400 text-[11px] flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Polar.sh Verified
+                    </span>
+                  </div>
+                </div>
+
+                {/* Unlocked Entitlements */}
+                <div className="space-y-2 pt-2 border-t border-[#1e1e24]">
+                  <span className="text-xs font-medium text-zinc-400 block">Unlocked Pro Capabilities</span>
+                  <div className="grid grid-cols-2 gap-2 text-[11.5px] text-zinc-300">
+                    <div className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>1,000 Clipboard Items (vs 25)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Unlimited Voice Dictation</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Full SuperShelf Stash & Local LLMs</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>Sensitive Token Pasteboard Filter</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Management Actions */}
+                <div className="flex items-center justify-between pt-3 border-t border-[#1e1e24]">
+                  <button
+                    type="button"
+                    onClick={handleOpenPolarPortal}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-medium border border-white/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Manage in Polar Customer Portal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeactivate}
+                    disabled={isDeactivating}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-medium border border-rose-500/20 transition-all cursor-pointer"
+                  >
+                    {isDeactivating ? 'Deactivating...' : 'Deactivate on this Mac'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Community Edition & Activation Form */
+              <div className="space-y-4">
+                {/* Status Card */}
+                <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-zinc-800/60 border border-zinc-700/50 flex items-center justify-center text-zinc-300">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-white">Community Free Edition</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-[11.5px] text-zinc-400 mt-0.5">
+                        Core on-device speech transcription, 25-item clipboard history, and standard notch HUD.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activation Form Card */}
+                <div className="p-5 rounded-2xl bg-[#111114] border border-[#1e1e24] space-y-4">
+                  <div>
+                    <h4 className="text-xs font-semibold text-white flex items-center gap-1.5">
+                      <Key className="w-3.5 h-3.5 text-amber-400" />
+                      Activate DopeNotch Pro
+                    </h4>
+                    <p className="text-[11px] text-zinc-400 mt-0.5">
+                      Enter your Polar license key to unlock unlimited clipboard history, unlimited dictation, and advanced AI.
+                    </p>
+                  </div>
+
+                  {actionError && (
+                    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{actionError}</span>
+                    </div>
+                  )}
+
+                  {actionSuccess && (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      <span>{actionSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                        Polar License Key
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="DOPE-CORE-... or DOPE-FVR-..."
+                        value={keyInput}
+                        onChange={(e) => setKeyInput(e.target.value)}
+                        className="w-full bg-[#09090b] border border-[#1e1e24] focus:border-amber-400/50 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder:text-zinc-600 focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+                        Device Label <span className="text-zinc-600 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Work MacBook Pro"
+                        value={deviceLabelInput}
+                        onChange={(e) => setDeviceLabelInput(e.target.value)}
+                        className="w-full bg-[#09090b] border border-[#1e1e24] focus:border-amber-400/50 rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none transition-colors"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <button
+                        type="button"
+                        onClick={handleActivate}
+                        disabled={isActivating || !keyInput.trim()}
+                        className="px-4 py-2 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                      >
+                        {isActivating ? (
+                          <>
+                            <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Verifying with Polar...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Key className="w-3.5 h-3.5" />
+                            <span>Activate License</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handlePurchase}
+                        className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+                      >
+                        <span>Don't have a license? Get Pro ($15+)</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Editions Comparison Card */}
+                <div className="p-4 rounded-xl bg-[#0e0e11] border border-[#1e1e24] space-y-3">
+                  <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                    Compare Editions
+                  </span>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-lg bg-[#141418] border border-[#1e1e24] space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-white">Pro Core</span>
+                        <span className="font-mono text-amber-400 font-semibold">$15</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">
+                        Keeps current stable release (v0.4.x) forever. Unlimited dictation, 1,000 clips history, all maintenance & security patches.
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-[#141418] border border-purple-500/20 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-purple-300">Forever Updates</span>
+                        <span className="font-mono text-purple-400 font-semibold">$24</span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed">
+                        Everything in Core + all future feature releases and major version upgrades (v1.0, v2.0+) forever with zero renewal fees.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

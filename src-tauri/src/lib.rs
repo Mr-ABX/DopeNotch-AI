@@ -15,6 +15,7 @@ pub mod app_launcher;
 pub mod screen_vision;
 pub mod storage;
 pub mod ollama_manager;
+pub mod license;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -229,6 +230,9 @@ pub fn run() {
             commands::get_ollama_status,
             commands::speak_text_native,
             commands::stop_speech_native,
+            commands::get_license_info,
+            commands::activate_license_key,
+            commands::deactivate_license_key,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

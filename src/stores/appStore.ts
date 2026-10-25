@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/core';
 
 export type SidebarTab =
   | 'welcome'
@@ -188,6 +189,17 @@ export const AI_VOICE_PERSONAS: AIVoicePersonaInfo[] = [
   },
 ];
 
+export interface LicenseInfo {
+  key: string;
+  tier: 'community' | 'core' | 'forever' | string;
+  is_pro: boolean;
+  activation_id?: string | null;
+  customer_email?: string | null;
+  customer_name?: string | null;
+  activated_at?: string | null;
+  limit_activations?: number | null;
+}
+
 interface AppState {
   // Navigation
   activeTab: SidebarTab;
@@ -196,8 +208,15 @@ interface AppState {
   toggleSidebarCollapsed: () => void;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (open: boolean) => void;
-  settingsSection: 'general' | 'dictation' | 'audio' | 'overlay' | 'data' | 'experimental';
-  setSettingsSection: (section: 'general' | 'dictation' | 'audio' | 'overlay' | 'data' | 'experimental') => void;
+  settingsSection: 'general' | 'dictation' | 'audio' | 'overlay' | 'data' | 'license' | 'experimental';
+  setSettingsSection: (section: 'general' | 'dictation' | 'audio' | 'overlay' | 'data' | 'license' | 'experimental') => void;
+
+  // License & Entitlements
+  licenseInfo: LicenseInfo;
+  setLicenseInfo: (info: LicenseInfo) => void;
+  fetchLicenseInfo: () => Promise<LicenseInfo | null>;
+  activateLicense: (key: string, label?: string) => Promise<{ success: boolean; error?: string }>;
+  deactivateLicense: () => Promise<{ success: boolean; error?: string }>;
 
   // General Preferences
   hotkey: string;
@@ -514,6 +533,55 @@ export const useAppStore = create<AppState>((set) => ({
   setIsSettingsOpen: (open) => set({ isSettingsOpen: open }),
   settingsSection: 'general',
   setSettingsSection: (section) => set({ settingsSection: section }),
+
+  // License & Entitlements
+  licenseInfo: {
+    key: '',
+    tier: 'community',
+    is_pro: false,
+    activation_id: null,
+    customer_email: null,
+    customer_name: null,
+    activated_at: null,
+    limit_activations: 1,
+  },
+  setLicenseInfo: (licenseInfo) => set({ licenseInfo }),
+  fetchLicenseInfo: async () => {
+    try {
+      const info = await invoke<LicenseInfo>('get_license_info');
+      if (info) {
+        set({ licenseInfo: info });
+        return info;
+      }
+    } catch (e) {
+      console.error('Failed to get license info:', e);
+    }
+    return null;
+  },
+  activateLicense: async (key: string, label?: string) => {
+    try {
+      const info = await invoke<LicenseInfo>('activate_license_key', { key, label: label || null });
+      if (info) {
+        set({ licenseInfo: info });
+        return { success: true };
+      }
+      return { success: false, error: 'Activation failed' };
+    } catch (e: any) {
+      return { success: false, error: typeof e === 'string' ? e : e?.message || 'Activation failed' };
+    }
+  },
+  deactivateLicense: async () => {
+    try {
+      const info = await invoke<LicenseInfo>('deactivate_license_key');
+      if (info) {
+        set({ licenseInfo: info });
+        return { success: true };
+      }
+      return { success: false, error: 'Deactivation failed' };
+    } catch (e: any) {
+      return { success: false, error: typeof e === 'string' ? e : e?.message || 'Deactivation failed' };
+    }
+  },
 
   // General Preferences
   hotkey: 'Option+Space',

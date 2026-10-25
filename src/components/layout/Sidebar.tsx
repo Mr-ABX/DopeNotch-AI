@@ -31,7 +31,19 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab, isSidebarCollapsed, toggleSidebarCollapsed } = useAppStore();
+  const {
+    activeTab,
+    setActiveTab,
+    isSidebarCollapsed,
+    toggleSidebarCollapsed,
+    licenseInfo,
+    setSettingsSection,
+  } = useAppStore();
+
+  const handleOpenLicense = () => {
+    setActiveTab('preferences');
+    setSettingsSection('license');
+  };
 
   return (
     <aside
@@ -124,10 +136,36 @@ export const Sidebar: React.FC = () => {
         }`}
       >
         <span>v0.4.0</span>
-        <span className="flex items-center gap-1.5 text-zinc-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-          {!isSidebarCollapsed && 'Offline'}
-        </span>
+        <button
+          onClick={handleOpenLicense}
+          className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider uppercase transition-all cursor-pointer ${
+            licenseInfo?.is_pro
+              ? licenseInfo.tier === 'forever'
+                ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30 hover:bg-purple-500/25'
+                : 'bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+              : 'bg-white/5 text-zinc-400 border border-white/10 hover:text-white hover:bg-white/10'
+          }`}
+          title="Click to view license & edition status"
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              licenseInfo?.is_pro
+                ? licenseInfo.tier === 'forever'
+                  ? 'bg-purple-400'
+                  : 'bg-amber-400'
+                : 'bg-emerald-400'
+            }`}
+          />
+          {!isSidebarCollapsed && (
+            <span>
+              {licenseInfo?.is_pro
+                ? licenseInfo.tier === 'forever'
+                  ? 'PRO FOREVER'
+                  : 'PRO CORE'
+                : 'COMMUNITY'}
+            </span>
+          )}
+        </button>
       </div>
     </aside>
   );

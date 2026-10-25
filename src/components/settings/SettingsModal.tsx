@@ -6,6 +6,8 @@ import {
   Speaker,
   Layers,
   Database,
+  ShieldCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { useAppStore, OverlayStyle } from '../../stores/appStore';
 
@@ -31,6 +33,8 @@ export const SettingsModal: React.FC = () => {
     selectedInputDevice,
     setSelectedInputDevice,
     clearHistory,
+    licenseInfo,
+    setActiveTab,
   } = useAppStore();
 
   if (!isSettingsOpen) return null;
@@ -41,6 +45,7 @@ export const SettingsModal: React.FC = () => {
     { id: 'audio', label: 'Audio', icon: Speaker },
     { id: 'overlay', label: 'Overlay', icon: Layers },
     { id: 'data', label: 'Data', icon: Database },
+    { id: 'license', label: 'License', icon: ShieldCheck },
   ] as const;
 
   return (
@@ -208,6 +213,47 @@ export const SettingsModal: React.FC = () => {
                   className="px-3 py-1 rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-xs font-medium border border-rose-500/20 transition-colors cursor-pointer"
                 >
                   Clear Cache
+                </button>
+              </div>
+            )}
+
+            {settingsSection === 'license' && (
+              <div className="space-y-3">
+                <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-white">Active Edition</span>
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold uppercase ${
+                      licenseInfo?.is_pro
+                        ? licenseInfo.tier === 'forever'
+                          ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                          : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                        : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                    }`}>
+                      {licenseInfo?.is_pro
+                        ? licenseInfo.tier === 'forever'
+                          ? 'Pro Forever'
+                          : 'Pro Core'
+                        : 'Community Free'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400">
+                    {licenseInfo?.is_pro
+                      ? `Registered to ${licenseInfo.customer_email || 'INFNI-T Customer'} with active entitlements.`
+                      : 'Community edition active. Upgrade to DopeNotch Pro for unlimited history and dictation.'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsOpen(false);
+                    setActiveTab('preferences');
+                    setSettingsSection('license');
+                  }}
+                  className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white text-xs font-medium border border-white/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <span>Open Full License & Entitlements Dashboard</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </button>
               </div>
             )}

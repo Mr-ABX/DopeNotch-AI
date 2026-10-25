@@ -32,6 +32,7 @@ export function useLiquidSync() {
     setDownloadProgress,
     markModelInstalled,
     setInputDevices,
+    fetchLicenseInfo,
   } = useAppStore();
 
   const startTimeRef = useRef<number | null>(null);
@@ -72,6 +73,11 @@ export function useLiquidSync() {
           { id: 'built-in', name: 'Built-in Studio Microphone' },
         ]);
       });
+
+    // Fetch initial Polar License & Pro status
+    fetchLicenseInfo().catch((err) => {
+      console.warn('Could not sync license info:', err);
+    });
 
     // Load persisted clipboard history from backend
     invoke<any[]>('get_clipboard_history')

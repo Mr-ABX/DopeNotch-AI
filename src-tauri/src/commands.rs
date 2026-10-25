@@ -2200,6 +2200,21 @@ pub async fn stop_speech_native() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn get_license_info() -> crate::license::LicenseData {
+    crate::license::load_license()
+}
+
+#[tauri::command]
+pub async fn activate_license_key(key: String, label: Option<String>) -> Result<crate::license::LicenseData, String> {
+    crate::license::activate_license(key, label).await
+}
+
+#[tauri::command]
+pub async fn deactivate_license_key() -> Result<crate::license::LicenseData, String> {
+    crate::license::deactivate_license().await
+}
+
 
 
 
