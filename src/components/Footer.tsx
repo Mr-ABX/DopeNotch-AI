@@ -4,36 +4,37 @@ import { AppleLogo } from './AppleLogo';
 
 export const Footer: React.FC = () => {
   return (
-    <footer className="relative bg-black text-white pt-0 pb-16 overflow-hidden select-none">
+    <footer className="relative bg-black text-white pt-0 pb-16 overflow-hidden select-none rounded-t-[36px] sm:rounded-t-[48px]">
       
-      {/* 1:1 IDENTICAL NOTCH SEPARATOR MATCHING HEADER NOTCH GEOMETRY */}
+      {/* 1:1 SMOOTH NOTCH SEPARATOR MATCHING HEADER NOTCH GEOMETRY */}
       <div className="relative w-full h-11 sm:h-12 flex justify-center items-start overflow-visible pointer-events-none select-none -top-px">
-        {/* The white top notch that hangs down into the black footer, flanked by two white ears */}
-        <div className="relative flex items-start w-[88%] sm:w-[82%] md:w-[76%] lg:w-[70%] max-w-5xl justify-center pointer-events-auto">
+        {/* The white top notch that hangs down into the black footer, flanked by two smooth white ears */}
+        <div className="relative flex items-start w-[84%] sm:w-[78%] md:w-[72%] lg:w-[66%] max-w-5xl justify-center pointer-events-auto">
           
-          {/* Left White Ear (Identical Apple Concave Curve) */}
-          <div className="w-5 h-5 flex-none relative overflow-visible -mr-[0.5px]">
+          {/* Left White Ear (Smooth Continuous Apple Concave Curve) */}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 flex-none relative overflow-visible -mr-[1px]">
             <svg 
-              viewBox="0 0 20 20" 
-              className="w-5 h-5 fill-white flex-none" 
-              style={{ transform: 'scaleX(-1)' }}
+              viewBox="0 0 28 28" 
+              className="w-full h-full fill-white flex-none block" 
+              style={{ transform: 'scaleX(-1)', shapeRendering: 'geometricPrecision' }}
               aria-hidden="true"
             >
-              <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+              <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
             </svg>
           </div>
 
           {/* Center White Notch Body hanging down into black footer */}
-          <div className="flex-1 bg-white h-10 sm:h-11 rounded-b-[18px]"></div>
+          <div className="flex-1 bg-white h-10 sm:h-11 rounded-b-[22px] sm:rounded-b-[24px]"></div>
 
-          {/* Right White Ear (Identical Apple Concave Curve) */}
-          <div className="w-5 h-5 flex-none relative overflow-visible -ml-[0.5px]">
+          {/* Right White Ear (Smooth Continuous Apple Concave Curve) */}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 flex-none relative overflow-visible -ml-[1px]">
             <svg 
-              viewBox="0 0 20 20" 
-              className="w-5 h-5 fill-white flex-none" 
+              viewBox="0 0 28 28" 
+              className="w-full h-full fill-white flex-none block" 
+              style={{ shapeRendering: 'geometricPrecision' }}
               aria-hidden="true"
             >
-              <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+              <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
             </svg>
           </div>
 

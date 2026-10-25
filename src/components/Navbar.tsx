@@ -7,24 +7,24 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none select-none">
-      {/* 1:1 Hardware Notch Header matching Supaste geometry */}
-      <div className="relative flex items-start pointer-events-auto">
+      {/* 1:1 Smooth Squircle Hardware Notch Header */}
+      <div className="relative flex items-start pointer-events-auto drop-shadow-[0_14px_28px_rgba(0,0,0,0.28)]">
         
-        {/* Left Notch Ear SVG (Exact Apple Concave Curve) */}
-        <div className="w-5 h-5 flex-none relative overflow-visible -mr-[0.5px]">
+        {/* Left Notch Ear SVG (Ultra-Smooth Continuous Bezier Fillet) */}
+        <div className="w-7 h-7 flex-none relative overflow-visible -mr-[1px]">
           <svg 
-            viewBox="0 0 20 20" 
-            className="w-5 h-5 fill-black flex-none" 
+            viewBox="0 0 28 28" 
+            className="w-7 h-7 fill-black flex-none block" 
             style={{ transform: 'scaleX(-1)' }}
             aria-hidden="true"
           >
-            <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+            <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
           </svg>
         </div>
 
-        {/* Center Notch Body */}
+        {/* Center Notch Body (No side border seams — seamless flow into ears) */}
         <nav 
-          className="bg-black text-white h-[50px] px-5 sm:px-6 rounded-b-[18px] flex items-center gap-6 sm:gap-8 shadow-2xl border-b border-x border-white/10"
+          className="bg-black text-white h-[52px] px-5 sm:px-7 rounded-b-[24px] flex items-center gap-6 sm:gap-8"
           aria-label="Main Navigation"
         >
           {/* Logo (30x30 unboxed with 14px semi-bold text) */}
@@ -40,7 +40,7 @@ export const Navbar: React.FC = () => {
           </a>
 
           {/* Desktop Links */}
-          <div className="hidden md:flex items-center gap-5 lg:gap-6 text-[13px] text-white/60 font-medium">
+          <div className="hidden md:flex items-center gap-5 lg:gap-6 text-[13px] text-white/65 font-medium">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
             <a href="#workflows" className="hover:text-white transition-colors">Updates</a>
@@ -48,10 +48,10 @@ export const Navbar: React.FC = () => {
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           </div>
 
-          {/* Download Button (Exact Supaste 8px radius pill with Apple icon) */}
+          {/* Download Button (Smooth 10px radius pill with Apple icon) */}
           <a 
             href="#pricing"
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[8px] text-[12px] font-semibold bg-white text-black hover:bg-zinc-100 transition-all hover:scale-105 active:scale-95 shadow-sm flex-none"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-[10px] text-[12px] font-semibold bg-white text-black hover:bg-zinc-100 transition-all hover:scale-105 active:scale-95 shadow-sm flex-none"
           >
             <AppleLogo className="w-3 h-3 text-black" />
             <span>Download</span>
@@ -67,14 +67,14 @@ export const Navbar: React.FC = () => {
           </button>
         </nav>
 
-        {/* Right Notch Ear SVG (Exact Apple Concave Curve) */}
-        <div className="w-5 h-5 flex-none relative overflow-visible -ml-[0.5px]">
+        {/* Right Notch Ear SVG (Ultra-Smooth Continuous Bezier Fillet) */}
+        <div className="w-7 h-7 flex-none relative overflow-visible -ml-[1px]">
           <svg 
-            viewBox="0 0 20 20" 
-            className="w-5 h-5 fill-black flex-none" 
+            viewBox="0 0 28 28" 
+            className="w-7 h-7 fill-black flex-none block" 
             aria-hidden="true"
           >
-            <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+            <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
           </svg>
         </div>
 

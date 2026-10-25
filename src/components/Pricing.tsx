@@ -1,32 +1,29 @@
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Sparkles, ShieldCheck } from 'lucide-react';
 import { AppleLogo } from './AppleLogo';
 
 export const Pricing: React.FC = () => {
-  const [devices, setDevices] = useState<1 | 2 | 3>(1);
+  const [foreverUpdates, setForeverUpdates] = useState<boolean>(false);
 
-  const priceMap = {
-    1: {
-      price: '$15',
-      oldPrice: '$29',
-      license: '1 device license',
-      checkoutUrl: 'https://buy.polar.sh/polar_cl_fby6JW0hZacNedJuyHKQoi5m834UHFEwb9jUk1yBbMp',
-    },
-    2: {
-      price: '$24',
-      oldPrice: '$49',
-      license: '2 devices license',
-      checkoutUrl: 'https://buy.polar.sh/polar_cl_Vo7H00kWSn6lc0gMQLS3RETsL2sva2tE3kwhP1SRGR0',
-    },
-    3: {
-      price: '$29',
-      oldPrice: '$59',
-      license: '3 devices license',
-      checkoutUrl: 'https://buy.polar.sh/polar_cl_soQ0nPqahzBwvw9vdsyUEqbVPiMPj5hYPUgtX0CTdjG',
-    },
-  };
-
-  const current = priceMap[devices];
+  const currentPlan = foreverUpdates
+    ? {
+        name: 'DopeNotch Pro + Forever Updates Pass',
+        badge: 'Includes all future v1.0 & v2.0+ feature releases',
+        price: '$24',
+        oldPrice: '$49',
+        updateFeature: 'Forever Updates Pass — all future features & major versions',
+        buttonText: 'Get Pro + Forever Updates ($24)',
+        checkoutUrl: 'https://buy.polar.sh/polar_cl_Vo7H00kWSn6lc0gMQLS3RETsL2sva2tE3kwhP1SRGR0',
+      }
+    : {
+        name: 'DopeNotch Pro Core',
+        badge: 'Keep the current stable release (v0.4.x) forever',
+        price: '$15',
+        oldPrice: '$29',
+        updateFeature: 'Current stable release (v0.4.x) + security patches & bug fixes',
+        buttonText: 'Get Pro Core ($15)',
+        checkoutUrl: 'https://buy.polar.sh/polar_cl_fby6JW0hZacNedJuyHKQoi5m834UHFEwb9jUk1yBbMp',
+      };
 
   return (
     <section id="pricing" className="relative py-28 sm:py-36 px-4 sm:px-6 flex flex-col items-center text-center bg-white overflow-hidden select-none">
@@ -61,13 +58,13 @@ export const Pricing: React.FC = () => {
       <div className="max-w-2xl mx-auto mb-14 sm:mb-16 relative z-10">
         <h2 className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight text-[#111113] mb-5 leading-[1.05]">
           Simple pricing.<br />
-          Lifetime access.
+          Own it forever.
         </h2>
         <p className="text-[#3a3a3c] text-sm sm:text-base font-medium mb-3 leading-relaxed">
-          Start for free with Community Edition, or unlock full lifetime powers with Pro.
+          Start free with Community Edition, or own the current stable Pro release forever — with optional Forever Updates.
         </p>
         <p className="text-[#6e6e73] text-xs max-w-lg mx-auto leading-relaxed font-normal">
-          One-time payment for Pro. No monthly subscriptions. 14-day money-back guarantee.
+          One-time payment. No monthly subscriptions. Select additional device seats or upgrades directly at checkout.
         </p>
       </div>
 
@@ -81,7 +78,7 @@ export const Pricing: React.FC = () => {
             {/* Top Badge */}
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-100 text-zinc-700 text-xs font-semibold mb-6">
               <span>🌱</span>
-              <span>Free Community Edition</span>
+              <span>Community Free</span>
             </div>
 
             {/* Price Header */}
@@ -90,7 +87,7 @@ export const Pricing: React.FC = () => {
               <span className="text-sm font-semibold text-zinc-500">/ forever</span>
             </div>
             <p className="text-xs text-zinc-500 mb-8 max-w-xs mx-auto">
-              Essential on-device voice & clipboard utility for casual everyday use.
+              Essential on-device voice dictation & clipboard utility for casual everyday use.
             </p>
 
             {/* Feature Limits & Inclusions */}
@@ -105,7 +102,7 @@ export const Pricing: React.FC = () => {
                 <div className="w-4 h-4 rounded-full border border-zinc-300 flex items-center justify-center flex-none text-zinc-500">
                   <Check className="w-2.5 h-2.5 stroke-[2.5]" />
                 </div>
-                <span><strong>5 min/day</strong> Whisper voice dictation</span>
+                <span><strong>5 min/day</strong> local Whisper voice dictation</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded-full border border-zinc-300 flex items-center justify-center flex-none text-zinc-500">
@@ -117,19 +114,19 @@ export const Pricing: React.FC = () => {
                 <div className="w-4 h-4 rounded-full border border-zinc-300 flex items-center justify-center flex-none text-zinc-500">
                   <Check className="w-2.5 h-2.5 stroke-[2.5]" />
                 </div>
-                <span>Basic search & paste history</span>
+                <span>Basic search & instant paste history</span>
               </div>
               <div className="flex items-center gap-3 text-zinc-400">
                 <div className="w-4 h-4 rounded-full border border-zinc-200 flex items-center justify-center flex-none text-zinc-300">
                   <span className="text-[10px] leading-none">✕</span>
                 </div>
-                <span className="line-through">Custom categories & shelf pinning</span>
+                <span className="line-through">Notch Stash shelf & custom categories</span>
               </div>
               <div className="flex items-center gap-3 text-zinc-400">
                 <div className="w-4 h-4 rounded-full border border-zinc-200 flex items-center justify-center flex-none text-zinc-300">
                   <span className="text-[10px] leading-none">✕</span>
                 </div>
-                <span className="line-through">Unlimited voice speech & models</span>
+                <span className="line-through">Unlimited voice speech, AI voices & models</span>
               </div>
             </div>
           </div>
@@ -149,14 +146,14 @@ export const Pricing: React.FC = () => {
         {/* ─── TIER 2: SIGNATURE NOTCHED PRO LIFETIME CARD ─────────────────── */}
         <div className="bg-[#f7f7f7] rounded-[40px] shadow-[0_25px_70px_rgba(0,0,0,0.14)] p-8 sm:p-10 text-black flex flex-col justify-between border-2 border-amber-500/20 relative">
           
-          {/* Card's Top Hardware Notch with Seamless Concave Ears (100% Mathematically Centered) */}
+          {/* Card's Top Hardware Notch with Smooth Concave Ears */}
           <div className="absolute top-0 inset-x-0 flex justify-center z-20 pointer-events-none">
-            <div className="relative bg-black text-white h-10 sm:h-11 px-5 sm:px-6 rounded-b-[18px] sm:rounded-b-[20px] flex items-center justify-center gap-2.5 shadow-md flex-none">
+            <div className="relative bg-black text-white h-10 sm:h-11 px-5 sm:px-6 rounded-b-[20px] sm:rounded-b-[22px] flex items-center justify-center gap-2.5 shadow-md flex-none">
               
-              {/* Left concave ear */}
-              <div className="absolute top-0 -left-[19.5px] w-5 h-5 overflow-visible pointer-events-none">
-                <svg viewBox="0 0 20 20" className="w-5 h-5 fill-black" style={{ transform: 'scaleX(-1)' }} aria-hidden="true">
-                  <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+              {/* Left smooth concave ear */}
+              <div className="absolute top-0 -left-[23px] w-6 h-6 overflow-visible pointer-events-none">
+                <svg viewBox="0 0 24 24" className="w-6 h-6 fill-black block" style={{ transform: 'scaleX(-1)', shapeRendering: 'geometricPrecision' }} aria-hidden="true">
+                  <path d="M 0 0 L 24 0 C 10 0 0 10 0 24 Z" />
                 </svg>
               </div>
 
@@ -165,13 +162,13 @@ export const Pricing: React.FC = () => {
                 ⚡
               </div>
               <span className="text-[13px] sm:text-[14px] font-semibold tracking-tight text-white whitespace-nowrap">
-                DopeNotch Pro for macOS
+                DopeNotch Pro — Lifetime
               </span>
 
-              {/* Right concave ear */}
-              <div className="absolute top-0 -right-[19.5px] w-5 h-5 overflow-visible pointer-events-none">
-                <svg viewBox="0 0 20 20" className="w-5 h-5 fill-black" aria-hidden="true">
-                  <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+              {/* Right smooth concave ear */}
+              <div className="absolute top-0 -right-[23px] w-6 h-6 overflow-visible pointer-events-none">
+                <svg viewBox="0 0 24 24" className="w-6 h-6 fill-black block" style={{ shapeRendering: 'geometricPrecision' }} aria-hidden="true">
+                  <path d="M 0 0 L 24 0 C 10 0 0 10 0 24 Z" />
                 </svg>
               </div>
 
@@ -179,49 +176,62 @@ export const Pricing: React.FC = () => {
           </div>
 
           <div>
-            {/* Device Selector Segmented Control (1:1 Supaste rounded-[14px]) */}
-            <div className="w-full grid grid-cols-3 gap-1.5 p-1 rounded-[14px] bg-white border border-black/[0.04] mt-9 sm:mt-10 mb-7 shadow-xs">
-              {[1, 2, 3].map((num) => (
-                <button
-                  key={num}
-                  onClick={() => setDevices(num as 1 | 2 | 3)}
-                  className={`py-2 rounded-[11px] text-xs font-semibold transition-all duration-200 ${
-                    devices === num
-                      ? 'bg-black text-white shadow-xs scale-[1.01]'
-                      : 'text-zinc-600 hover:text-black'
+            {/* Big Price Display ($15 Standard or $24 Forever Updates) */}
+            <div className="mt-9 sm:mt-10 mb-2 flex items-baseline justify-center gap-3">
+              <span className="text-6xl sm:text-7xl font-bold text-[#111113] tracking-tight">{currentPlan.price}</span>
+              <span className="text-3xl font-normal text-zinc-300 line-through tracking-normal">{currentPlan.oldPrice}</span>
+              <span className="text-xs font-semibold text-zinc-500">one-time</span>
+            </div>
+            <p className="text-xs font-medium text-zinc-500 mb-5">
+              {currentPlan.badge}
+            </p>
+
+            {/* Optional Forever Updates Add-on Toggle Card */}
+            <button
+              type="button"
+              onClick={() => setForeverUpdates((prev) => !prev)}
+              className={`w-full p-3.5 sm:p-4 rounded-[16px] border mb-6 text-left flex items-center justify-between gap-3 transition-all duration-200 cursor-pointer ${
+                foreverUpdates
+                  ? 'bg-amber-50/90 border-amber-500/50 shadow-sm'
+                  : 'bg-white border-black/[0.06] hover:border-black/15 shadow-xs'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className={`mt-0.5 w-5 h-5 rounded-[7px] flex items-center justify-center flex-none transition-colors ${
+                    foreverUpdates
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-zinc-100 border border-zinc-300 text-transparent'
                   }`}
                 >
-                  {num} {num === 1 ? 'device' : 'devices'}
-                </button>
-              ))}
-            </div>
-
-            {/* Big Price Display ($15 $29) */}
-            <div className="flex items-baseline justify-center gap-3 mb-5">
-              <span className="text-6xl sm:text-7xl font-bold text-[#111113] tracking-tight">{current.price}</span>
-              <span className="text-3xl font-normal text-zinc-300 line-through tracking-normal">{current.oldPrice}</span>
-            </div>
-
-            {/* Limited Offer Progress Box (1:1 Supaste White Card) */}
-            <div className="w-full p-3.5 sm:p-4 rounded-[16px] bg-white border border-black/[0.04] mb-7 text-left flex flex-col gap-2 shadow-xs">
-              <div className="flex items-center justify-between text-xs font-semibold text-zinc-800">
-                <span>Limited offer for early users 🥳</span>
-                <span className="text-[11px] text-zinc-500 font-medium font-sans">5 spots left</span>
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-[13px] font-bold text-zinc-900">
+                      Add Forever Updates Pass
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700">
+                      +$9
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 leading-snug mt-0.5">
+                    Unlock all future major versions (v1.0, v2.0+) & upcoming roadmap features forever.
+                  </p>
+                </div>
               </div>
-              <div className="w-full h-2 rounded-full bg-[#e3e3e3] overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-[#F69E0B] to-[#D97706] rounded-full w-[75%] transition-all duration-500 shadow-xs" />
-              </div>
-            </div>
+              <Sparkles className={`w-4 h-4 flex-none ${foreverUpdates ? 'text-amber-500' : 'text-zinc-300'}`} />
+            </button>
 
             {/* Feature Checklist with Rounded Check Circles */}
             <div className="w-full space-y-3.5 text-left text-xs sm:text-[13px] font-medium text-zinc-700 mb-8">
               {[
-                'Unlimited clipboard & audio history',
-                'Unlimited on-device Whisper transcription',
-                'Notch Shelf, custom categories & tags',
-                'Lifetime updates included (no subscription)',
+                'Unlimited clipboard, Stash shelf & voice history',
+                'Unlimited offline Whisper & local AI assistant',
+                'Natural human AI voice responses (Nova & Leo)',
+                currentPlan.updateFeature,
+                'Multi-device licenses selectable in Polar checkout',
                 '14-day money-back guarantee',
-                current.license,
               ].map((feat, idx) => (
                 <div key={idx} className="flex items-center gap-3">
                   <div className="w-4 h-4 rounded-full border border-amber-500/40 bg-amber-50 flex items-center justify-center flex-none text-amber-600">
@@ -235,13 +245,13 @@ export const Pricing: React.FC = () => {
 
           {/* CTA Download Pro for macOS Button */}
           <a 
-            href={current.checkoutUrl}
+            href={currentPlan.checkoutUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-black text-white hover:bg-zinc-800 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] shadow-lg flex items-center justify-center gap-2.5 mt-4"
           >
             <AppleLogo className="w-4 h-4 text-white" />
-            <span>Get DopeNotch Pro ({current.price})</span>
+            <span>{currentPlan.buttonText}</span>
           </a>
 
         </div>
@@ -249,8 +259,9 @@ export const Pricing: React.FC = () => {
       </div>
 
       {/* ─── SUB-FOOTER REASSURANCE TEXT (1:1 SUPASTE) ─────────────────────── */}
-      <p className="text-[12px] sm:text-[13px] text-zinc-500 text-center max-w-md mx-auto mt-10 relative z-10 leading-relaxed font-normal">
-        Secure checkout by Polar.sh, powered by Stripe. Prices are in USD, excluding VAT and may vary by location.
+      <p className="text-[12px] sm:text-[13px] text-zinc-500 text-center max-w-md mx-auto mt-10 relative z-10 leading-relaxed font-normal flex items-center justify-center gap-1.5">
+        <ShieldCheck className="w-4 h-4 text-zinc-400 flex-none" />
+        <span>Secure checkout by Polar.sh. Choose device seats or upgrade options directly at checkout.</span>
       </p>
 
     </section>
