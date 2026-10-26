@@ -1878,11 +1878,11 @@ export const SuperNotch: React.FC = () => {
             {/* 2. TRANSPARENT AIR GAP (8px) */}
             <div className="h-2 w-full shrink-0" />
 
-            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET (Soft Squircle 24px, Solid Jet Black matching notch) */}
+            {/* 3. DETACHED FLOATING CHAT ISLAND WIDGET (Soft Squircle 24px, Frosted Liquid Glass) */}
             <div
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
-              className="w-[580px] flex-1 rounded-[24px] bg-black border border-white/[0.08] p-3.5 flex flex-col justify-between shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] relative overflow-hidden"
+              className="w-[580px] flex-1 rounded-[24px] bg-[#0c0c0e]/95 backdrop-blur-2xl border border-white/[0.1] p-3.5 flex flex-col justify-between shadow-[0_20px_45px_-10px_rgba(0,0,0,0.45),0_8px_20px_-5px_rgba(0,0,0,0.25)] relative overflow-hidden"
             >
               {/* Header: Left (← Back Icon Only) | Center (Model Selector + Vision) | Right (Mic + Reset + Close) */}
               <div className="flex items-center justify-between pb-2 mb-1 border-b border-white/[0.06] shrink-0 relative z-20">
@@ -2379,6 +2379,41 @@ export const SuperNotch: React.FC = () => {
                     <div className="bg-white/[0.03] rounded-2xl rounded-tl-sm px-3 py-1.5 border border-white/[0.05] text-xs text-zinc-400 flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                       <span>{isScreenVisionEnabled ? 'Analyzing screen...' : 'Thinking...'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Action Suggestion Chips when Chat is in Initial State */}
+                {chatMessages.length <= 1 && !isAIGenerating && (
+                  <div className="pt-2 px-1 space-y-2 select-none">
+                    <p className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                      Suggested Actions
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { label: 'Summarize Screen', icon: Eye, prompt: 'Summarize what is currently visible on my screen concisely.' },
+                        { label: 'Extract Checklist', icon: CheckSquare, prompt: 'Extract a markdown checklist with checkboxes from my clipboard.' },
+                        { label: 'Polish & Fix Grammar', icon: Sparkles, prompt: 'Polish the grammar, tone, and clarity of this text.' },
+                        { label: 'Explain Code', icon: Code, prompt: 'Explain how this code works and suggest performance improvements.' },
+                      ].map((chip) => {
+                        const ChipIcon = chip.icon;
+                        return (
+                          <button
+                            key={chip.label}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setChatInput(chip.prompt);
+                            }}
+                            className="flex items-center gap-2 p-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.06] hover:border-white/[0.12] text-left transition-all group/chip cursor-pointer"
+                          >
+                            <ChipIcon className="w-3.5 h-3.5 text-zinc-400 group-hover/chip:text-amber-400 shrink-0 transition-colors" />
+                            <span className="text-[11px] font-medium text-zinc-300 group-hover/chip:text-white truncate">
+                              {chip.label}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
