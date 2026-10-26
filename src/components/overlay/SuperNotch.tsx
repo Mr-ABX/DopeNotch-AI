@@ -1693,8 +1693,8 @@ export const SuperNotch: React.FC = () => {
   const targetRadius =
     activeMode === 'shelf'
       ? isStashView
-        ? '0 0 20px 20px'
-        : '0 0 24px 24px'
+        ? '0 0 18px 18px'
+        : '0 0 20px 20px'
       : '0 0 14px 14px';
 
   return (
@@ -1795,23 +1795,25 @@ export const SuperNotch: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               className="relative flex flex-col items-center shrink-0"
             >
-              {/* Notch Left Ear (10px Fillet matching idle MacBook bezel) */}
+              {/* Notch Left Ear (Apple Squircle G2 Continuous Fillet) */}
               <svg
-                width={10}
+                width={12}
                 height={10}
-                viewBox="0 0 10 10"
-                className="absolute top-0 -left-[10px] pointer-events-none z-20"
+                viewBox="0 0 12 10"
+                className="absolute top-0 -left-[12px] pointer-events-none z-20"
+                style={{ shapeRendering: 'geometricPrecision' }}
               >
-                <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" fill="#000000" />
+                <path d="M 0 0 C 4.5 0 7.5 0.8 9.2 2.6 C 11.2 4.4 12 7 12 10 H 12.5 V 0 Z" fill="#000000" />
               </svg>
-              {/* Notch Right Ear (10px Fillet matching idle MacBook bezel) */}
+              {/* Notch Right Ear (Apple Squircle G2 Continuous Fillet) */}
               <svg
-                width={10}
+                width={12}
                 height={10}
-                viewBox="0 0 10 10"
-                className="absolute top-0 -right-[10px] pointer-events-none z-20"
+                viewBox="0 0 12 10"
+                className="absolute top-0 -right-[12px] pointer-events-none z-20"
+                style={{ shapeRendering: 'geometricPrecision' }}
               >
-                <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" fill="#000000" />
+                <path d="M 12 0 C 7.5 0 4.5 0.8 2.8 2.6 C 0.8 4.4 0 7 0 10 H -0.5 V 0 Z" fill="#000000" />
               </svg>
 
               {/* Notch Body with Orb Dead-Centered - Exact 160px x 28px matching idle state */}
@@ -2498,61 +2500,63 @@ export const SuperNotch: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Top Left Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
+            {/* Top Left Ear (Apple G2 Squircle Concave Fillet connecting seamlessly to top screen bezel) */}
         <svg
-          width={activeMode === 'shelf' ? 20 : 10}
-          height={activeMode === 'shelf' ? 20 : 10}
-          viewBox={activeMode === 'shelf' ? '0 0 20 20' : '0 0 10 10'}
+          width={activeMode === 'shelf' ? 18 : 12}
+          height={activeMode === 'shelf' ? 16 : 10}
+          viewBox={activeMode === 'shelf' ? '0 0 18 16' : '0 0 12 10'}
           className={`absolute top-0 pointer-events-none z-20 ${
-            activeMode === 'shelf' ? '-left-[20px]' : '-left-[10px]'
+            activeMode === 'shelf' ? '-left-[18px]' : '-left-[12px]'
           }`}
+          style={{ shapeRendering: 'geometricPrecision' }}
         >
           {activeMode === 'shelf' ? (
             <>
               {/* Solid jet-black fillet fill overlapping into notch boundary */}
               <path
-                d="M 0 0 C 11.046 0 20 8.954 20 20 H 20.5 V 0 Z"
+                d="M 0 0 C 7 0 11.5 1.2 14 4 C 16.8 6.8 18 10.5 18 16 H 18.5 V 0 Z"
                 fill="#000000"
               />
               {/* Organic curved border matching the notch stroke */}
               <path
-                d="M 0 0 C 11.046 0 20 8.954 20 20"
+                d="M 0 0 C 7 0 11.5 1.2 14 4 C 16.8 6.8 18 10.5 18 16"
                 fill="none"
                 stroke="rgba(255, 255, 255, 0.08)"
                 strokeWidth="1"
               />
             </>
           ) : (
-            <path d="M 0 0 H 10 V 10 C 10 4.477 5.523 0 0 0 Z" fill="#000000" />
+            <path d="M 0 0 C 4.5 0 7.5 0.8 9.2 2.6 C 11.2 4.4 12 7 12 10 H 12.5 V 0 Z" fill="#000000" />
           )}
         </svg>
 
-        {/* Top Right Ear (Concave Fillet connecting seamlessly to top screen bezel) */}
+        {/* Top Right Ear (Apple G2 Squircle Concave Fillet connecting seamlessly to top screen bezel) */}
         <svg
-          width={activeMode === 'shelf' ? 20 : 10}
-          height={activeMode === 'shelf' ? 20 : 10}
-          viewBox={activeMode === 'shelf' ? '0 0 20 20' : '0 0 10 10'}
+          width={activeMode === 'shelf' ? 18 : 12}
+          height={activeMode === 'shelf' ? 16 : 10}
+          viewBox={activeMode === 'shelf' ? '0 0 18 16' : '0 0 12 10'}
           className={`absolute top-0 pointer-events-none z-20 ${
-            activeMode === 'shelf' ? '-right-[20px]' : '-right-[10px]'
+            activeMode === 'shelf' ? '-right-[18px]' : '-right-[12px]'
           }`}
+          style={{ shapeRendering: 'geometricPrecision' }}
         >
           {activeMode === 'shelf' ? (
             <>
               {/* Solid jet-black fillet fill overlapping into notch boundary */}
               <path
-                d="M 20 0 C 8.954 0 0 8.954 0 20 H -0.5 V 0 Z"
+                d="M 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 H -0.5 V 0 Z"
                 fill="#000000"
               />
               {/* Organic curved border matching the notch stroke */}
               <path
-                d="M 20 0 C 8.954 0 0 8.954 0 20"
+                d="M 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16"
                 fill="none"
                 stroke="rgba(255, 255, 255, 0.08)"
                 strokeWidth="1"
               />
             </>
           ) : (
-            <path d="M 10 0 H 0 V 10 C 0 4.477 4.477 0 10 0 Z" fill="#000000" />
+            <path d="M 12 0 C 7.5 0 4.5 0.8 2.8 2.6 C 0.8 4.4 0 7 0 10 H -0.5 V 0 Z" fill="#000000" />
           )}
         </svg>
 
@@ -2567,11 +2571,11 @@ export const SuperNotch: React.FC = () => {
               : 'cursor-pointer border-none'
           }`}
         >
-          {/* Continuous Left & Right Borders: starting at top 20px so they connect seamlessly with ear curve */}
+          {/* Continuous Left & Right Borders: starting at top 16px so they connect seamlessly with ear curve */}
           {activeMode === 'shelf' && (
             <>
-              <div className="absolute top-[20px] bottom-0 left-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
-              <div className="absolute top-[20px] bottom-0 right-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
+              <div className="absolute top-[16px] bottom-0 left-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
+              <div className="absolute top-[16px] bottom-0 right-0 w-[1px] bg-white/[0.08] pointer-events-none z-20" />
             </>
           )}
           <AnimatePresence mode="wait">
