@@ -5,37 +5,37 @@ import { AppleLogo } from './AppleLogo';
 export const Footer: React.FC = () => {
   const [activeModal, setActiveModal] = useState<'privacy' | 'terms' | null>(null);
   return (
-    <footer className="relative bg-black text-white pt-0 pb-16 overflow-hidden select-none rounded-t-[36px] sm:rounded-t-[48px]">
+    <footer className="relative bg-black text-white pt-0 pb-16 overflow-hidden select-none rounded-t-[32px] sm:rounded-t-[44px]">
       
       {/* 1:1 SMOOTH NOTCH SEPARATOR MATCHING HEADER NOTCH GEOMETRY */}
       <div className="relative w-full h-11 sm:h-12 flex justify-center items-start overflow-visible pointer-events-none select-none -top-px">
         {/* The white top notch that hangs down into the black footer, flanked by two smooth white ears */}
         <div className="relative flex items-start w-[84%] sm:w-[78%] md:w-[72%] lg:w-[66%] max-w-5xl justify-center pointer-events-auto">
           
-          {/* Left White Ear (Smooth Continuous Apple Concave Curve) */}
-          <div className="w-7 h-7 sm:w-8 sm:h-8 flex-none relative overflow-visible -mr-[1px]">
+          {/* Left White Ear (Smooth Continuous Apple Squircle Concave Curve) */}
+          <div className="w-[18px] h-4 sm:w-[20px] sm:h-[18px] flex-none relative overflow-visible -mr-px">
             <svg 
-              viewBox="0 0 28 28" 
+              viewBox="0 0 18 16" 
               className="w-full h-full fill-white flex-none block" 
               style={{ transform: 'scaleX(-1)', shapeRendering: 'geometricPrecision' }}
               aria-hidden="true"
             >
-              <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
+              <path d="M 0 0 L 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 Z" />
             </svg>
           </div>
 
           {/* Center White Notch Body hanging down into black footer */}
-          <div className="flex-1 bg-white h-10 sm:h-11 rounded-b-[22px] sm:rounded-b-[24px]"></div>
+          <div className="flex-1 bg-white h-10 sm:h-11 rounded-b-[16px] sm:rounded-b-[18px]"></div>
 
-          {/* Right White Ear (Smooth Continuous Apple Concave Curve) */}
-          <div className="w-7 h-7 sm:w-8 sm:h-8 flex-none relative overflow-visible -ml-[1px]">
+          {/* Right White Ear (Smooth Continuous Apple Squircle Concave Curve) */}
+          <div className="w-[18px] h-4 sm:w-[20px] sm:h-[18px] flex-none relative overflow-visible -ml-px">
             <svg 
-              viewBox="0 0 28 28" 
+              viewBox="0 0 18 16" 
               className="w-full h-full fill-white flex-none block" 
               style={{ shapeRendering: 'geometricPrecision' }}
               aria-hidden="true"
             >
-              <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
+              <path d="M 0 0 L 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 Z" />
             </svg>
           </div>
 

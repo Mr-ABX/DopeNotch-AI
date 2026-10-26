@@ -10,21 +10,21 @@ export const Navbar: React.FC = () => {
       {/* 1:1 Smooth Squircle Hardware Notch Header */}
       <div className="relative flex items-start pointer-events-auto drop-shadow-[0_14px_28px_rgba(0,0,0,0.28)]">
         
-        {/* Left Notch Ear SVG (Ultra-Smooth Continuous Bezier Fillet) */}
-        <div className="w-7 h-7 flex-none relative overflow-visible -mr-[1px]">
+        {/* Left Notch Ear SVG (Ultra-Smooth Continuous Apple Squircle Fillet) */}
+        <div className="w-[18px] h-4 flex-none relative overflow-visible -mr-px">
           <svg 
-            viewBox="0 0 28 28" 
-            className="w-7 h-7 fill-black flex-none block" 
-            style={{ transform: 'scaleX(-1)' }}
+            viewBox="0 0 18 16" 
+            className="w-[18px] h-4 fill-black flex-none block" 
+            style={{ transform: 'scaleX(-1)', shapeRendering: 'geometricPrecision' }}
             aria-hidden="true"
           >
-            <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
+            <path d="M 0 0 L 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 Z" />
           </svg>
         </div>
 
         {/* Center Notch Body (No side border seams — seamless flow into ears) */}
         <nav 
-          className="bg-black text-white h-[52px] px-5 sm:px-7 rounded-b-[24px] flex items-center gap-6 sm:gap-8"
+          className="bg-black text-white h-[52px] px-5 sm:px-7 rounded-b-[18px] flex items-center gap-6 sm:gap-8"
           aria-label="Main Navigation"
         >
           {/* Logo (30x30 unboxed with 14px semi-bold text) */}
@@ -67,14 +67,15 @@ export const Navbar: React.FC = () => {
           </button>
         </nav>
 
-        {/* Right Notch Ear SVG (Ultra-Smooth Continuous Bezier Fillet) */}
-        <div className="w-7 h-7 flex-none relative overflow-visible -ml-[1px]">
+        {/* Right Notch Ear SVG (Ultra-Smooth Continuous Apple Squircle Fillet) */}
+        <div className="w-[18px] h-4 flex-none relative overflow-visible -ml-px">
           <svg 
-            viewBox="0 0 28 28" 
-            className="w-7 h-7 fill-black flex-none block" 
+            viewBox="0 0 18 16" 
+            className="w-[18px] h-4 fill-black flex-none block" 
+            style={{ shapeRendering: 'geometricPrecision' }}
             aria-hidden="true"
           >
-            <path d="M 0 0 L 28 0 C 11.5 0 0 11.5 0 28 Z" />
+            <path d="M 0 0 L 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 Z" />
           </svg>
         </div>
 
