@@ -130,10 +130,10 @@ export const InteractiveNotchDemo: React.FC = () => {
             {/* HARDWARE NOTCH — cuts down from top of glass window */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 z-40 flex items-start w-full justify-center pointer-events-none">
 
-              {/* Left Notch Ear SVG */}
-              <div className="w-5 h-5 flex-none relative overflow-visible -mr-[0.5px]">
-                <svg viewBox="0 0 20 20" className="w-5 h-5 fill-black flex-none" style={{ transform: 'scaleX(-1)' }} aria-hidden="true">
-                  <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+              {/* Left Notch Ear SVG (Apple G2 Squircle Continuous Fillet) */}
+              <div className="w-[18px] h-4 flex-none relative overflow-visible -mr-px">
+                <svg viewBox="0 0 18 16" className="w-[18px] h-4 fill-black flex-none" style={{ transform: 'scaleX(-1)', shapeRendering: 'geometricPrecision' }} aria-hidden="true">
+                  <path d="M 0 0 L 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 Z" />
                 </svg>
               </div>
 
@@ -141,7 +141,7 @@ export const InteractiveNotchDemo: React.FC = () => {
               {isNotchExpanded ? (
                 /* --- EXPANDED SHELF --- */
                 <div
-                  className={`w-[92%] sm:w-[84%] md:w-[76%] lg:w-[68%] max-w-4xl bg-black text-white rounded-b-[24px] p-3.5 sm:p-4 shadow-2xl border-b border-x border-white/10 flex flex-col gap-3 pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${morphing ? 'scale-95 opacity-90' : 'scale-100 opacity-100'}`}
+                  className={`w-[92%] sm:w-[84%] md:w-[76%] lg:w-[68%] max-w-4xl bg-black text-white rounded-b-[20px] p-3.5 sm:p-4 shadow-2xl border-b border-x border-white/10 flex flex-col gap-3 pointer-events-auto transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${morphing ? 'scale-95 opacity-90' : 'scale-100 opacity-100'}`}
                 >
                   {/* Top Row: Search + Actions */}
                   <div className="flex items-center justify-between gap-3 text-xs">
@@ -317,10 +317,10 @@ export const InteractiveNotchDemo: React.FC = () => {
                 </div>
               )}
 
-              {/* Right Notch Ear SVG */}
-              <div className="w-5 h-5 flex-none relative overflow-visible -ml-[0.5px]">
-                <svg viewBox="0 0 20 20" className="w-5 h-5 fill-black flex-none" aria-hidden="true">
-                  <path d="M 0 0 L 20 0 C 8.954 0 0 8.954 0 20 Z" />
+              {/* Right Notch Ear SVG (Apple G2 Squircle Continuous Fillet) */}
+              <div className="w-[18px] h-4 flex-none relative overflow-visible -ml-px">
+                <svg viewBox="0 0 18 16" className="w-[18px] h-4 fill-black flex-none" style={{ shapeRendering: 'geometricPrecision' }} aria-hidden="true">
+                  <path d="M 0 0 L 18 0 C 11 0 6.5 1.2 4 4 C 1.2 6.8 0 10.5 0 16 Z" />
                 </svg>
               </div>
             </div>
