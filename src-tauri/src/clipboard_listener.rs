@@ -337,7 +337,7 @@ pub fn start_clipboard_monitor(app_handle: AppHandle) {
                     let mut saved = load_saved_clipboard();
                     saved.retain(|c| c.content != item.content);
                     saved.insert(0, item.clone());
-                    let max_clips = if crate::license::is_pro_active() { 1000 } else { 25 };
+                    let max_clips = crate::license::get_max_history();
                     if saved.len() > max_clips {
                         saved.truncate(max_clips);
                     }
@@ -397,7 +397,7 @@ pub fn start_clipboard_monitor(app_handle: AppHandle) {
                     // Remove duplicate content so latest copy bubbles to the front
                     saved.retain(|c| c.content != item.content);
                     saved.insert(0, item.clone());
-                    let max_clips = if crate::license::is_pro_active() { 1000 } else { 25 };
+                    let max_clips = crate::license::get_max_history();
                     if saved.len() > max_clips {
                         saved.truncate(max_clips);
                     }

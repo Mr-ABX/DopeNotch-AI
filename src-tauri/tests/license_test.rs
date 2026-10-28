@@ -48,3 +48,17 @@ fn test_license_serialization_roundtrip() {
     assert_eq!(deserialized.customer_email.as_deref(), Some("test@example.com"));
     assert_eq!(deserialized.limit_activations, Some(2));
 }
+
+#[test]
+fn test_history_limit_defaults() {
+    // In default community state, max history should be 25
+    let max = dopenotch_lib::license::get_max_history();
+    assert_eq!(max, 25);
+}
+
+#[test]
+fn test_dictation_usage_tracking() {
+    // Initial usage for today should be accessible without panic
+    let used = dopenotch_lib::license::get_today_dictation_seconds();
+    assert!(used < 100000);
+}

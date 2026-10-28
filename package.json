@@ -1,6 +1,6 @@
 {
   "name": "dopenotch-ai",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "DopeNotch AI - The 100% Free & Open-Source Ambient Voice AI & Notch Operating System for macOS & Windows",
   "private": true,
   "type": "module",

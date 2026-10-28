@@ -53,12 +53,15 @@ function sanitizeAndEncodeSvg(raw: string): string | null {
       return null;
     }
 
-    // Completely strip scripts, foreignObjects, iframes, styles with imports, etc.
-    const dangerousTags = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'audio', 'video', 'link', 'style', 'meta'];
-    dangerousTags.forEach((tag) => {
-      const elements = Array.from(doc.getElementsByTagName(tag));
-      elements.forEach((el) => el.parentNode?.removeChild(el));
-    });
+    // Completely strip scripts, foreignObjects, iframes, styles with imports, etc. (case-insensitive for XML DOM)
+    const dangerousTags = new Set(['script', 'foreignobject', 'iframe', 'object', 'embed', 'audio', 'video', 'link', 'style', 'meta']);
+    const allNodes = Array.from(doc.getElementsByTagName('*'));
+    for (const el of allNodes) {
+      const tag = (el.localName || el.tagName || '').toLowerCase();
+      if (dangerousTags.has(tag)) {
+        el.parentNode?.removeChild(el);
+      }
+    }
 
     // Strip any on* event attributes and javascript: URIs across all nodes
     const allElements = Array.from(doc.getElementsByTagName('*'));

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 export type AIModelId =
   | 'qwen2.5-0.5b'
   | 'smollm2-135m'
+  | 'gemini-2.5-flash'
   | 'gemini-2.0-flash'
   | 'openrouter-free'
   | 'openrouter-auto'
@@ -37,10 +38,10 @@ export const AVAILABLE_AI_MODELS: AIModelOption[] = [
     supportsVision: false,
   },
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    badge: 'Google AI Studio • Free Vision',
-    description: 'Ultra-fast multimodal vision • 15 RPM free • Analyzes full screen in <800ms',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    badge: 'Google AI Studio • Vision',
+    description: 'Next-gen fast multimodal vision • Analyzes full screen in <800ms',
     isLocal: false,
     supportsVision: true,
   },
@@ -132,8 +133,8 @@ export function resolveVisionModel(
   // Model is local text-only (Qwen 0.5B / SmolLM2) -> Auto-route to best vision model
   if (apiKeys['gemini']) {
     return {
-      effectiveModelId: 'gemini-2.0-flash',
-      autoRoutedReason: 'Auto-routed to Gemini 2.0 Flash for Screen Vision',
+      effectiveModelId: 'gemini-2.5-flash',
+      autoRoutedReason: 'Auto-routed to Gemini 2.5 Flash for Screen Vision',
     };
   }
   if (apiKeys['openrouter']) {
@@ -149,10 +150,10 @@ export function resolveVisionModel(
     };
   }
 
-  // Free default fallback (Gemini 2.0 Flash free tier)
+  // Free default fallback (Gemini 2.5 Flash)
   return {
-    effectiveModelId: 'gemini-2.0-flash',
-    autoRoutedReason: 'Auto-routed to Gemini 2.0 Flash (Free Vision Tier)',
+    effectiveModelId: 'gemini-2.5-flash',
+    autoRoutedReason: 'Auto-routed to Gemini 2.5 Flash (Vision)',
   };
 }
 
@@ -168,14 +169,14 @@ export async function sendAIChatRequest(
   const trimmed = prompt.trim();
   if (!trimmed) throw new Error('Prompt cannot be empty');
 
-  // 1. Google Gemini 2.0 Flash (Multimodal Full Screen Vision)
-  if (modelId === 'gemini-2.0-flash') {
+  // 1. Google Gemini 2.5 Flash (Multimodal Full Screen Vision)
+  if (modelId === 'gemini-2.5-flash' || (modelId as string) === 'gemini-2.0-flash') {
     const key = geminiApiKey || customApiKey;
     if (!key) {
       return (
         `### 🔑 Google AI Studio Key Needed\n\n` +
-        `Add your free Gemini API key in **AI Models & Vision** tab to enable full screen vision (15 RPM completely free).\n\n` +
-        `Get key in 30 seconds at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)\n\n` +
+        `Add your Gemini API key in **AI Models & Vision** tab to enable full screen vision.\n\n` +
+        `Get key at [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)\n\n` +
         generateLocalFallbackResponse(trimmed, screenPayload)
       );
     }
@@ -192,7 +193,7 @@ export async function sendAIChatRequest(
       }
 
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

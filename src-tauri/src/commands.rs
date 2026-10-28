@@ -41,6 +41,13 @@ pub async fn toggle_recording(
 }
 
 pub async fn start_recording_internal(app: &AppHandle) -> Result<()> {
+    if !crate::license::is_pro_active() && crate::license::get_today_dictation_seconds() >= 300 {
+        let quota_msg = "Community limit reached (5 min/day). Upgrade to DopeNotch Pro for unlimited dictation.";
+        let _ = app.emit("murmur://quota-exceeded", quota_msg);
+        let _ = app.emit_to("notch", "murmur://quota-exceeded", quota_msg);
+        return Err(anyhow::anyhow!(quota_msg));
+    }
+
     let state = app.state::<MurmurState>();
 
     {
@@ -145,6 +152,9 @@ async fn handle_transcription(
         return;
     }
 
+    let duration_secs = (samples.len() as f32 / 16000.0).round() as u64;
+    crate::license::add_dictation_seconds(duration_secs);
+
     // Run inference (cloud first, fallback to local)
     match transcriber::transcribe_hybrid(&samples, &settings, &transcriber).await {
         Ok(text) => {
@@ -214,8 +224,9 @@ async fn handle_transcription_result(
     let mut clips = crate::clipboard_listener::load_saved_clipboard();
     clips.retain(|c| c.content != clip_item.content);
     clips.insert(0, clip_item.clone());
-    if clips.len() > 300 {
-        clips.truncate(300);
+    let max_history = crate::license::get_max_history();
+    if clips.len() > max_history {
+        clips.truncate(max_history);
     }
     crate::clipboard_listener::save_clipboard_to_disk(&clips);
     let _ = app.emit("murmur://clipboard-changed", &clip_item);
@@ -856,8 +867,9 @@ pub async fn pick_screen_color(app: AppHandle) -> Result<String, String> {
             let mut clips = crate::clipboard_listener::load_saved_clipboard();
             clips.retain(|c| c.content != clip_item.content);
             clips.insert(0, clip_item.clone());
-            if clips.len() > 300 {
-                clips.truncate(300);
+            let max_history = crate::license::get_max_history();
+            if clips.len() > max_history {
+                clips.truncate(max_history);
             }
             crate::clipboard_listener::save_clipboard_to_disk(&clips);
             let _ = app.emit("murmur://clipboard-changed", &clip_item);
@@ -912,8 +924,9 @@ pub async fn grab_screen_ocr(app: AppHandle) -> Result<String, String> {
             let mut clips = crate::clipboard_listener::load_saved_clipboard();
             clips.retain(|c| c.content != clip_item.content);
             clips.insert(0, clip_item.clone());
-            if clips.len() > 300 {
-                clips.truncate(300);
+            let max_history = crate::license::get_max_history();
+            if clips.len() > max_history {
+                clips.truncate(max_history);
             }
             crate::clipboard_listener::save_clipboard_to_disk(&clips);
             let _ = app.emit("murmur://clipboard-changed", &clip_item);
@@ -1258,8 +1271,9 @@ pub async fn execute_user_extension(
         let mut clips = crate::clipboard_listener::load_saved_clipboard();
         clips.retain(|c| c.content != clip_item.content);
         clips.insert(0, clip_item.clone());
-        if clips.len() > 300 {
-            clips.truncate(300);
+        let max_history = crate::license::get_max_history();
+        if clips.len() > max_history {
+            clips.truncate(max_history);
         }
         crate::clipboard_listener::save_clipboard_to_disk(&clips);
         let _ = app.emit("murmur://clipboard-changed", &clip_item);
@@ -2211,8 +2225,13 @@ pub async fn activate_license_key(key: String, label: Option<String>) -> Result<
 }
 
 #[tauri::command]
-pub async fn deactivate_license_key() -> Result<crate::license::LicenseData, String> {
-    crate::license::deactivate_license().await
+pub async fn deactivate_license_key(force: Option<bool>) -> Result<crate::license::LicenseData, String> {
+    crate::license::deactivate_license(force.unwrap_or(false)).await
+}
+
+#[tauri::command]
+pub async fn validate_license_key() -> Result<bool, String> {
+    crate::license::validate_license_remote().await
 }
 
 

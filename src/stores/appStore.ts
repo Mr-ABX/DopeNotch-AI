@@ -628,7 +628,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedModelByProvider: {
     local: 'qwen2.5-coder:7b',
     groq: 'llama-3.3-70b-versatile',
-    gemini: 'gemini-2.0-flash',
+    gemini: 'gemini-2.5-flash',
     openai: 'gpt-4o-mini',
   },
   setSelectedAIProvider: (provider) => set({ selectedAIProvider: provider }),
@@ -765,8 +765,9 @@ export const useAppStore = create<AppState>((set) => ({
 
       // Filter out duplicate identical content so it bubbles to top
       const filtered = state.clipboardItems.filter((c) => c.content !== content);
+      const maxClips = state.licenseInfo?.is_pro ? 5000 : 25;
       return {
-        clipboardItems: [newItem, ...filtered].slice(0, 300),
+        clipboardItems: [newItem, ...filtered].slice(0, maxClips),
       };
     }),
   togglePinClipboardItem: (id) =>

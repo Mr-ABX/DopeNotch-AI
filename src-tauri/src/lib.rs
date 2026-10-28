@@ -233,6 +233,7 @@ pub fn run() {
             commands::get_license_info,
             commands::activate_license_key,
             commands::deactivate_license_key,
+            commands::validate_license_key,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")
