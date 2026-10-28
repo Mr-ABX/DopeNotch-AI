@@ -7,19 +7,19 @@ export const FAQ: React.FC = () => {
   const leftColumnFaqs = [
     {
       q: 'What is DopeNotch?',
-      a: 'DopeNotch is an ultra-fast on-device speech-to-text dictation and clipboard shelf for macOS. It merges sub-80ms local Whisper AI with a hardware-anchored dynamic notch shelf, letting you dictate anywhere and access copied clips with zero cloud dependency.'
+      a: 'DopeNotch is an ultra-fast on-device speech-to-text dictation and clipboard shelf for macOS. It merges on-device Whisper AI with a hardware-anchored dynamic notch shelf, letting you dictate anywhere and access copied clips with zero mandatory cloud dependencies.'
     },
     {
-      q: 'Does DopeNotch support iCloud Sync?',
-      a: 'Yes! You can choose to keep your clipboard history, custom categories, and saved snippets seamlessly synced across your MacBook, Mac Studio, and other Mac devices via your private Apple iCloud account.'
+      q: 'Is my data private and kept on my device?',
+      a: 'Yes. DopeNotch is built with an offline-first architecture. Your clipboard items, voice recordings, and shelf snippets are stored exclusively on your Mac NVMe storage (`~/Documents/DopeNotch`). We do not track, collect, or send your data to any cloud analytics servers.'
     },
     {
       q: 'Where is my clipboard history stored?',
-      a: 'Everything is stored 100% locally in your Mac NVMe storage (`~/Library/Application Support/DopeNotch`). Zero audio recordings or text snippets are ever sent to external cloud servers.'
+      a: 'Everything is stored locally on your Mac in `~/Documents/DopeNotch`. You have complete control over your database files and can backup, inspect, or clear your history at any time.'
     },
     {
-      q: 'Does DopeNotch upload my copied content?',
-      a: 'Never. DopeNotch is built with a strict offline-first architecture. All speech recognition and text processing happen on your local Apple Silicon Neural Engine without internet required.'
+      q: 'Does DopeNotch upload my audio or text to the cloud?',
+      a: 'By default, never. All Whisper speech recognition and clipboard processing run 100% locally on your Mac. If you optionally choose to connect your own Google Gemini API key for multimodal vision, requests are sent directly from your Mac to Google AI Studio using your private key.'
     },
     {
       q: 'What types of content does DopeNotch support?',
@@ -27,18 +27,18 @@ export const FAQ: React.FC = () => {
     },
     {
       q: 'Can I search my clipboard history?',
-      a: 'Yes. With instant fuzzy search and global shortcuts, you can search thousands of previous clips, voice memos, and code snippets in milliseconds using keywords or app filters.'
+      a: 'Yes. With instant fuzzy search and global shortcuts, you can search previous clips, voice memos, and code snippets in milliseconds using keywords or app filters.'
     }
   ];
 
   const rightColumnFaqs = [
     {
       q: 'Can DopeNotch detect sensitive content?',
-      a: 'Yes. DopeNotch includes automatic sensitive data filters that recognize passwords from password managers (1Password, Bitwarden), credit cards, and confidential tokens to prevent unwanted storage.'
+      a: 'Yes. DopeNotch respects macOS confidential pasteboard markers. Sensitive passwords and transient clips copied from password managers like 1Password, Bitwarden, KeePassXC, and Apple Keychain are automatically filtered out from your clipboard history.'
     },
     {
-      q: 'What does a 1 Device license mean?',
-      a: 'A 1 Device license allows you to activate DopeNotch on one Mac with lifetime updates included. You can upgrade to 2 or 3 device licenses at any time from your account dashboard.'
+      q: 'What plans and licenses are available?',
+      a: 'We offer two straightforward editions: DopeNotch Pro Core ($15 one-time) for 1 Mac to keep the current release forever with all bug fixes and security updates; and DopeNotch Pro with Forever Updates ($24 for 1 Mac or $29 for 2 Macs), which includes all future major releases and feature updates forever.'
     },
     {
       q: 'Can I pause clipboard capture?',
@@ -50,11 +50,11 @@ export const FAQ: React.FC = () => {
     },
     {
       q: 'Is DopeNotch a subscription?',
-      a: 'No. DopeNotch is a one-time payment for lifetime access. You get all future features, performance improvements, and macOS compatibility updates with no recurring fees.'
+      a: 'No. All DopeNotch Pro options are one-time payments with no recurring subscription fees. You own your license forever.'
     },
     {
-      q: 'How do I get the app after purchase?',
-      a: 'Immediately upon checkout via Polar/Stripe, you will receive a direct DMG download link and your lifetime license key via email to activate on your Mac in seconds.'
+      q: 'How do I activate the app after purchase?',
+      a: 'Immediately upon checkout via Polar, your license key is delivered instantly via email. Enter your key in DopeNotch Preferences > License to activate your Pro features in seconds.'
     }
   ];
 
