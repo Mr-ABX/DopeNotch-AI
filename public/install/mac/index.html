@@ -3,282 +3,215 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Install DopeNotch AI · Mac Quick Start &amp; Setup Guide</title>
+  <title>How to Open DopeNotch AI · 10-Second Setup</title>
   <style>
     :root {
       color-scheme: dark;
-      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-      background: #101113;
-      color: #eeeef1;
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+      background: #0d0e11;
+      color: #f4f4f6;
     }
     * { box-sizing: border-box; }
     body { margin: 0; }
-    main { max-width: 850px; padding: 40px 24px 64px; margin: auto; }
-    h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.15; margin: 10px 0 12px; }
-    h2 { font-size: 22px; margin-top: 0; color: #ffffff; }
-    h3 { font-size: 17px; margin: 18px 0 6px; color: #f4f4f6; }
-    p { color: #bdc0c8; margin: 10px 0; }
-    strong { color: #f4f4f6; }
-    a { color: #ffb21d; text-underline-offset: 4px; }
-    a:focus-visible { outline: 3px solid #ffb21d; outline-offset: 4px; }
+    main { max-width: 780px; padding: 28px 20px 44px; margin: auto; }
     .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 20px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #ffffff18;
-      font-size: 14px;
-    }
-    .tag {
+      margin-bottom: 16px;
       font-size: 13px;
-      letter-spacing: .05em;
-      color: #ffb21d;
-      font-weight: 700;
+    }
+    a { color: #ffb21d; text-decoration: none; font-weight: 600; }
+    a:hover { text-decoration: underline; }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: .06em;
       text-transform: uppercase;
+      font-weight: 700;
+      color: #10b981;
+      background: #10b9811a;
+      border: 1px solid #10b98140;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: clamp(24px, 4vw, 32px);
+      line-height: 1.15;
+      margin: 0 0 6px;
+      letter-spacing: -0.02em;
+    }
+    .subtitle {
+      color: #a1a1aa;
+      font-size: 14px;
+      margin: 0 0 18px;
+    }
+    .card {
+      padding: 16px 18px;
+      border: 1px solid #ffffff1a;
+      border-radius: 14px;
+      background: #15171c;
+      margin-bottom: 14px;
+    }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #ffb21d;
+      color: #000;
+      font-weight: 800;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: none;
+    }
+    h2 {
+      font-size: 16px;
       margin: 0;
+      color: #fff;
     }
-    .notice, section {
-      padding: 22px 25px;
-      border: 1px solid #ffffff20;
-      border-radius: 16px;
-      background: #191a1d;
-      margin: 20px 0;
+    p {
+      color: #d4d4d8;
+      margin: 4px 0 0;
+      font-size: 13.5px;
     }
-    .notice { border-left: 4px solid #ffb21d; }
-    .safe-note { border-left: 4px solid #10b981; background: #131c18; }
-    .danger { border-left: 4px solid #f43f5e; background: #1d1619; }
     .shot-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 16px;
-      margin-top: 16px;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 12px;
     }
     .shot-card {
-      background: #121316;
-      border: 1px solid #ffffff18;
-      border-radius: 14px;
-      padding: 14px;
+      background: #0d0e11;
+      border: 1px solid #ffffff17;
+      border-radius: 12px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .shot-card strong {
+      display: block;
+      font-size: 13px;
+      color: #ffb21d;
+      text-align: left;
+      margin-bottom: 6px;
+    }
+    .shot-card span {
+      color: #f4f4f6;
+      font-weight: 600;
     }
     .shot-card img {
-      width: 100%;
-      height: auto;
-      border-radius: 10px;
-      border: 1px solid #ffffff1a;
-      margin-top: 10px;
-      display: block;
-    }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-      margin-top: 14px;
-    }
-    .meta-card {
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: #121316;
+      max-height: 175px;
+      width: auto;
+      max-width: 100%;
+      border-radius: 8px;
       border: 1px solid #ffffff14;
-      font-size: 13.5px;
-    }
-    .meta-card span {
+      margin: 0 auto;
       display: block;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-      color: #8e93a2;
-      margin-bottom: 4px;
     }
-    ul, ol { color: #bdc0c8; padding-left: 22px; }
-    li { margin: 8px 0; }
-    .small { font-size: 14px; color: #9ea3b0; }
+    .footer-note {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px solid #ffffff14;
+      font-size: 12px;
+      color: #71717a;
+    }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 13.5px;
-      background: #101113;
-      padding: 2px 6px;
-      border-radius: 6px;
-      border: 1px solid #ffffff18;
-      color: #f4f4f6;
-      overflow-wrap: anywhere;
+      font-size: 12px;
+      background: #000;
+      padding: 2px 5px;
+      border-radius: 5px;
+      color: #e4e4e7;
     }
-    footer {
-      margin-top: 32px;
-      padding-top: 20px;
-      border-top: 1px solid #ffffff18;
+    @media (max-width: 560px) {
+      .shot-grid { grid-template-columns: 1fr; }
     }
     @media print {
-      :root { color-scheme: light; background: white; color: black; font-size: 13.5px; }
-      p, li, .small { color: #27272a; }
-      strong, h1, h2, h3 { color: #09090b; }
-      code {
-        background: #f4f4f5;
-        color: #09090b;
-        border: 1px solid #d4d4d8;
-      }
-      section, .notice, .safe-note, .danger, .meta-card, .shot-card {
-        background: #fafafa;
-        border: 1px solid #d4d4d8;
-        break-inside: avoid;
-      }
-      .safe-note { border-left: 4px solid #10b981; background: #f0fdf4; }
-      .danger { border-left: 4px solid #f43f5e; background: #fff1f2; }
-      .shot-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-      .shot-card img { max-height: 210px; width: auto; margin: 8px auto 0; }
+      @page { size: A4; margin: 10mm; }
+      :root { color-scheme: light; background: #fff; color: #09090b; }
+      main { padding: 0; max-width: 100%; }
       .topbar { display: none; }
+      .badge { color: #047857; background: #ecfdf5; border-color: #a7f3d0; }
+      h1, h2, .shot-card span { color: #09090b; }
+      .subtitle, p { color: #3f3f46; }
+      .card { background: #fafafa; border: 1px solid #e4e4e7; margin-bottom: 10px; padding: 12px 14px; break-inside: avoid; }
+      .shot-card { background: #fff; border: 1px solid #e4e4e7; padding: 8px 10px; }
+      .shot-card strong { color: #b45309; }
+      .shot-card img { max-height: 145px; }
+      code { background: #f4f4f5; color: #09090b; border: 1px solid #d4d4d8; }
+      .footer-note { color: #52525b; border-top-color: #e4e4e7; margin-top: 10px; padding-top: 8px; }
       a { color: #b45309; }
-      main { padding: 10px 16px; max-width: 100%; }
     }
   </style>
 </head>
 <body>
   <main>
     <div class="topbar">
-      <a href="/">← Back to DopeNotch home</a>
-      <span class="small">Printable &amp; offline-ready guide</span>
+      <a href="/">← Back to DopeNotch</a>
+      <span style="color:#71717a">10-Second Setup Guide</span>
     </div>
 
-    <header>
-      <p class="tag">DOPENOTCH AI FOR MACOS · VERSION 0.4.1 (UNIVERSAL 2)</p>
-      <h1>Install DopeNotch AI in a few steps.</h1>
-      <p>Keep this guide open while you install. You can read it before downloading, save it offline, or print it.</p>
-    </header>
+    <span class="badge">✓ 100% Safe &amp; Offline-First</span>
+    <h1>How to Open DopeNotch AI (First Launch)</h1>
+    <p class="subtitle">
+      DopeNotch runs 100% locally on your Mac. While our Apple notarization is finishing up, follow these quick steps once to open it.
+    </p>
 
-    <aside class="notice safe-note" aria-label="100% Safe & Offline-First">
-      <strong>100% Safe &amp; Offline-First — Why macOS shows a first-launch prompt</strong>
-      <p>
-        DopeNotch AI is built by an independent macOS studio and runs <strong>100% locally on your Mac</strong> (your voice dictations, clipboard history, and files never leave your device). While our annual Apple Developer ID notarization is being finalized, macOS displays a standard prompt the very first time you open a direct web download. Approve it once in 10 seconds and DopeNotch AI launches normally forever after.
-      </p>
-      <p>
-        Download DopeNotch AI only from the official page at <a href="https://dopenotch.xbuilds.online/DopeNotch.dmg">https://dopenotch.xbuilds.online/DopeNotch.dmg</a>.
-      </p>
-      <div class="meta-grid">
-        <div class="meta-card">
-          <span>Supported macOS &amp; Chips</span>
-          <strong>macOS 13.0+ (Sonoma 14.0+ recommended)</strong><br>
-          Universal 2 (Apple Silicon <code>arm64</code> &amp; Intel <code>x86_64</code>)
-        </div>
-        <div class="meta-card">
-          <span>Official Installer Package</span>
-          <strong>DopeNotch.dmg</strong> (11,068,136 bytes)<br>
-          Bundle ID: <code>com.dopenotch.ai</code>
-        </div>
-        <div class="meta-card">
-          <span>SHA-256 Checksum (v0.4.1)</span>
-          <code>6f91b2151bd4af92d29448cb11398837451a682732294f4fd0e113087b1108b9</code>
-        </div>
+    <div class="card">
+      <div class="step-header">
+        <span class="step-num">1</span>
+        <h2>Drag DopeNotch to Applications</h2>
       </div>
-    </aside>
+      <p>Drag <strong>DopeNotch.app</strong> into your <strong>Applications</strong> folder, then open it from Applications.</p>
+    </div>
 
-    <section>
-      <h2>1. Move DopeNotch AI to Applications</h2>
+    <div class="card">
+      <div class="step-header">
+        <span class="step-num">2</span>
+        <h2>Right-Click → Open (or Approve in Privacy &amp; Security)</h2>
+      </div>
       <p>
-        Open the downloaded <code>DopeNotch.dmg</code> disk image. Inside the installer window, you will also find a bundled offline copy of this guide (<strong>READ FIRST — How to Open DopeNotch AI.pdf</strong>) that you can preview at any time with Spacebar or Preview. Quit any older copy of DopeNotch AI from the menu bar icon, then drag <strong>DopeNotch.app</strong> into your <strong>Applications</strong> folder.
-      </p>
-      <p class="small">
-        Always open DopeNotch AI from your <strong>Applications</strong> folder (<code>/Applications/DopeNotch AI.app</code>), rather than launching it directly from inside the mounted disk image.
-      </p>
-    </section>
-
-    <section>
-      <h2>2. First open: two safe ways to approve the app</h2>
-      <p>
-        Because this build is not notarized by Apple, double-clicking it the first time may show a macOS prompt saying <em>“DopeNotch AI.app Not Opened — Apple could not verify DopeNotch AI.app is free of malware.”</em>
+        <strong>Fastest way:</strong> In Applications, <strong>Right-Click</strong> DopeNotch → click <strong>Open</strong>.<br>
+        <strong>On macOS Sequoia:</strong> If macOS shows a <em>“Not Opened”</em> popup, do these 4 clicks:
       </p>
 
-      <h3>Method A — Right-click Open from Applications (macOS 13 &amp; 14)</h3>
-      <ol>
-        <li>Open Finder and go to your <strong>Applications</strong> folder.</li>
-        <li><strong>Control-click (or Right-click)</strong> on <strong>DopeNotch AI.app</strong> and choose <strong>Open</strong> from the context menu.</li>
-        <li>If macOS shows a dialog with an <strong>Open</strong> button, click <strong>Open</strong>. If macOS only shows <strong>Done</strong> and <strong>Move to Trash</strong> (standard on macOS Sequoia 15+), click <strong>Done</strong> and use Method B below.</li>
-      </ol>
-
-      <h3>Method B — Approve in System Settings → Privacy &amp; Security (macOS 14 &amp; Sequoia 15+)</h3>
-      <ol>
-        <li>When macOS shows the <em>“DopeNotch AI.app Not Opened”</em> alert, click <strong>Done</strong> (do not click Move to Trash).</li>
-        <li>Open <strong>System Settings → Privacy &amp; Security</strong> and scroll down to the <strong>Security</strong> section.</li>
-        <li>Locate the message stating that <strong>“DopeNotch AI.app” was blocked to protect your Mac</strong> and click <strong>Open Anyway</strong> beside it.</li>
-        <li>In the confirmation prompt, click <strong>Open Anyway</strong> (or <strong>Open</strong>).</li>
-        <li>macOS will ask for your administrator Touch ID or login password. Enter it <strong>only in the authentic macOS system prompt</strong>.</li>
-      </ol>
       <div class="shot-grid">
         <div class="shot-card">
-          <strong>1. Click “Done” on the initial prompt</strong>
-          <p class="small">Do not click Move to Trash — simply click Done so macOS registers the launch attempt.</p>
-          <img src="images/blocked.png" alt="macOS Not Opened prompt showing Done button">
+          <strong>A. <span>Click “Done” on the popup</span></strong>
+          <img src="images/blocked.png" alt="Click Done on the popup">
         </div>
         <div class="shot-card">
-          <strong>2. System Settings → Privacy &amp; Security</strong>
-          <p class="small">Scroll down to the Security section and click “Open Anyway” next to the blocked notice.</p>
-          <img src="images/privacy-security.png" alt="macOS Privacy and Security Open Anyway button">
+          <strong>B. <span>System Settings → Privacy &amp; Security → “Open Anyway”</span></strong>
+          <img src="images/privacy-security.png" alt="Click Open Anyway in Privacy and Security">
         </div>
         <div class="shot-card">
-          <strong>3. Confirm “Open Anyway”</strong>
-          <p class="small">Click “Open Anyway” on the confirmation sheet.</p>
-          <img src="images/confirm.png" alt="macOS Confirm Open Anyway dialog">
+          <strong>C. <span>Click “Open Anyway” to confirm</span></strong>
+          <img src="images/confirm.png" alt="Confirm Open Anyway">
         </div>
         <div class="shot-card">
-          <strong>4. Approve with Touch ID or Mac password</strong>
-          <p class="small">Use Touch ID or your login password to finish this one-time approval.</p>
-          <img src="images/authenticate.png" alt="macOS Touch ID or password authentication dialog">
+          <strong>D. <span>Approve with Touch ID or Mac Password</span></strong>
+          <img src="images/authenticate.png" alt="Approve with Touch ID or Password">
         </div>
       </div>
-      <p class="small" style="margin-top: 14px;">
-        <em>Note: The example screenshots above show the exact macOS Sequoia dialogs (illustrated with our sister app Cuey). You will see “DopeNotch AI.app” in the same place.</em>
-      </p>
-      <p class="small">
-        You do <strong>not</strong> need to turn off Gatekeeper, FileVault, or System Integrity Protection. After this one-time approval, DopeNotch AI will open normally from Applications or Spotlight.
-      </p>
-    </section>
+    </div>
 
-    <section class="notice danger">
-      <h2>If the warning is different, stop</h2>
-      <p>
-        If macOS says the app <strong>will damage your computer</strong>, reports detected malware, says the file is <strong>damaged or modified</strong>, or if the file’s SHA-256 checksum does not match the official release above, <strong>do not open it</strong>.
-      </p>
-      <p>
-        Delete the downloaded file immediately and contact <a href="mailto:dopenotch@xbuilds.online">dopenotch@xbuilds.online</a> with your macOS version and the exact alert text. Never enter your Mac password into any website, support chat, or email.
-      </p>
-      <p>
-        <a href="https://support.apple.com/en-us/102445" target="_blank" rel="noopener noreferrer">Read Apple’s official guidance on safely opening apps on your Mac →</a>
-      </p>
-    </section>
-
-    <section>
-      <h2>3. Optional permissions on first run</h2>
-      <p>
-        DopeNotch AI runs locally on your Mac and only requests macOS permissions for the features you choose to use:
-      </p>
-      <ul>
-        <li><strong>Microphone:</strong> Required for on-device Whisper speech-to-text voice dictation and ambient meeting notes.</li>
-        <li><strong>Accessibility:</strong> Required to paste dictated text or clipboard items directly into your active window (<code>⌘V</code> automation) and to snap/tile windows (<code>/left</code>, <code>/right</code>, <code>/max</code>).</li>
-        <li><strong>Screen Recording:</strong> Optional — used only when you invoke the Screenshot Snip tool (<code>/snip</code>), Screen Text Grabber OCR (<code>/ocr</code>), Color Eyedropper (<code>/color</code>), or AI Screen Vision.</li>
-      </ul>
-      <p class="small">
-        You can review, grant, or revoke any of these permissions at any time inside <strong>DopeNotch Dashboard → Preferences</strong> or in <strong>macOS System Settings → Privacy &amp; Security</strong>.
-      </p>
-    </section>
-
-    <section>
-      <h2>4. Local storage, licensing &amp; updates</h2>
-      <p>
-        <strong>Where your data lives:</strong> Your workspace files, notes, and stashed assets are stored locally in <code>~/Documents/DopeNotch</code>, and app settings, local Whisper models, and license state are stored in <code>~/Library/Application Support/com.dopenotch.ai</code>.
-      </p>
-      <p>
-        <strong>Community Free vs. Pro:</strong> DopeNotch AI starts in <strong>Community Free</strong> mode (up to 25 clipboard history items and 50 local voice dictations per day) with no credit card required. If you purchased a <strong>DopeNotch Pro</strong> license via Polar.sh, open <strong>DopeNotch Dashboard → Preferences → License</strong> and paste your license key to unlock unlimited history and dictations.
-      </p>
-      <p>
-        <strong>Updates:</strong> New releases are published at <a href="https://dopenotch.xbuilds.online">dopenotch.xbuilds.online</a>. To update, quit DopeNotch AI, drag the new copy into <strong>Applications</strong>, and replace the older version.
-      </p>
-    </section>
-
-    <footer>
-      <strong>Need help?</strong>
-      <p>
-        Email <a href="mailto:dopenotch@xbuilds.online">dopenotch@xbuilds.online</a> with your macOS version, chip type (Apple Silicon or Intel), and the exact alert text. Never send passwords or private API keys.
-      </p>
-    </footer>
+    <div class="footer-note">
+      <span>Done! DopeNotch AI will now open normally every time.</span>
+      <span>Official site: <a href="https://dopenotch.xbuilds.online">dopenotch.xbuilds.online</a> · Help: <a href="mailto:dopenotch@xbuilds.online">dopenotch@xbuilds.online</a></span>
+    </div>
   </main>
 </body>
 </html>
