@@ -109,12 +109,26 @@
       border-top: 1px solid #ffffff18;
     }
     @media print {
-      :root { color-scheme: light; background: white; color: black; }
-      p, li, .small { color: #333; }
-      strong, h1, h2, h3, code { color: black; }
-      section, .notice, .meta-card { background: white; border: 1px solid #aaa; break-inside: avoid; }
-      a { color: #663e00; }
-      main { padding: 0; }
+      :root { color-scheme: light; background: white; color: black; font-size: 13.5px; }
+      p, li, .small { color: #27272a; }
+      strong, h1, h2, h3 { color: #09090b; }
+      code {
+        background: #f4f4f5;
+        color: #09090b;
+        border: 1px solid #d4d4d8;
+      }
+      section, .notice, .safe-note, .danger, .meta-card, .shot-card {
+        background: #fafafa;
+        border: 1px solid #d4d4d8;
+        break-inside: avoid;
+      }
+      .safe-note { border-left: 4px solid #10b981; background: #f0fdf4; }
+      .danger { border-left: 4px solid #f43f5e; background: #fff1f2; }
+      .shot-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      .shot-card img { max-height: 210px; width: auto; margin: 8px auto 0; }
+      .topbar { display: none; }
+      a { color: #b45309; }
+      main { padding: 10px 16px; max-width: 100%; }
     }
   </style>
 </head>
@@ -147,12 +161,12 @@
         </div>
         <div class="meta-card">
           <span>Official Installer Package</span>
-          <strong>DopeNotch.dmg</strong> (10,519,196 bytes)<br>
+          <strong>DopeNotch.dmg</strong> (11,068,136 bytes)<br>
           Bundle ID: <code>com.dopenotch.ai</code>
         </div>
         <div class="meta-card">
           <span>SHA-256 Checksum (v0.4.1)</span>
-          <code>55510e7dbb7f28fac2c9c66648fbfe94c8671978a39825a6d40f8aa311864fd2</code>
+          <code>6f91b2151bd4af92d29448cb11398837451a682732294f4fd0e113087b1108b9</code>
         </div>
       </div>
     </aside>
@@ -160,7 +174,7 @@
     <section>
       <h2>1. Move DopeNotch AI to Applications</h2>
       <p>
-        Open the downloaded <code>DopeNotch.dmg</code> disk image. If an older copy of DopeNotch AI is running, quit it first from the menu bar icon. Drag <strong>DopeNotch AI.app</strong> into your <strong>Applications</strong> folder.
+        Open the downloaded <code>DopeNotch.dmg</code> disk image. Inside the installer window, you will also find a bundled offline copy of this guide (<strong>READ FIRST — How to Open DopeNotch AI.pdf</strong>) that you can preview at any time with Spacebar or Preview. Quit any older copy of DopeNotch AI from the menu bar icon, then drag <strong>DopeNotch.app</strong> into your <strong>Applications</strong> folder.
       </p>
       <p class="small">
         Always open DopeNotch AI from your <strong>Applications</strong> folder (<code>/Applications/DopeNotch AI.app</code>), rather than launching it directly from inside the mounted disk image.

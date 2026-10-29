@@ -217,14 +217,23 @@ export const InstallGuideModal: React.FC = () => {
 
         {/* Footer with Full Guide Link & Got It Button */}
         <div className="mt-6 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <a
               href="/apps/dopenotch/install/mac/"
               target="_blank"
               rel="noopener noreferrer"
               className="text-amber-400 hover:text-amber-300 font-semibold inline-flex items-center gap-1 underline underline-offset-4"
             >
-              <span>Open Full Printable Setup Guide &amp; SHA-256 Checksum</span>
+              <span>Open Web Setup Guide</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+            <a
+              href="/apps/dopenotch/install/mac/READ%20FIRST%20%E2%80%94%20How%20to%20Open%20DopeNotch%20AI.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-zinc-300 hover:text-white font-semibold inline-flex items-center gap-1 underline underline-offset-4"
+            >
+              <span>Preview PDF Guide (Also included inside .dmg)</span>
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           </div>
