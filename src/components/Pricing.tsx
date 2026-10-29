@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Sparkles, ShieldCheck } from 'lucide-react';
 import { AppleLogo } from './AppleLogo';
+import { openInstallGuideModal } from './InstallGuideModal';
 
 export const Pricing: React.FC = () => {
   const [foreverUpdates, setForeverUpdates] = useState<boolean>(false);
@@ -136,19 +137,21 @@ export const Pricing: React.FC = () => {
             <a 
               href="/DopeNotch.dmg"
               download="DopeNotch.dmg"
+              onClick={() => openInstallGuideModal(true)}
               className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-black/5 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-4"
             >
               <AppleLogo className="w-4 h-4 text-zinc-900" />
               <span>Download Community Free (.dmg)</span>
             </a>
-            <p className="text-[11.5px] text-zinc-500 mt-2.5 text-center">
-              First time installing DopeNotch?{' '}
-              <a
-                href="/apps/dopenotch/install/mac/"
-                className="text-zinc-800 hover:text-amber-600 underline underline-offset-2 font-semibold transition-colors"
+            <p className="text-[11px] sm:text-[11.5px] text-zinc-500 mt-2.5 text-center leading-relaxed">
+              First launch on macOS: Right-click in Applications → Open, or allow in Privacy &amp; Security.{' '}
+              <button
+                type="button"
+                onClick={() => openInstallGuideModal(false)}
+                className="text-zinc-900 hover:text-amber-600 underline underline-offset-2 font-semibold transition-colors cursor-pointer"
               >
-                Read the setup guide
-              </a>
+                [See 10-sec Install Steps →]
+              </button>
             </p>
           </div>
 
@@ -266,7 +269,23 @@ export const Pricing: React.FC = () => {
               <span>{currentPlan.buttonText}</span>
             </a>
             <p className="text-[11.5px] text-zinc-500 mt-2.5 text-center">
-              Already purchased? Download the <a href="/DopeNotch.dmg" download="DopeNotch.dmg" className="text-zinc-800 underline underline-offset-2 font-medium">macOS DMG</a> &amp; <a href="/apps/dopenotch/install/mac/" className="text-zinc-800 hover:text-amber-600 underline underline-offset-2 font-semibold">read the setup guide</a>.
+              Already purchased? Download the{' '}
+              <a
+                href="/DopeNotch.dmg"
+                download="DopeNotch.dmg"
+                onClick={() => openInstallGuideModal(true)}
+                className="text-zinc-800 underline underline-offset-2 font-medium"
+              >
+                macOS DMG
+              </a>{' '}
+              &amp;{' '}
+              <button
+                type="button"
+                onClick={() => openInstallGuideModal(false)}
+                className="text-zinc-900 hover:text-amber-600 underline underline-offset-2 font-semibold cursor-pointer"
+              >
+                [See 10-sec Install Steps →]
+              </button>
             </p>
           </div>
 

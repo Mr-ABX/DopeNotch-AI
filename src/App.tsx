@@ -7,12 +7,14 @@ import { Pricing } from './components/Pricing';
 import { FAQ } from './components/FAQ';
 import { OtherProducts } from './components/OtherProducts';
 import { Footer } from './components/Footer';
+import { InstallGuideModal } from './components/InstallGuideModal';
 
 export function App() {
   return (
     <div className="min-h-screen bg-white text-black font-sans selection:bg-black selection:text-white">
       {/* Floating 1:1 Black Notch Header */}
       <Navbar />
+      <InstallGuideModal />
 
       <main className="relative">
         {/* Unified Continuous Hero & Frosted Glass Mac Showcase */}

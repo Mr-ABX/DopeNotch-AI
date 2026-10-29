@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppleLogo } from './AppleLogo';
 import { InteractiveNotchDemo } from './InteractiveNotchDemo';
+import { openInstallGuideModal } from './InstallGuideModal';
 
 export const Hero: React.FC = () => {
   return (
@@ -36,13 +37,14 @@ export const Hero: React.FC = () => {
         </a>
 
         <p className="text-[11.5px] text-white/85 font-medium">
-          First time installing DopeNotch?{' '}
-          <a
-            href="/apps/dopenotch/install/mac/"
-            className="underline decoration-white/60 hover:decoration-white font-semibold text-white transition-colors"
+          First launch on macOS: Right-click in Applications → Open, or allow in Privacy &amp; Security.{' '}
+          <button
+            type="button"
+            onClick={() => openInstallGuideModal(false)}
+            className="underline decoration-white/60 hover:decoration-white font-semibold text-white transition-colors cursor-pointer"
           >
-            Read the setup guide →
-          </a>
+            [See 10-sec Install Steps →]
+          </button>
         </p>
 
         {/* Micro Trust Metadata */}

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Minus } from 'lucide-react';
+import { Plus, Minus, ExternalLink } from 'lucide-react';
+import { openInstallGuideModal } from './InstallGuideModal';
 
 export const FAQ: React.FC = () => {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  const leftColumnFaqs = [
+  const leftColumnFaqs: Array<{ q: string; a: string; hasInstallModalBtn?: boolean }> = [
     {
       q: 'What is DopeNotch?',
       a: 'DopeNotch is an ultra-fast on-device speech-to-text dictation and clipboard shelf for macOS. It merges on-device Whisper AI with a hardware-anchored dynamic notch shelf, letting you dictate anywhere and access copied clips with zero mandatory cloud dependencies.'
@@ -31,7 +32,7 @@ export const FAQ: React.FC = () => {
     }
   ];
 
-  const rightColumnFaqs = [
+  const rightColumnFaqs: Array<{ q: string; a: string; hasInstallModalBtn?: boolean }> = [
     {
       q: 'Can DopeNotch detect sensitive content?',
       a: 'Yes. DopeNotch respects macOS confidential pasteboard markers. Sensitive passwords and transient clips copied from password managers like 1Password, Bitwarden, KeePassXC, and Apple Keychain are automatically filtered out from your clipboard history.'
@@ -41,8 +42,9 @@ export const FAQ: React.FC = () => {
       a: 'We offer Community Free ($0 forever, last 25 clips & 50 local dictations/day), DopeNotch Pro Core ($15 one-time for 1 Mac to keep the current v0.4.x release forever with bug fixes and security patches), and DopeNotch Pro with Forever Updates ($24 for 1 Mac or $39 for 2 Macs, including all future major versions).'
     },
     {
-      q: 'How do I open DopeNotch on macOS for the first time?',
-      a: 'Because DopeNotch v0.4.1 is distributed directly outside the Mac App Store without Apple notarization yet, macOS may ask you to confirm first launch. Move DopeNotch AI to Applications, then either right-click → Open or approve it in System Settings → Privacy & Security → Open Anyway. Read our step-by-step macOS Setup Guide at /apps/dopenotch/install/mac/ before installing.'
+      q: "macOS says 'DopeNotch AI Not Opened' — how do I launch it the first time?",
+      a: 'DopeNotch AI is 100% safe, offline-first software. Because we are an independent macOS studio and our official Apple Developer ID notarization is currently being finalized, macOS shows a standard first-launch notice for direct web downloads. Simply drag DopeNotch AI to Applications, then either Right-Click → Open, or click "Open Anyway" in System Settings → Privacy & Security (takes 10 seconds, once only).',
+      hasInstallModalBtn: true
     },
     {
       q: 'Does DopeNotch include screenshot history?',
@@ -111,7 +113,27 @@ export const FAQ: React.FC = () => {
 
                 {isOpen && (
                   <div className="px-5 pb-5 pt-1 text-xs text-zinc-600 leading-relaxed pl-12 border-t border-black/5">
-                    {item.a}
+                    <p>{item.a}</p>
+                    {Boolean(item.hasInstallModalBtn) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => openInstallGuideModal(false)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black text-white hover:bg-zinc-800 text-[11px] font-bold transition-all cursor-pointer shadow-xs"
+                        >
+                          <span>See 10-sec Visual Install Steps →</span>
+                        </button>
+                        <a
+                          href="/apps/dopenotch/install/mac/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500 hover:text-black underline underline-offset-2"
+                        >
+                          <span>Full Printable Guide</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -147,7 +169,27 @@ export const FAQ: React.FC = () => {
 
                 {isOpen && (
                   <div className="px-5 pb-5 pt-1 text-xs text-zinc-600 leading-relaxed pl-12 border-t border-black/5">
-                    {item.a}
+                    <p>{item.a}</p>
+                    {Boolean(item.hasInstallModalBtn) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => openInstallGuideModal(false)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black text-white hover:bg-zinc-800 text-[11px] font-bold transition-all cursor-pointer shadow-xs"
+                        >
+                          <span>See 10-sec Visual Install Steps →</span>
+                        </button>
+                        <a
+                          href="/apps/dopenotch/install/mac/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-zinc-500 hover:text-black underline underline-offset-2"
+                        >
+                          <span>Full Printable Guide</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

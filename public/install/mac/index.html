@@ -47,7 +47,28 @@
       margin: 20px 0;
     }
     .notice { border-left: 4px solid #ffb21d; }
+    .safe-note { border-left: 4px solid #10b981; background: #131c18; }
     .danger { border-left: 4px solid #f43f5e; background: #1d1619; }
+    .shot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .shot-card {
+      background: #121316;
+      border: 1px solid #ffffff18;
+      border-radius: 14px;
+      padding: 14px;
+    }
+    .shot-card img {
+      width: 100%;
+      height: auto;
+      border-radius: 10px;
+      border: 1px solid #ffffff1a;
+      margin-top: 10px;
+      display: block;
+    }
     .meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -110,13 +131,13 @@
       <p>Keep this guide open while you install. You can read it before downloading, save it offline, or print it.</p>
     </header>
 
-    <aside class="notice" aria-label="Before downloading">
-      <strong>Before you start</strong>
+    <aside class="notice safe-note" aria-label="100% Safe & Offline-First">
+      <strong>100% Safe &amp; Offline-First — Why macOS shows a first-launch prompt</strong>
       <p>
-        This release (<code>DopeNotch AI v0.4.1</code>) is <strong>not notarized by Apple</strong> and uses an ad-hoc code signature rather than an Apple Developer ID signature. Because Apple has not reviewed this build yet, macOS Gatekeeper can block its first launch until you explicitly approve it.
+        DopeNotch AI is built by an independent macOS studio and runs <strong>100% locally on your Mac</strong> (your voice dictations, clipboard history, and files never leave your device). While our annual Apple Developer ID notarization is being finalized, macOS displays a standard prompt the very first time you open a direct web download. Approve it once in 10 seconds and DopeNotch AI launches normally forever after.
       </p>
       <p>
-        Download DopeNotch AI only from the official page at <a href="https://dopenotch.xbuilds.online/DopeNotch.dmg">https://dopenotch.xbuilds.online/DopeNotch.dmg</a>. Continue only if you downloaded the file directly from our official domain and verified the details below.
+        Download DopeNotch AI only from the official page at <a href="https://dopenotch.xbuilds.online/DopeNotch.dmg">https://dopenotch.xbuilds.online/DopeNotch.dmg</a>.
       </p>
       <div class="meta-grid">
         <div class="meta-card">
@@ -167,6 +188,31 @@
         <li>In the confirmation prompt, click <strong>Open Anyway</strong> (or <strong>Open</strong>).</li>
         <li>macOS will ask for your administrator Touch ID or login password. Enter it <strong>only in the authentic macOS system prompt</strong>.</li>
       </ol>
+      <div class="shot-grid">
+        <div class="shot-card">
+          <strong>1. Click “Done” on the initial prompt</strong>
+          <p class="small">Do not click Move to Trash — simply click Done so macOS registers the launch attempt.</p>
+          <img src="images/blocked.png" alt="macOS Not Opened prompt showing Done button">
+        </div>
+        <div class="shot-card">
+          <strong>2. System Settings → Privacy &amp; Security</strong>
+          <p class="small">Scroll down to the Security section and click “Open Anyway” next to the blocked notice.</p>
+          <img src="images/privacy-security.png" alt="macOS Privacy and Security Open Anyway button">
+        </div>
+        <div class="shot-card">
+          <strong>3. Confirm “Open Anyway”</strong>
+          <p class="small">Click “Open Anyway” on the confirmation sheet.</p>
+          <img src="images/confirm.png" alt="macOS Confirm Open Anyway dialog">
+        </div>
+        <div class="shot-card">
+          <strong>4. Approve with Touch ID or Mac password</strong>
+          <p class="small">Use Touch ID or your login password to finish this one-time approval.</p>
+          <img src="images/authenticate.png" alt="macOS Touch ID or password authentication dialog">
+        </div>
+      </div>
+      <p class="small" style="margin-top: 14px;">
+        <em>Note: The example screenshots above show the exact macOS Sequoia dialogs (illustrated with our sister app Cuey). You will see “DopeNotch AI.app” in the same place.</em>
+      </p>
       <p class="small">
         You do <strong>not</strong> need to turn off Gatekeeper, FileVault, or System Integrity Protection. After this one-time approval, DopeNotch AI will open normally from Applications or Spotlight.
       </p>
