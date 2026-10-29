@@ -132,14 +132,25 @@ export const Pricing: React.FC = () => {
           </div>
 
           {/* Download Community Button */}
-          <a 
-            href="/DopeNotch.dmg"
-            download="DopeNotch.dmg"
-            className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-black/5 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-4"
-          >
-            <AppleLogo className="w-4 h-4 text-zinc-900" />
-            <span>Download Community Free (.dmg)</span>
-          </a>
+          <div>
+            <a 
+              href="/DopeNotch.dmg"
+              download="DopeNotch.dmg"
+              className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-900 border border-black/5 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 mt-4"
+            >
+              <AppleLogo className="w-4 h-4 text-zinc-900" />
+              <span>Download Community Free (.dmg)</span>
+            </a>
+            <p className="text-[11.5px] text-zinc-500 mt-2.5 text-center">
+              First time installing DopeNotch?{' '}
+              <a
+                href="/apps/dopenotch/install/mac/"
+                className="text-zinc-800 hover:text-amber-600 underline underline-offset-2 font-semibold transition-colors"
+              >
+                Read the setup guide
+              </a>
+            </p>
+          </div>
 
         </div>
 
@@ -244,15 +255,20 @@ export const Pricing: React.FC = () => {
           </div>
 
           {/* CTA Download Pro for macOS Button */}
-          <a 
-            href={currentPlan.checkoutUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-black text-white hover:bg-zinc-800 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] shadow-lg flex items-center justify-center gap-2.5 mt-4"
-          >
-            <AppleLogo className="w-4 h-4 text-white" />
-            <span>{currentPlan.buttonText}</span>
-          </a>
+          <div>
+            <a 
+              href={currentPlan.checkoutUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-4 rounded-[18px] sm:rounded-[20px] text-sm font-semibold bg-black text-white hover:bg-zinc-800 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99] shadow-lg flex items-center justify-center gap-2.5 mt-4"
+            >
+              <AppleLogo className="w-4 h-4 text-white" />
+              <span>{currentPlan.buttonText}</span>
+            </a>
+            <p className="text-[11.5px] text-zinc-500 mt-2.5 text-center">
+              Already purchased? Download the <a href="/DopeNotch.dmg" download="DopeNotch.dmg" className="text-zinc-800 underline underline-offset-2 font-medium">macOS DMG</a> &amp; <a href="/apps/dopenotch/install/mac/" className="text-zinc-800 hover:text-amber-600 underline underline-offset-2 font-semibold">read the setup guide</a>.
+            </p>
+          </div>
 
         </div>
 

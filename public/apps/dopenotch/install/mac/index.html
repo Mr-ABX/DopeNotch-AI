@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Install DopeNotch AI · Mac Quick Start &amp; Setup Guide</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font: 16px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: #101113;
+      color: #eeeef1;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 850px; padding: 40px 24px 64px; margin: auto; }
+    h1 { font-size: clamp(30px, 6vw, 44px); line-height: 1.15; margin: 10px 0 12px; }
+    h2 { font-size: 22px; margin-top: 0; color: #ffffff; }
+    h3 { font-size: 17px; margin: 18px 0 6px; color: #f4f4f6; }
+    p { color: #bdc0c8; margin: 10px 0; }
+    strong { color: #f4f4f6; }
+    a { color: #ffb21d; text-underline-offset: 4px; }
+    a:focus-visible { outline: 3px solid #ffb21d; outline-offset: 4px; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #ffffff18;
+      font-size: 14px;
+    }
+    .tag {
+      font-size: 13px;
+      letter-spacing: .05em;
+      color: #ffb21d;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 0;
+    }
+    .notice, section {
+      padding: 22px 25px;
+      border: 1px solid #ffffff20;
+      border-radius: 16px;
+      background: #191a1d;
+      margin: 20px 0;
+    }
+    .notice { border-left: 4px solid #ffb21d; }
+    .danger { border-left: 4px solid #f43f5e; background: #1d1619; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .meta-card {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #121316;
+      border: 1px solid #ffffff14;
+      font-size: 13.5px;
+    }
+    .meta-card span {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #8e93a2;
+      margin-bottom: 4px;
+    }
+    ul, ol { color: #bdc0c8; padding-left: 22px; }
+    li { margin: 8px 0; }
+    .small { font-size: 14px; color: #9ea3b0; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13.5px;
+      background: #101113;
+      padding: 2px 6px;
+      border-radius: 6px;
+      border: 1px solid #ffffff18;
+      color: #f4f4f6;
+      overflow-wrap: anywhere;
+    }
+    footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid #ffffff18;
+    }
+    @media print {
+      :root { color-scheme: light; background: white; color: black; }
+      p, li, .small { color: #333; }
+      strong, h1, h2, h3, code { color: black; }
+      section, .notice, .meta-card { background: white; border: 1px solid #aaa; break-inside: avoid; }
+      a { color: #663e00; }
+      main { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <a href="/">← Back to DopeNotch home</a>
+      <span class="small">Printable &amp; offline-ready guide</span>
+    </div>
+
+    <header>
+      <p class="tag">DOPENOTCH AI FOR MACOS · VERSION 0.4.1 (UNIVERSAL 2)</p>
+      <h1>Install DopeNotch AI in a few steps.</h1>
+      <p>Keep this guide open while you install. You can read it before downloading, save it offline, or print it.</p>
+    </header>
+
+    <aside class="notice" aria-label="Before downloading">
+      <strong>Before you start</strong>
+      <p>
+        This release (<code>DopeNotch AI v0.4.1</code>) is <strong>not notarized by Apple</strong> and uses an ad-hoc code signature rather than an Apple Developer ID signature. Because Apple has not reviewed this build yet, macOS Gatekeeper can block its first launch until you explicitly approve it.
+      </p>
+      <p>
+        Download DopeNotch AI only from the official page at <a href="https://dopenotch.xbuilds.online/DopeNotch.dmg">https://dopenotch.xbuilds.online/DopeNotch.dmg</a>. Continue only if you downloaded the file directly from our official domain and verified the details below.
+      </p>
+      <div class="meta-grid">
+        <div class="meta-card">
+          <span>Supported macOS &amp; Chips</span>
+          <strong>macOS 13.0+ (Sonoma 14.0+ recommended)</strong><br>
+          Universal 2 (Apple Silicon <code>arm64</code> &amp; Intel <code>x86_64</code>)
+        </div>
+        <div class="meta-card">
+          <span>Official Installer Package</span>
+          <strong>DopeNotch.dmg</strong> (10,519,196 bytes)<br>
+          Bundle ID: <code>com.dopenotch.ai</code>
+        </div>
+        <div class="meta-card">
+          <span>SHA-256 Checksum (v0.4.1)</span>
+          <code>55510e7dbb7f28fac2c9c66648fbfe94c8671978a39825a6d40f8aa311864fd2</code>
+        </div>
+      </div>
+    </aside>
+
+    <section>
+      <h2>1. Move DopeNotch AI to Applications</h2>
+      <p>
+        Open the downloaded <code>DopeNotch.dmg</code> disk image. If an older copy of DopeNotch AI is running, quit it first from the menu bar icon. Drag <strong>DopeNotch AI.app</strong> into your <strong>Applications</strong> folder.
+      </p>
+      <p class="small">
+        Always open DopeNotch AI from your <strong>Applications</strong> folder (<code>/Applications/DopeNotch AI.app</code>), rather than launching it directly from inside the mounted disk image.
+      </p>
+    </section>
+
+    <section>
+      <h2>2. First open: two safe ways to approve the app</h2>
+      <p>
+        Because this build is not notarized by Apple, double-clicking it the first time may show a macOS prompt saying <em>“DopeNotch AI.app Not Opened — Apple could not verify DopeNotch AI.app is free of malware.”</em>
+      </p>
+
+      <h3>Method A — Right-click Open from Applications (macOS 13 &amp; 14)</h3>
+      <ol>
+        <li>Open Finder and go to your <strong>Applications</strong> folder.</li>
+        <li><strong>Control-click (or Right-click)</strong> on <strong>DopeNotch AI.app</strong> and choose <strong>Open</strong> from the context menu.</li>
+        <li>If macOS shows a dialog with an <strong>Open</strong> button, click <strong>Open</strong>. If macOS only shows <strong>Done</strong> and <strong>Move to Trash</strong> (standard on macOS Sequoia 15+), click <strong>Done</strong> and use Method B below.</li>
+      </ol>
+
+      <h3>Method B — Approve in System Settings → Privacy &amp; Security (macOS 14 &amp; Sequoia 15+)</h3>
+      <ol>
+        <li>When macOS shows the <em>“DopeNotch AI.app Not Opened”</em> alert, click <strong>Done</strong> (do not click Move to Trash).</li>
+        <li>Open <strong>System Settings → Privacy &amp; Security</strong> and scroll down to the <strong>Security</strong> section.</li>
+        <li>Locate the message stating that <strong>“DopeNotch AI.app” was blocked to protect your Mac</strong> and click <strong>Open Anyway</strong> beside it.</li>
+        <li>In the confirmation prompt, click <strong>Open Anyway</strong> (or <strong>Open</strong>).</li>
+        <li>macOS will ask for your administrator Touch ID or login password. Enter it <strong>only in the authentic macOS system prompt</strong>.</li>
+      </ol>
+      <p class="small">
+        You do <strong>not</strong> need to turn off Gatekeeper, FileVault, or System Integrity Protection. After this one-time approval, DopeNotch AI will open normally from Applications or Spotlight.
+      </p>
+    </section>
+
+    <section class="notice danger">
+      <h2>If the warning is different, stop</h2>
+      <p>
+        If macOS says the app <strong>will damage your computer</strong>, reports detected malware, says the file is <strong>damaged or modified</strong>, or if the file’s SHA-256 checksum does not match the official release above, <strong>do not open it</strong>.
+      </p>
+      <p>
+        Delete the downloaded file immediately and contact <a href="mailto:dopenotch@xbuilds.online">dopenotch@xbuilds.online</a> with your macOS version and the exact alert text. Never enter your Mac password into any website, support chat, or email.
+      </p>
+      <p>
+        <a href="https://support.apple.com/en-us/102445" target="_blank" rel="noopener noreferrer">Read Apple’s official guidance on safely opening apps on your Mac →</a>
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Optional permissions on first run</h2>
+      <p>
+        DopeNotch AI runs locally on your Mac and only requests macOS permissions for the features you choose to use:
+      </p>
+      <ul>
+        <li><strong>Microphone:</strong> Required for on-device Whisper speech-to-text voice dictation and ambient meeting notes.</li>
+        <li><strong>Accessibility:</strong> Required to paste dictated text or clipboard items directly into your active window (<code>⌘V</code> automation) and to snap/tile windows (<code>/left</code>, <code>/right</code>, <code>/max</code>).</li>
+        <li><strong>Screen Recording:</strong> Optional — used only when you invoke the Screenshot Snip tool (<code>/snip</code>), Screen Text Grabber OCR (<code>/ocr</code>), Color Eyedropper (<code>/color</code>), or AI Screen Vision.</li>
+      </ul>
+      <p class="small">
+        You can review, grant, or revoke any of these permissions at any time inside <strong>DopeNotch Dashboard → Preferences</strong> or in <strong>macOS System Settings → Privacy &amp; Security</strong>.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Local storage, licensing &amp; updates</h2>
+      <p>
+        <strong>Where your data lives:</strong> Your workspace files, notes, and stashed assets are stored locally in <code>~/Documents/DopeNotch</code>, and app settings, local Whisper models, and license state are stored in <code>~/Library/Application Support/com.dopenotch.ai</code>.
+      </p>
+      <p>
+        <strong>Community Free vs. Pro:</strong> DopeNotch AI starts in <strong>Community Free</strong> mode (up to 25 clipboard history items and 50 local voice dictations per day) with no credit card required. If you purchased a <strong>DopeNotch Pro</strong> license via Polar.sh, open <strong>DopeNotch Dashboard → Preferences → License</strong> and paste your license key to unlock unlimited history and dictations.
+      </p>
+      <p>
+        <strong>Updates:</strong> New releases are published at <a href="https://dopenotch.xbuilds.online">dopenotch.xbuilds.online</a>. To update, quit DopeNotch AI, drag the new copy into <strong>Applications</strong>, and replace the older version.
+      </p>
+    </section>
+
+    <footer>
+      <strong>Need help?</strong>
+      <p>
+        Email <a href="mailto:dopenotch@xbuilds.online">dopenotch@xbuilds.online</a> with your macOS version, chip type (Apple Silicon or Intel), and the exact alert text. Never send passwords or private API keys.
+      </p>
+    </footer>
+  </main>
+</body>
+</html>

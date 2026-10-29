@@ -11,15 +11,15 @@ export const FAQ: React.FC = () => {
     },
     {
       q: 'Is my data private and kept on my device?',
-      a: 'Yes. DopeNotch is built with an offline-first architecture. Your clipboard items, voice recordings, and shelf snippets are stored exclusively on your Mac NVMe storage (`~/Documents/DopeNotch`). We do not track, collect, or send your data to any cloud analytics servers.'
+      a: 'Yes. DopeNotch is built with an offline-first architecture. Your clipboard items, voice recordings, and shelf snippets are stored locally on your Mac (`~/Documents/DopeNotch` and `~/Library/Application Support/com.dopenotch.ai`). We do not track, collect, or send your data to any cloud analytics servers.'
     },
     {
       q: 'Where is my clipboard history stored?',
-      a: 'Everything is stored locally on your Mac in `~/Documents/DopeNotch`. You have complete control over your database files and can backup, inspect, or clear your history at any time.'
+      a: 'Your workspace files, notes, and stashed assets live in `~/Documents/DopeNotch` (customizable in Preferences), and app settings and local models are stored in `~/Library/Application Support/com.dopenotch.ai`.'
     },
     {
       q: 'Does DopeNotch upload my audio or text to the cloud?',
-      a: 'By default, never. All Whisper speech recognition and clipboard processing run 100% locally on your Mac. If you optionally choose to connect your own Google Gemini API key for multimodal vision, requests are sent directly from your Mac to Google AI Studio using your private key.'
+      a: 'By default, never. All Whisper speech recognition and clipboard processing run 100% locally on your Mac. If you optionally connect your own cloud API key (Google Gemini, OpenAI, Grok, or OpenRouter), requests are sent directly from your Mac to that provider using your key.'
     },
     {
       q: 'What types of content does DopeNotch support?',
@@ -38,11 +38,11 @@ export const FAQ: React.FC = () => {
     },
     {
       q: 'What plans and licenses are available?',
-      a: 'We offer two straightforward editions: DopeNotch Pro Core ($15 one-time) for 1 Mac to keep the current release forever with all bug fixes and security updates; and DopeNotch Pro with Forever Updates ($24 for 1 Mac or $29 for 2 Macs), which includes all future major releases and feature updates forever.'
+      a: 'We offer Community Free ($0 forever, last 25 clips & 50 local dictations/day), DopeNotch Pro Core ($15 one-time for 1 Mac to keep the current v0.4.x release forever with bug fixes and security patches), and DopeNotch Pro with Forever Updates ($24 for 1 Mac or $39 for 2 Macs, including all future major versions).'
     },
     {
-      q: 'Can I pause clipboard capture?',
-      a: 'Yes. You can pause clipboard monitoring or voice listening at any moment with a single click from the notch menu or by setting auto-pause for specific applications.'
+      q: 'How do I open DopeNotch on macOS for the first time?',
+      a: 'Because DopeNotch v0.4.1 is distributed directly outside the Mac App Store without Apple notarization yet, macOS may ask you to confirm first launch. Move DopeNotch AI to Applications, then either right-click → Open or approve it in System Settings → Privacy & Security → Open Anyway. Read our step-by-step macOS Setup Guide at /apps/dopenotch/install/mac/ before installing.'
     },
     {
       q: 'Does DopeNotch include screenshot history?',

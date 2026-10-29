@@ -26,7 +26,7 @@ export const Hero: React.FC = () => {
       </p>
 
       {/* Download for macOS (Solid Black Pill Button) */}
-      <div className="flex flex-col items-center gap-3.5 mb-12 sm:mb-16 md:mb-20 px-4">
+      <div className="flex flex-col items-center gap-3 mb-12 sm:mb-16 md:mb-20 px-4">
         <a 
           href="#pricing"
           className="px-7 py-3 rounded-full text-xs sm:text-sm font-bold bg-black text-white hover:bg-zinc-900 border border-white/15 transition-all hover:scale-105 active:scale-95 shadow-2xl flex items-center gap-2.5"
@@ -34,6 +34,16 @@ export const Hero: React.FC = () => {
           <AppleLogo className="w-4 h-4 text-white" />
           <span>Download for macOS</span>
         </a>
+
+        <p className="text-[11.5px] text-white/85 font-medium">
+          First time installing DopeNotch?{' '}
+          <a
+            href="/apps/dopenotch/install/mac/"
+            className="underline decoration-white/60 hover:decoration-white font-semibold text-white transition-colors"
+          >
+            Read the setup guide →
+          </a>
+        </p>
 
         {/* Micro Trust Metadata */}
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-[11px] text-white/70 font-medium">
