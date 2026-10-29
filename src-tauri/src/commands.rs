@@ -1752,6 +1752,20 @@ pub struct SystemFileResult {
     pub name: String,
     pub path: String,
     pub kind: String,
+    pub size_bytes: Option<u64>,
+    pub modified_timestamp: Option<u64>,
+    pub is_image: bool,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct FilePreviewPayload {
+    pub path: String,
+    pub name: String,
+    pub kind: String,
+    pub size_bytes: u64,
+    pub modified_timestamp: u64,
+    pub is_image: bool,
+    pub preview_base64: Option<String>,
 }
 
 #[tauri::command]
@@ -1885,7 +1899,7 @@ pub async fn search_system_files(query: String) -> Result<Vec<SystemFileResult>,
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut results = Vec::new();
-        for line in stdout.lines().take(12) {
+        for line in stdout.lines().take(25) {
             let path_str = line.trim();
             if path_str.is_empty() {
                 continue;
@@ -1893,10 +1907,17 @@ pub async fn search_system_files(query: String) -> Result<Vec<SystemFileResult>,
             let p = std::path::Path::new(path_str);
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
                 let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("file").to_lowercase();
+                let is_image = matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "svg" | "bmp" | "ico" | "tiff");
+                let meta = p.metadata().ok();
                 results.push(SystemFileResult {
                     name: name.to_string(),
                     path: path_str.to_string(),
                     kind: ext,
+                    size_bytes: meta.as_ref().map(|m| m.len()),
+                    modified_timestamp: meta.and_then(|m| m.modified().ok())
+                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                        .map(|d| d.as_secs()),
+                    is_image,
                 });
             }
         }
@@ -1905,8 +1926,132 @@ pub async fn search_system_files(query: String) -> Result<Vec<SystemFileResult>,
 
     #[cfg(not(target_os = "macos"))]
     {
-        Ok(vec![])
+        let mut results = Vec::new();
+        let home = std::env::var("USERPROFILE").unwrap_or_default();
+        if !home.is_empty() {
+            let search_dirs = [
+                std::path::PathBuf::from(&home).join("Desktop"),
+                std::path::PathBuf::from(&home).join("Downloads"),
+                std::path::PathBuf::from(&home).join("Documents"),
+                std::path::PathBuf::from(&home).join("Pictures"),
+            ];
+            let q_lower = q.to_lowercase();
+            for dir in search_dirs {
+                if let Ok(entries) = std::fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                            if file_name.to_lowercase().contains(&q_lower) {
+                                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("file").to_lowercase();
+                                let is_image = matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" | "ico");
+                                let meta = entry.metadata().ok();
+                                results.push(SystemFileResult {
+                                    name: file_name.to_string(),
+                                    path: path.to_string_lossy().to_string(),
+                                    kind: ext,
+                                    size_bytes: meta.as_ref().map(|m| m.len()),
+                                    modified_timestamp: meta.and_then(|m| m.modified().ok())
+                                        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                                        .map(|d| d.as_secs()),
+                                    is_image,
+                                });
+                                if results.len() >= 25 {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if results.len() >= 25 {
+                    break;
+                }
+            }
+        }
+        Ok(results)
     }
+}
+
+#[tauri::command]
+pub async fn get_file_preview_data(path: String) -> Result<FilePreviewPayload, String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err("File not found".to_string());
+    }
+    let meta = p.metadata().map_err(|e| e.to_string())?;
+    let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("Unknown").to_string();
+    let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("file").to_lowercase();
+    let is_image = matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif" | "svg" | "bmp" | "ico");
+    let size_bytes = meta.len();
+    let modified_timestamp = meta.modified().ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let mut preview_base64 = None;
+    if is_image && size_bytes <= 15 * 1024 * 1024 {
+        if let Ok(bytes) = std::fs::read(p) {
+            use base64::Engine;
+            let mime = if ext == "svg" { "image/svg+xml" } else if ext == "jpg" || ext == "jpeg" { "image/jpeg" } else { "image/png" };
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+            preview_base64 = Some(format!("data:{};base64,{}", mime, b64));
+        }
+    }
+
+    Ok(FilePreviewPayload {
+        path,
+        name,
+        kind: ext,
+        size_bytes,
+        modified_timestamp,
+        is_image,
+        preview_base64,
+    })
+}
+
+#[tauri::command]
+pub fn quick_look_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("qlmanage")
+            .arg("-p")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open Quick Look: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        open_path_in_os(path)
+    }
+}
+
+#[tauri::command]
+pub async fn take_screenshot_area(app: AppHandle) -> Result<crate::screenshot::ScreenshotPayload, String> {
+    crate::screenshot::capture_interactive_area(&app).await
+}
+
+#[tauri::command]
+pub async fn take_screenshot_full(app: AppHandle) -> Result<crate::screenshot::ScreenshotPayload, String> {
+    crate::screenshot::capture_full_screen(&app).await
+}
+
+#[tauri::command]
+pub fn copy_screenshot_to_clipboard(base64_data: String) -> Result<(), String> {
+    let clean_b64 = if let Some(idx) = base64_data.find(",") {
+        &base64_data[idx + 1..]
+    } else {
+        &base64_data
+    };
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(clean_b64.trim())
+        .map_err(|e| format!("Invalid base64: {}", e))?;
+    crate::screenshot::copy_png_bytes_to_clipboard(&bytes)
+}
+
+#[tauri::command]
+pub fn save_screenshot_to_file(base64_data: String, filename: Option<String>) -> Result<String, String> {
+    crate::screenshot::save_base64_to_disk(&base64_data, filename)
 }
 
 #[tauri::command]

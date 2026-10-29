@@ -16,6 +16,7 @@ pub mod screen_vision;
 pub mod storage;
 pub mod ollama_manager;
 pub mod license;
+pub mod screenshot;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -212,6 +213,12 @@ pub fn run() {
             commands::get_active_browser_tab_url,
             commands::download_asset_to_disk,
             commands::search_system_files,
+            commands::get_file_preview_data,
+            commands::quick_look_file,
+            commands::take_screenshot_area,
+            commands::take_screenshot_full,
+            commands::copy_screenshot_to_clipboard,
+            commands::save_screenshot_to_file,
             commands::reveal_path_in_finder,
             commands::open_path_in_os,
             commands::get_installed_applications,

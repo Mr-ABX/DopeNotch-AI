@@ -50,7 +50,12 @@ import {
   Archive,
   Volume2,
   VolumeX,
+  Crop,
+  Camera,
+  Edit3,
+  Image as ImageIcon,
 } from 'lucide-react';
+import { ScreenshotAnnotator } from './ScreenshotAnnotator';
 import { aiVoiceService } from '../../services/aiVoiceService';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -501,28 +506,128 @@ export const SuperNotch: React.FC = () => {
     }
   }, [showStatus]);
 
-  // Spotlight Full-System File Search (/find <query>)
-  const [systemFiles, setSystemFiles] = useState<{ name: string; path: string; kind: string }[]>([]);
+  // Spotlight & Raycast Full-System File Search (/find <query> or universal auto-search)
+  const [systemFiles, setSystemFiles] = useState<{
+    name: string;
+    path: string;
+    kind: string;
+    size_bytes?: number;
+    modified_timestamp?: number;
+    is_image: boolean;
+  }[]>([]);
+  const [selectedFilePreview, setSelectedFilePreview] = useState<{
+    path: string;
+    name: string;
+    kind: string;
+    size_bytes: number;
+    modified_timestamp: number;
+    is_image: boolean;
+    preview_base64?: string | null;
+  } | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  // Active Screenshot & Annotation State
+  const [activeScreenshot, setActiveScreenshot] = useState<{
+    base64: string;
+    width: number;
+    height: number;
+    filePath?: string | null;
+    timestamp: number;
+  } | null>(null);
+  const [isAnnotatingScreenshot, setIsAnnotatingScreenshot] = useState(false);
+  const [screenshotToast, setScreenshotToast] = useState<string | null>(null);
+
+  const handleCaptureArea = useCallback(async () => {
+    try {
+      showStatus('Select area with crosshair...');
+      closeShelf();
+      await new Promise((r) => setTimeout(r, 180));
+      const result = await invoke<{
+        base64_image: string;
+        mime_type: string;
+        width: number;
+        height: number;
+        file_path?: string | null;
+        timestamp: number;
+      }>('take_screenshot_area');
+
+      if (result && result.base64_image) {
+        setActiveScreenshot({
+          base64: result.base64_image,
+          width: result.width,
+          height: result.height,
+          filePath: result.file_path,
+          timestamp: result.timestamp,
+        });
+        openShelf('shelf');
+        showStatus('Screenshot captured • Copied to clipboard 📋');
+      }
+    } catch (e: any) {
+      const errStr = e?.toString() || '';
+      if (!errStr.includes('cancelled') && !errStr.includes('User cancelled')) {
+        showStatus(errStr || 'Capture failed');
+      }
+    }
+  }, [closeShelf, openShelf, showStatus]);
+
+  const handleCaptureFull = useCallback(async () => {
+    try {
+      showStatus('Capturing fullscreen...');
+      closeShelf();
+      await new Promise((r) => setTimeout(r, 120));
+      const result = await invoke<{
+        base64_image: string;
+        mime_type: string;
+        width: number;
+        height: number;
+        file_path?: string | null;
+        timestamp: number;
+      }>('take_screenshot_full');
+
+      if (result && result.base64_image) {
+        setActiveScreenshot({
+          base64: result.base64_image,
+          width: result.width,
+          height: result.height,
+          filePath: result.file_path,
+          timestamp: result.timestamp,
+        });
+        openShelf('shelf');
+        showStatus('Fullscreen captured • Copied to clipboard 📋');
+      }
+    } catch (e: any) {
+      showStatus(e?.toString() || 'Fullscreen capture failed');
+    }
+  }, [closeShelf, openShelf, showStatus]);
 
   useEffect(() => {
     const q = clipboardSearchQuery.trim();
-    if (!q.startsWith('/find')) {
+    let searchTerm = '';
+
+    if (q.startsWith('/find')) {
+      searchTerm = q.replace(/^\/find\s*/, '').trim();
+    } else if (!q.startsWith('/') && q.length >= 2) {
+      searchTerm = q;
+    } else {
       setSystemFiles([]);
+      setSelectedFilePreview(null);
       return;
     }
-    const searchTerm = q.replace(/^\/find\s*/, '').trim();
+
     if (!searchTerm) {
       setSystemFiles([]);
+      setSelectedFilePreview(null);
       return;
     }
+
     const timer = setTimeout(async () => {
       try {
-        const files = await invoke<{ name: string; path: string; kind: string }[]>('search_system_files', { query: searchTerm });
+        const files = await invoke<any[]>('search_system_files', { query: searchTerm });
         setSystemFiles(files || []);
       } catch (err) {
         console.error('System file search error:', err);
       }
-    }, 150);
+    }, 120);
     return () => clearTimeout(timer);
   }, [clipboardSearchQuery]);
 
@@ -980,6 +1085,26 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-snip',
+      command: '/snip',
+      title: 'Snip & Markup Screenshot',
+      subtitle: 'Area crosshair capture with instant clipboard copy & annotation canvas (/screenshot)',
+      icon: Crop,
+      action: () => {
+        handleCaptureArea();
+      },
+    },
+    {
+      id: 'cmd-snip-full',
+      command: '/snipfull',
+      title: 'Fullscreen Screenshot',
+      subtitle: 'Silent full-display capture with floating Notch action capsule',
+      icon: Camera,
+      action: () => {
+        handleCaptureFull();
+      },
+    },
+    {
       id: 'cmd-loupe',
       command: '/loupe',
       title: 'Screen Zoom Loupe',
@@ -1273,7 +1398,7 @@ export const SuperNotch: React.FC = () => {
         }
       },
     })),
-  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer, isMeetingScribeActive, meetingElapsedSecs, handleToggleMeetingScribe, setActiveTab, handleToggleView]);
+  ], [clipboardItems, closeShelf, handleOpenDashboard, setActiveClipboardCategory, setClipboardItems, setIsRecording, userExtensions, focusTimerRunning, focusTimerRemaining, pauseFocusTimer, startFocusTimer, isMeetingScribeActive, meetingElapsedSecs, handleToggleMeetingScribe, setActiveTab, handleToggleView, handleCaptureArea, handleCaptureFull]);
 
   // Combined fast search results
   const searchResults = useMemo(() => {
@@ -1319,6 +1444,46 @@ export const SuperNotch: React.FC = () => {
       totalCount: matchingApps.length + matchingCommands.length + matchingClips.length + systemFiles.length,
     };
   }, [clipboardSearchQuery, toolCommands, clipboardItems, installedApps, systemFiles]);
+
+  // Asynchronously load preview & thumbnail for currently highlighted file
+  useEffect(() => {
+    if (superNotchHudView !== 'search') {
+      setSelectedFilePreview(null);
+      return;
+    }
+    const fileCount = searchResults.files.length;
+    if (fileCount === 0) {
+      setSelectedFilePreview(null);
+      return;
+    }
+    const fileStartIdx = searchResults.apps.length + searchResults.commands.length;
+    if (searchSelectedIndex >= fileStartIdx && searchSelectedIndex < fileStartIdx + fileCount) {
+      const file = searchResults.files[searchSelectedIndex - fileStartIdx];
+      if (file) {
+        setIsLoadingPreview(true);
+        invoke<any>('get_file_preview_data', { path: file.path })
+          .then((preview) => {
+            setSelectedFilePreview(preview);
+          })
+          .catch(() => {
+            setSelectedFilePreview({
+              path: file.path,
+              name: file.name,
+              kind: file.kind,
+              size_bytes: file.size_bytes || 0,
+              modified_timestamp: file.modified_timestamp || 0,
+              is_image: file.is_image,
+              preview_base64: null,
+            });
+          })
+          .finally(() => {
+            setIsLoadingPreview(false);
+          });
+      }
+    } else {
+      setSelectedFilePreview(null);
+    }
+  }, [searchSelectedIndex, searchResults.files, superNotchHudView]);
 
   // Filtered shelf items by category
   const filteredShelfItems = useMemo(() => {
@@ -1578,13 +1743,37 @@ export const SuperNotch: React.FC = () => {
             const fileIdx = searchSelectedIndex - searchResults.apps.length - searchResults.commands.length;
             const file = searchResults.files[fileIdx];
             if (file) {
-              invoke('reveal_path_in_finder', { path: file.path });
+              if (e.metaKey || e.ctrlKey) {
+                invoke('reveal_path_in_finder', { path: file.path });
+              } else {
+                invoke('open_path_in_os', { path: file.path });
+              }
               closeShelf();
             }
           } else {
             const clipIdx = searchSelectedIndex - searchResults.apps.length - searchResults.commands.length - searchResults.files.length;
             const clip = searchResults.clips[clipIdx];
             if (clip) handlePaste(clip);
+          }
+        } else if ((e.code === 'Space' && (e.altKey || e.metaKey)) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y')) {
+          const fileStartIdx = searchResults.apps.length + searchResults.commands.length;
+          if (searchSelectedIndex >= fileStartIdx && searchSelectedIndex < fileStartIdx + searchResults.files.length) {
+            e.preventDefault();
+            const file = searchResults.files[searchSelectedIndex - fileStartIdx];
+            if (file) {
+              invoke('quick_look_file', { path: file.path }).catch(() => {});
+              showStatus('Opening Quick Look 👁');
+            }
+          }
+        } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+          const fileStartIdx = searchResults.apps.length + searchResults.commands.length;
+          if (searchSelectedIndex >= fileStartIdx && searchSelectedIndex < fileStartIdx + searchResults.files.length) {
+            const file = searchResults.files[searchSelectedIndex - fileStartIdx];
+            if (file) {
+              e.preventDefault();
+              navigator.clipboard?.writeText(file.path);
+              showStatus('Copied file path to clipboard 📋');
+            }
           }
         }
       } else {
@@ -3134,6 +3323,117 @@ export const SuperNotch: React.FC = () => {
                 </div>
               </div>
 
+              {/* Floating Quick-Action Screenshot Capsule */}
+              {activeScreenshot && !isAnnotatingScreenshot && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  className="mx-1 my-2 p-2.5 rounded-2xl bg-zinc-900/90 border border-white/15 backdrop-blur-xl shadow-2xl flex items-center justify-between gap-3 shrink-0"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className="relative group cursor-pointer shrink-0"
+                      onClick={() => setIsAnnotatingScreenshot(true)}
+                    >
+                      <img
+                        src={activeScreenshot.base64}
+                        alt="Screenshot snip"
+                        className="w-14 h-9 object-cover rounded-lg border border-white/20 shadow-md group-hover:opacity-85 transition-opacity"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-lg">
+                        <Edit3 className="w-3.5 h-3.5 text-white" />
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-white truncate">Screenshot Snip</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/10 text-zinc-300">
+                          {activeScreenshot.width} × {activeScreenshot.height}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 truncate">
+                        {screenshotToast || 'Copied to clipboard • Annotate, pin to shelf, or ask AI'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        invoke('copy_screenshot_to_clipboard', { base64Data: activeScreenshot.base64 });
+                        setScreenshotToast('Copied to clipboard! 📋');
+                        setTimeout(() => setScreenshotToast(null), 2000);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium flex items-center gap-1 transition-all"
+                      title="Copy to Clipboard"
+                    >
+                      <Copy className="w-3 h-3" />
+                      <span>Copy</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsAnnotatingScreenshot(true)}
+                      className="px-2.5 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30 text-xs font-medium flex items-center gap-1 transition-all"
+                      title="Open Annotation Studio"
+                    >
+                      <Edit3 className="w-3 h-3" />
+                      <span>Annotate</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeScreenshot.filePath) {
+                          invoke<StashItem[]>('process_dropped_stash_files', { paths: [activeScreenshot.filePath] })
+                            .then((items) => {
+                              if (items && items.length > 0) {
+                                addStashItems(items);
+                                setScreenshotToast('Pinned to Notch shelf! 📌');
+                                setTimeout(() => setScreenshotToast(null), 2000);
+                              }
+                            })
+                            .catch(() => {});
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-medium flex items-center gap-1 transition-all"
+                      title="Pin to Notch Shelf"
+                    >
+                      <Pin className="w-3 h-3" />
+                      <span>Stash</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await invoke('save_screenshot_to_file', { base64Data: activeScreenshot.base64 });
+                          setScreenshotToast('Saved to Downloads! 💾');
+                          setTimeout(() => setScreenshotToast(null), 2000);
+                        } catch {
+                          setScreenshotToast('Failed to save');
+                        }
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-all"
+                      title="Save to Downloads"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveScreenshot(null)}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-all"
+                      title="Dismiss"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
               {/* ================================================================= */}
               {/* VIEW A: SUPERSHELF HORIZONTAL VISUAL SHELF                       */}
               {/* ================================================================= */}
@@ -3539,15 +3839,18 @@ export const SuperNotch: React.FC = () => {
               {/* ================================================================= */}
               {superNotchHudView === 'search' && (
                 <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden">
-                  {/* Results List with Soft Edge Dissolve */}
-                  <div
-                    ref={searchListScrollRef}
-                    className="flex-1 overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[300px]"
-                    style={{
-                      maskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
-                      WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
-                    }}
-                  >
+                  {/* Results List + Split Raycast Preview Drawer */}
+                  <div className="flex-1 flex gap-3 overflow-hidden min-h-[290px]">
+                    <div
+                      ref={searchListScrollRef}
+                      className={`overflow-y-auto custom-slim-scrollbar space-y-0.5 pr-1 max-h-[310px] transition-all ${
+                        selectedFilePreview ? 'w-[56%] border-r border-white/10' : 'w-full'
+                      }`}
+                      style={{
+                        maskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
+                        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 16px, black calc(100% - 16px), transparent 100%)',
+                      }}
+                    >
                     {/* Deep Focus Session Live Card (/focus, /focus 14, /focus 46) */}
                     {focusLiveMatch && (
                       <div className="mb-2 p-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/[0.14] border border-amber-500/25 transition-all flex flex-col gap-2.5">
@@ -4113,8 +4416,12 @@ export const SuperNotch: React.FC = () => {
                                 return (
                                   <div
                                     key={file.path}
-                                    onClick={() => {
-                                      invoke('reveal_path_in_finder', { path: file.path });
+                                    onClick={(e) => {
+                                      if (e.metaKey || e.ctrlKey) {
+                                        invoke('reveal_path_in_finder', { path: file.path });
+                                      } else {
+                                        invoke('open_path_in_os', { path: file.path });
+                                      }
                                       closeShelf();
                                     }}
                                     onMouseEnter={() => setSearchSelectedIndex(overallFileIndex)}
@@ -4126,7 +4433,11 @@ export const SuperNotch: React.FC = () => {
                                   >
                                     <div className="flex items-center gap-2.5 min-w-0">
                                       <div className="w-6 h-6 rounded-md bg-white/[0.06] text-zinc-300 flex items-center justify-center flex-shrink-0 text-xs">
-                                        <FolderSearch className="w-3.5 h-3.5" />
+                                        {file.is_image ? (
+                                          <ImageIcon className="w-3.5 h-3.5 text-blue-400" />
+                                        ) : (
+                                          <FolderSearch className="w-3.5 h-3.5" />
+                                        )}
                                       </div>
                                       <div className="flex items-center gap-2 truncate">
                                         <span className="text-xs font-medium text-white truncate font-sans">
@@ -4137,9 +4448,18 @@ export const SuperNotch: React.FC = () => {
                                         </span>
                                       </div>
                                     </div>
-                                    <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.2 rounded bg-white/[0.04] uppercase">
-                                      {file.kind}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      {file.size_bytes && (
+                                        <span className="text-[10px] font-mono text-zinc-500">
+                                          {(file.size_bytes / (1024 * 1024)).toFixed(1) === '0.0'
+                                            ? `${Math.round(file.size_bytes / 1024)} KB`
+                                            : `${(file.size_bytes / (1024 * 1024)).toFixed(1)} MB`}
+                                        </span>
+                                      )}
+                                      <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.2 rounded bg-white/[0.04] uppercase">
+                                        {file.kind}
+                                      </span>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -4234,7 +4554,108 @@ export const SuperNotch: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Raycast Keyboard Footer with 1-Click Extensions Access */}
+                    {/* Right: Raycast Split Preview Drawer */}
+                    {selectedFilePreview && (
+                      <div className="w-[44%] max-h-[310px] overflow-y-auto custom-slim-scrollbar flex flex-col p-3 rounded-xl bg-white/[0.03] border border-white/10 shrink-0 justify-between">
+                        <div>
+                          {/* Preview Media Thumbnail */}
+                          <div className="w-full h-32 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden mb-2.5 relative group">
+                            {isLoadingPreview ? (
+                              <div className="flex items-center justify-center gap-2 text-zinc-500 animate-pulse">
+                                <Sparkles className="w-4 h-4 animate-spin text-zinc-400" />
+                                <span className="text-[11px] font-mono">Loading preview...</span>
+                              </div>
+                            ) : selectedFilePreview.preview_base64 ? (
+                              <img
+                                src={selectedFilePreview.preview_base64}
+                                alt={selectedFilePreview.name}
+                                className="w-full h-full object-contain p-1 rounded-lg"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center gap-1.5 text-zinc-400">
+                                <FolderSearch className="w-8 h-8 text-zinc-500" />
+                                <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+                                  {selectedFilePreview.kind}
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Quick Look Overlay Icon */}
+                            <button
+                              type="button"
+                              onClick={() => invoke('quick_look_file', { path: selectedFilePreview.path })}
+                              className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              title="Quick Look (Space or ⌘Y)"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* File Details */}
+                          <h4 className="text-xs font-semibold text-white truncate font-sans" title={selectedFilePreview.name}>
+                            {selectedFilePreview.name}
+                          </h4>
+                          <p className="text-[10px] text-zinc-500 font-mono truncate mt-0.5" title={selectedFilePreview.path}>
+                            {selectedFilePreview.path}
+                          </p>
+
+                          {/* Metadata Grid */}
+                          <div className="mt-2.5 grid grid-cols-2 gap-1.5 text-[10px] font-mono">
+                            <div className="p-1.5 rounded bg-white/[0.04] border border-white/5">
+                              <span className="text-zinc-500 block text-[9px] uppercase">Size</span>
+                              <span className="text-zinc-200">
+                                {selectedFilePreview.size_bytes
+                                  ? (selectedFilePreview.size_bytes / (1024 * 1024)).toFixed(1) === '0.0'
+                                    ? `${Math.round(selectedFilePreview.size_bytes / 1024)} KB`
+                                    : `${(selectedFilePreview.size_bytes / (1024 * 1024)).toFixed(1)} MB`
+                                  : '0 B'}
+                              </span>
+                            </div>
+                            <div className="p-1.5 rounded bg-white/[0.04] border border-white/5">
+                              <span className="text-zinc-500 block text-[9px] uppercase">Kind</span>
+                              <span className="text-zinc-200 uppercase">{selectedFilePreview.kind}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="pt-2 border-t border-white/10 mt-2 flex items-center justify-between text-[10px]">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              invoke('open_path_in_os', { path: selectedFilePreview.path });
+                              closeShelf();
+                            }}
+                            className="px-2 py-1 rounded bg-white/10 hover:bg-white/20 text-white font-medium flex items-center gap-1 transition-all cursor-pointer"
+                            title="Open in default app"
+                          >
+                            <span>↵ Open</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => invoke('quick_look_file', { path: selectedFilePreview.path })}
+                            className="px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-300 font-medium flex items-center gap-1 transition-all cursor-pointer"
+                            title="Quick Look preview (Space or ⌘Y)"
+                          >
+                            <span>Space Look</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              invoke('reveal_path_in_finder', { path: selectedFilePreview.path });
+                              closeShelf();
+                            }}
+                            className="px-1.5 py-1 rounded hover:bg-white/5 text-zinc-400 font-medium transition-all cursor-pointer"
+                            title="Reveal in Finder / Explorer (⌘↵)"
+                          >
+                            <span>⌘↵ Finder</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Raycast Keyboard Footer with 1-Click Extensions Access */}
                     <div className="flex items-center justify-between text-[10px] text-zinc-500 pt-2 border-t border-white/[0.04] font-sans">
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1 font-mono">
@@ -4289,6 +4710,18 @@ export const SuperNotch: React.FC = () => {
       </>
     )}
     </motion.div>
+
+    {/* Fullscreen Annotation Studio Overlay */}
+    {isAnnotatingScreenshot && activeScreenshot && (
+      <ScreenshotAnnotator
+        screenshotUrl={activeScreenshot.base64}
+        onClose={() => setIsAnnotatingScreenshot(false)}
+        onCopySuccess={() => {
+          setScreenshotToast('Copied annotated PNG! 📋');
+          setIsAnnotatingScreenshot(false);
+        }}
+      />
+    )}
   </div>
   );
 };
