@@ -36,7 +36,7 @@ export interface NoteItem {
 export type OverlayStyle = 'notch' | 'minimal' | 'hidden';
 export type RecordingMode = 'dictate' | 'prompt' | 'rewrite' | 'command';
 export type SuperNotchMode = 'idle' | 'recording' | 'shelf';
-export type SuperNotchHudView = 'search' | 'shelf' | 'widgets' | 'chat' | 'stash';
+export type SuperNotchHudView = 'search' | 'shelf' | 'widgets' | 'chat' | 'stash' | 'scratchpad';
 export type OrbTheme = 'aurora' | 'brand';
 export type ClipboardCategory = 'all' | 'stash' | 'image' | 'dictation' | 'clipboard' | 'pinned' | 'code' | 'link' | 'color';
 

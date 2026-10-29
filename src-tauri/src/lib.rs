@@ -17,6 +17,7 @@ pub mod storage;
 pub mod ollama_manager;
 pub mod license;
 pub mod screenshot;
+pub mod window_snapper;
 
 use std::sync::{Arc, Mutex};
 use tauri::{
@@ -241,6 +242,7 @@ pub fn run() {
             commands::activate_license_key,
             commands::deactivate_license_key,
             commands::validate_license_key,
+            commands::snap_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building dopenotch")

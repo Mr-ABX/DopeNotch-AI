@@ -83,7 +83,19 @@ import { WidgetsView } from './WidgetsView';
 import { evaluateQuickCalc } from '../../services/quickCalc';
 import { polishTextForChat, convertToMarkdownChecklist } from '../../services/quickPrompt';
 import { searchUnicodeSymbols } from '../../services/emojiFinder';
-import { analyzeColor, extractHexColors } from '../../services/colorPaletteService';
+import {
+  analyzeColor,
+  extractHexColors,
+  loadSavedPalettes,
+  saveNamedPalette,
+  addColorToPalette,
+  deleteSavedPalette,
+  exportPaletteAsCssVariables,
+  exportPaletteAsTailwind,
+  exportPaletteAsFigmaSvg,
+  SavedColorPalette,
+} from '../../services/colorPaletteService';
+import { evaluateDevPowerTool } from '../../services/devPowerTools';
 
 export interface InstalledApp {
   id: string;
@@ -279,7 +291,7 @@ export const SuperNotch: React.FC = () => {
     }, 2200);
   }, []);
 
-  const getExpandedDimensions = useCallback((view: 'shelf' | 'search' | 'widgets' | 'chat' | 'stash') => {
+  const getExpandedDimensions = useCallback((view: SuperNotchHudView) => {
     if (view === 'stash') {
       return { width: 480, height: 132 };
     }
@@ -288,6 +300,9 @@ export const SuperNotch: React.FC = () => {
     }
     if (view === 'search') {
       return { width: 860, height: 410 };
+    }
+    if (view === 'scratchpad') {
+      return { width: 860, height: 320 };
     }
     if (view === 'widgets') {
       return { width: 860, height: 285 };
@@ -309,7 +324,7 @@ export const SuperNotch: React.FC = () => {
     }, 250);
   }, [setSuperNotchMode]);
 
-  const openShelf = useCallback((targetView?: 'shelf' | 'search' | 'widgets' | 'chat' | 'stash') => {
+  const openShelf = useCallback((targetView?: SuperNotchHudView) => {
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -334,7 +349,7 @@ export const SuperNotch: React.FC = () => {
     setSuperNotchMode('shelf');
     getCurrentWindow().setFocus().catch(() => {});
 
-    if (view !== 'stash' && view !== 'widgets') {
+    if (view !== 'stash' && view !== 'widgets' && view !== 'scratchpad') {
       const focusSearch = () => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
@@ -464,22 +479,199 @@ export const SuperNotch: React.FC = () => {
     return { query: searchParam, results };
   }, [clipboardSearchQuery]);
 
-  // /color & /palette Live Match (WCAG contrast & format extraction)
+  // /color, /palette & /vault Live Match (WCAG contrast, Palette Vault & token export)
+  const [savedPalettes, setSavedPalettes] = useState<SavedColorPalette[]>(() => loadSavedPalettes());
+  const [newPaletteName, setNewPaletteName] = useState('');
+
   const colorLiveMatch = useMemo(() => {
     const query = clipboardSearchQuery.trim();
-    const match = query.match(/^\/(?:color|palette)(?:\s+(.*))?$/i);
+    const match = query.match(/^\/(?:color|palette|vault)(?:\s+(.*))?$/i);
     if (!match) return null;
     const colorParam = match[1]?.trim();
-    if (colorParam) {
+    if (colorParam && colorParam.startsWith('#')) {
       const details = analyzeColor(colorParam);
-      return { type: 'single' as const, details };
+      if (details) return { type: 'single' as const, details };
+    } else if (colorParam) {
+      const details = analyzeColor(colorParam);
+      if (details) return { type: 'single' as const, details };
     }
     const hexes = clipboardItems
       .filter((c) => c.category === 'color' || c.content.includes('#'))
       .flatMap((c) => extractHexColors(c.content));
     const unique = Array.from(new Set(hexes)).slice(0, 10);
-    return { type: 'palette' as const, colors: unique };
+    return {
+      type: 'palette' as const,
+      colors: unique.length > 0 ? unique : ['#f59e0b', '#38bdf8', '#10b981', '#a855f7', '#ec4899'],
+    };
   }, [clipboardSearchQuery, clipboardItems]);
+
+  const handleSavePaletteToVault = useCallback(
+    (colorsToSave: string[], customName?: string) => {
+      const name = (customName ?? newPaletteName).trim() || `Vault ${savedPalettes.length + 1}`;
+      const updated = saveNamedPalette(name, colorsToSave);
+      setSavedPalettes(updated);
+      setNewPaletteName('');
+      showStatus(`Saved "${name}" to Palette Vault 🎨`);
+    },
+    [newPaletteName, savedPalettes.length, showStatus]
+  );
+
+  const handleExportPaletteFormat = useCallback(
+    async (format: 'css' | 'tailwind' | 'figma' | 'hex', name: string, colors: string[]) => {
+      let output = '';
+      if (format === 'css') output = exportPaletteAsCssVariables(name, colors);
+      else if (format === 'tailwind') output = exportPaletteAsTailwind(name, colors);
+      else if (format === 'figma') output = exportPaletteAsFigmaSvg(name, colors);
+      else output = JSON.stringify(colors, null, 2);
+
+      try {
+        await navigator.clipboard.writeText(output);
+        showStatus(`Copied ${format.toUpperCase()} tokens to clipboard 📋`);
+      } catch {
+        showStatus('Failed to copy tokens');
+      }
+    },
+    [showStatus]
+  );
+
+  // Developer & Text Power Tools (/json, /b64, /url, /slug, /case, /uuid, /jwt, /epoch)
+  const devToolLiveMatch = useMemo(() => {
+    const latestTextClip =
+      clipboardItems.find(
+        (i) => i.category === 'clipboard' || i.category === 'code' || i.category === 'dictation'
+      )?.content || '';
+    return evaluateDevPowerTool(clipboardSearchQuery, latestTextClip);
+  }, [clipboardSearchQuery, clipboardItems]);
+
+  // Window Snapping & Tile Manager (/snap, /window, /left, /right, /max, /center, /top, /bottom, /tl, /tr, /bl, /br)
+  const windowSnapLiveMatch = useMemo(() => {
+    const q = clipboardSearchQuery.trim().toLowerCase();
+    const match = q.match(
+      /^\/(snap|window|tile|left|right|top|bottom|max|maximize|almost-max|center|tl|tr|bl|br)(?:\s+([a-z-]+))?$/i
+    );
+    if (!match) return null;
+    const cmd = match[1].toLowerCase();
+    const arg = (match[2] || '').toLowerCase();
+    const directMap: Record<string, string> = {
+      left: 'left',
+      right: 'right',
+      top: 'top',
+      bottom: 'bottom',
+      max: 'max',
+      maximize: 'max',
+      'almost-max': 'almost-max',
+      center: 'center',
+      tl: 'tl',
+      tr: 'tr',
+      bl: 'bl',
+      br: 'br',
+    };
+    const activeLayout = directMap[arg] || directMap[cmd] || 'left';
+    return { activeLayout };
+  }, [clipboardSearchQuery]);
+
+  const handleSnapWindow = useCallback(
+    async (layout: string) => {
+      try {
+        closeShelf();
+        await new Promise((r) => setTimeout(r, 140));
+        const res = await invoke<{ layout: string; target_app: string }>('snap_window', { layout });
+        showStatus(`Snapped ${res.target_app} (${layout.toUpperCase()}) 🪟`);
+      } catch (e: any) {
+        showStatus(e?.toString() || 'Snap failed — check Accessibility permission');
+      }
+    },
+    [closeShelf, showStatus]
+  );
+
+  // Notch Quick Scratchpad / Meeting Memo (Docked inside Notch, auto-synced with notes.json)
+  const [scratchpadText, setScratchpadText] = useState<string>(() => {
+    try {
+      return localStorage.getItem('dopenotch_scratchpad_draft') || '';
+    } catch {
+      return '';
+    }
+  });
+  const [scratchpadNoteId, setScratchpadNoteId] = useState<string | null>(null);
+  const [isScratchpadSynced, setIsScratchpadSynced] = useState<boolean>(true);
+  const scratchpadSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scratchpadTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    invoke<NoteItem[]>('get_notes')
+      .then((loaded) => {
+        if (!Array.isArray(loaded)) return;
+        const existing = loaded.find(
+          (n) => n.tags?.includes('scratchpad') || n.title === '📌 Notch Quick Scratchpad'
+        );
+        if (existing) {
+          setScratchpadNoteId(existing.id);
+          if (!scratchpadText && existing.content) {
+            setScratchpadText(existing.content);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const syncScratchpadToNotes = useCallback(
+    async (nextContent: string) => {
+      try {
+        localStorage.setItem('dopenotch_scratchpad_draft', nextContent);
+      } catch {}
+      try {
+        if (scratchpadNoteId) {
+          const updated = await invoke<NoteItem>('update_note', {
+            id: scratchpadNoteId,
+            title: '📌 Notch Quick Scratchpad',
+            content: nextContent,
+            tags: ['scratchpad', 'pinned'],
+            isPinned: true,
+          });
+          updateNote(scratchpadNoteId, {
+            content: updated.content,
+            updated_at: updated.updated_at,
+          });
+        } else if (nextContent.trim()) {
+          const created = await invoke<NoteItem>('save_note', {
+            title: '📌 Notch Quick Scratchpad',
+            content: nextContent,
+            tags: ['scratchpad', 'pinned'],
+          });
+          setScratchpadNoteId(created.id);
+          addNote(created);
+        }
+        setIsScratchpadSynced(true);
+      } catch {
+        setIsScratchpadSynced(true);
+      }
+    },
+    [addNote, scratchpadNoteId, updateNote]
+  );
+
+  const handleScratchpadChange = useCallback(
+    (nextVal: string) => {
+      setScratchpadText(nextVal);
+      setIsScratchpadSynced(false);
+      if (scratchpadSaveTimerRef.current) clearTimeout(scratchpadSaveTimerRef.current);
+      scratchpadSaveTimerRef.current = setTimeout(() => {
+        syncScratchpadToNotes(nextVal);
+      }, 450);
+    },
+    [syncScratchpadToNotes]
+  );
+
+  const handleInsertScratchpadToken = useCallback(
+    (token: string) => {
+      const prefix = scratchpadText && !scratchpadText.endsWith('\n') ? '\n' : '';
+      const updated = `${scratchpadText}${prefix}${token}`;
+      handleScratchpadChange(updated);
+      setTimeout(() => {
+        scratchpadTextareaRef.current?.focus();
+      }, 20);
+    },
+    [handleScratchpadChange, scratchpadText]
+  );
 
   const [inspectedWebData, setInspectedWebData] = useState<WebInspectionResult | null>(null);
   const [isInspectingWeb, setIsInspectingWeb] = useState(false);
@@ -1234,6 +1426,173 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-scratchpad',
+      command: '/scratch',
+      title: 'Notch Quick Scratchpad & Memo',
+      subtitle: 'Slide-down markdown note docked inside the physical Notch (/memo)',
+      icon: Edit3,
+      action: () => {
+        handleToggleView('scratchpad');
+      },
+    },
+    {
+      id: 'cmd-snap',
+      command: '/snap',
+      title: 'Window Snapping & Tile Manager',
+      subtitle: 'Tile active window: /left, /right, /max, /center, /tl, /tr, /bl, /br',
+      icon: AppWindow,
+      action: () => {
+        setClipboardSearchQuery('/snap ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-snap-left',
+      command: '/left',
+      title: 'Snap Window Left Half',
+      subtitle: 'Tile frontmost OS window to left 50% of screen',
+      icon: AppWindow,
+      action: () => {
+        handleSnapWindow('left');
+      },
+    },
+    {
+      id: 'cmd-snap-right',
+      command: '/right',
+      title: 'Snap Window Right Half',
+      subtitle: 'Tile frontmost OS window to right 50% of screen',
+      icon: AppWindow,
+      action: () => {
+        handleSnapWindow('right');
+      },
+    },
+    {
+      id: 'cmd-snap-max',
+      command: '/max',
+      title: 'Maximize Active Window',
+      subtitle: 'Expand frontmost OS window to full desktop bounds',
+      icon: AppWindow,
+      action: () => {
+        handleSnapWindow('max');
+      },
+    },
+    {
+      id: 'cmd-snap-center',
+      command: '/center',
+      title: 'Center Active Window (72%)',
+      subtitle: 'Center frontmost OS window at balanced 72% focus size',
+      icon: AppWindow,
+      action: () => {
+        handleSnapWindow('center');
+      },
+    },
+    {
+      id: 'cmd-palette-vault',
+      command: '/palette',
+      title: 'Color Palette Vault & Token Exporter',
+      subtitle: 'Save multi-color collections & export CSS Vars, Tailwind, or Figma SVG (/vault)',
+      icon: Palette,
+      action: () => {
+        setClipboardSearchQuery('/palette ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-json',
+      command: '/json',
+      title: 'JSON Prettify, Minify & Validator',
+      subtitle: 'Format or minify clipboard JSON with syntax validation (/prettify, /minify)',
+      icon: Code,
+      action: () => {
+        setClipboardSearchQuery('/json ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-b64',
+      command: '/b64',
+      title: 'Base64 Encode & Decode',
+      subtitle: 'Instant UTF-8 safe Base64 encoder & auto-decoder (/encode, /decode)',
+      icon: Terminal,
+      action: () => {
+        setClipboardSearchQuery('/b64 ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-url',
+      command: '/url',
+      title: 'URL Encode & Decode',
+      subtitle: 'Encode or decode URI components and query parameters (/urlencode, /urldecode)',
+      icon: Link2,
+      action: () => {
+        setClipboardSearchQuery('/url ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-slug',
+      command: '/slug',
+      title: 'Slugify Text',
+      subtitle: 'Convert any title or string into a clean URL-safe slug',
+      icon: Code,
+      action: () => {
+        setClipboardSearchQuery('/slug ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-case',
+      command: '/case',
+      title: 'Case Converter (camel, snake, kebab, Pascal)',
+      subtitle: 'Transform text into camelCase, snake_case, kebab-case, CONSTANT_CASE',
+      icon: Wand2,
+      action: () => {
+        setClipboardSearchQuery('/case ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-uuid',
+      command: '/uuid',
+      title: 'UUID v4 & ID Generator',
+      subtitle: 'Generate cryptographic RFC 4122 UUID v4 & compact hex IDs',
+      icon: Sparkles,
+      action: () => {
+        setClipboardSearchQuery('/uuid');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
+      id: 'cmd-dev-jwt',
+      command: '/jwt',
+      title: 'JWT Token Decoder',
+      subtitle: 'Inspect JWT header, payload claims & expiration offline',
+      icon: Code,
+      action: () => {
+        setClipboardSearchQuery('/jwt ');
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      },
+    },
+    {
       id: 'cmd-notes',
       command: '/notes',
       title: 'Voice Notes & Task Lists',
@@ -1665,18 +2024,23 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
-      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> AI Chat -> Stash
-      if (e.key === 'Tab') {
+      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> Scratchpad -> AI Chat -> Stash
+      if (e.key === 'Tab' && document.activeElement?.tagName !== 'TEXTAREA') {
         e.preventDefault();
-        const views: SuperNotchHudView[] = ['shelf', 'widgets', 'search', 'chat', 'stash'];
+        const views: SuperNotchHudView[] = ['shelf', 'widgets', 'search', 'scratchpad', 'chat', 'stash'];
         const currentIdx = views.indexOf(superNotchHudView);
         const nextView = views[(currentIdx + 1) % views.length];
         handleToggleView(nextView);
         return;
       }
 
-      // In Chat, Widgets, and Stash views, prevent shelf / search navigation and enter-to-paste
-      if (superNotchHudView === 'chat' || superNotchHudView === 'widgets' || superNotchHudView === 'stash') {
+      // In Chat, Widgets, Scratchpad, and Stash views, prevent shelf / search navigation and enter-to-paste
+      if (
+        superNotchHudView === 'chat' ||
+        superNotchHudView === 'widgets' ||
+        superNotchHudView === 'scratchpad' ||
+        superNotchHudView === 'stash'
+      ) {
         return;
       }
 
@@ -1695,6 +2059,14 @@ export const SuperNotch: React.FC = () => {
           }
         } else if (e.key === 'Enter') {
           e.preventDefault();
+          if (windowSnapLiveMatch) {
+            handleSnapWindow(windowSnapLiveMatch.activeLayout);
+            return;
+          }
+          if (devToolLiveMatch && devToolLiveMatch.isValid && devToolLiveMatch.primaryOutput) {
+            handlePaste(devToolLiveMatch.primaryOutput);
+            return;
+          }
           if (inspectLiveMatch) {
             handleRunWebInspection(inspectLiveMatch.url);
             return;
@@ -1874,6 +2246,8 @@ export const SuperNotch: React.FC = () => {
       : activeMode === 'shelf'
       ? superNotchHudView === 'search'
         ? 410
+        : superNotchHudView === 'scratchpad'
+        ? 320
         : superNotchHudView === 'widgets'
         ? 285
         : 260
@@ -3242,7 +3616,20 @@ export const SuperNotch: React.FC = () => {
                       <Sparkles className="w-4 h-4" />
                     </button>
 
-                    {/* Tab 4: AI Chat & Screen Copilot */}
+                    {/* Tab 4: Docked Notch Scratchpad & Meeting Memo */}
+                    <button
+                      onClick={() => handleToggleView('scratchpad')}
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
+                        superNotchHudView === 'scratchpad'
+                          ? 'bg-emerald-400/20 text-emerald-300 shadow-sm border border-emerald-400/30'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="Notch Quick Scratchpad & Meeting Memo (/scratch)"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+
+                    {/* Tab 5: AI Chat & Screen Copilot */}
                     <button
                       onClick={() => handleToggleView('chat')}
                       className={`p-2 rounded-lg transition-all cursor-pointer ${
@@ -4064,17 +4451,32 @@ export const SuperNotch: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Color Palette & Contrast Live Card */}
+                    {/* Color Palette & Palette Vault Live Card (/color, /palette, /vault) */}
                     {colorLiveMatch && (
                       <div className="mb-2 p-3 rounded-xl bg-white/[0.06] border border-white/10 flex flex-col gap-2.5">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Palette className="w-4 h-4 text-pink-400" />
                             <span className="text-xs font-semibold text-white font-mono">
-                              {colorLiveMatch.type === 'single' ? 'Color Analysis & Tokens' : 'Recent Color Swatches'}
+                              {colorLiveMatch.type === 'single'
+                                ? 'Color Analysis & Tokens'
+                                : 'Color Eyedropper & Palette Vault'}
                             </span>
                           </div>
-                          <span className="text-[10px] text-zinc-400 font-mono">Click swatch to copy</span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                closeShelf();
+                                setTimeout(() => invoke('open_loupe').catch(() => {}), 120);
+                              }}
+                              className="px-2 py-0.5 rounded bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 border border-pink-500/30 text-[10px] font-mono flex items-center gap-1 transition-all cursor-pointer"
+                            >
+                              <Pipette className="w-3 h-3" />
+                              <span>Pick Pixel</span>
+                            </button>
+                            <span className="text-[10px] text-zinc-400 font-mono">Click swatch to copy</span>
+                          </div>
                         </div>
 
                         {colorLiveMatch.type === 'single' && colorLiveMatch.details ? (
@@ -4106,8 +4508,23 @@ export const SuperNotch: React.FC = () => {
                               </div>
                               <button
                                 type="button"
+                                onClick={() => {
+                                  if (savedPalettes.length > 0) {
+                                    const updated = addColorToPalette(savedPalettes[0].id, colorLiveMatch.details!.hex);
+                                    setSavedPalettes(updated);
+                                    showStatus(`Added ${colorLiveMatch.details!.hex} to ${savedPalettes[0].name} 🎨`);
+                                  } else {
+                                    handleSavePaletteToVault([colorLiveMatch.details!.hex], 'Picked Swatches');
+                                  }
+                                }}
+                                className="px-2 py-1.5 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-300 font-medium text-xs transition-all cursor-pointer"
+                              >
+                                + Vault
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handlePaste(colorLiveMatch.details!.hex)}
-                                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-all"
+                                className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center gap-1 transition-all cursor-pointer"
                               >
                                 <Copy className="w-3 h-3" />
                                 <span>Copy</span>
@@ -4115,20 +4532,235 @@ export const SuperNotch: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-2 overflow-x-auto py-1 custom-slim-scrollbar">
-                            {colorLiveMatch.colors?.map((c, i) => (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 custom-slim-scrollbar">
+                                {colorLiveMatch.colors?.map((c, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => handlePaste(c)}
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/40 hover:bg-white/10 border border-white/10 transition-all shrink-0 cursor-pointer group"
+                                  >
+                                    <span
+                                      className="w-3 h-3 rounded-full border border-white/20 shrink-0"
+                                      style={{ backgroundColor: c }}
+                                    />
+                                    <span className="text-[10.5px] font-mono text-zinc-300 group-hover:text-white">
+                                      {c}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
                               <button
-                                key={i}
                                 type="button"
-                                onClick={() => handlePaste(c)}
-                                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-black/40 hover:bg-white/10 border border-white/10 transition-all shrink-0 cursor-pointer group"
+                                onClick={() =>
+                                  handleSavePaletteToVault(colorLiveMatch.colors || [], `Swatches ${savedPalettes.length + 1}`)
+                                }
+                                className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-mono shrink-0 cursor-pointer transition-all"
                               >
+                                + Save to Vault
+                              </button>
+                            </div>
+
+                            {/* Saved Named Palettes Vault with 1-Click CSS / Tailwind / Figma Export */}
+                            <div className="pt-1.5 border-t border-white/10 space-y-1.5">
+                              <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                                <span>SAVED PALETTE VAULT ({savedPalettes.length})</span>
+                                <span>Export Tokens: CSS • Tailwind • Figma SVG</span>
+                              </div>
+                              {savedPalettes.slice(0, 3).map((pal) => (
+                                <div
+                                  key={pal.id}
+                                  className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-black/40 border border-white/[0.06]"
+                                >
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <div className="flex items-center -space-x-1 shrink-0">
+                                      {pal.colors.slice(0, 6).map((hex, idx) => (
+                                        <button
+                                          key={idx}
+                                          type="button"
+                                          onClick={() => handlePaste(hex)}
+                                          title={`Copy ${hex}`}
+                                          className="w-4 h-4 rounded-full border border-black/80 hover:scale-125 transition-transform cursor-pointer"
+                                          style={{ backgroundColor: hex }}
+                                        />
+                                      ))}
+                                    </div>
+                                    <span className="text-[11px] font-medium text-zinc-200 truncate">
+                                      {pal.name}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0 font-mono text-[9.5px]">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportPaletteFormat('css', pal.name, pal.colors)}
+                                      className="px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.15] text-zinc-300 hover:text-white cursor-pointer transition-colors"
+                                      title="Copy as CSS :root variables"
+                                    >
+                                      CSS
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportPaletteFormat('tailwind', pal.name, pal.colors)}
+                                      className="px-1.5 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 cursor-pointer transition-colors"
+                                      title="Copy as Tailwind config object"
+                                    >
+                                      Tailwind
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleExportPaletteFormat('figma', pal.name, pal.colors)}
+                                      className="px-1.5 py-0.5 rounded bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 cursor-pointer transition-colors"
+                                      title="Copy as Figma SVG Swatch Card (Paste directly in Figma)"
+                                    >
+                                      Figma
+                                    </button>
+                                    {!pal.id.startsWith('preset-') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setSavedPalettes(deleteSavedPalette(pal.id))}
+                                        className="p-0.5 text-zinc-500 hover:text-rose-400 cursor-pointer"
+                                        title="Remove palette"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Window Snapping & Tile Manager Live Card (/snap, /left, /right, /max, /center, /tl, /tr, /bl, /br) */}
+                    {windowSnapLiveMatch && (
+                      <div className="mb-2 p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/25 flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center shrink-0">
+                              <AppWindow className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-white">
+                                  Window Snapping & Tile Manager
+                                </span>
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 uppercase">
+                                  {windowSnapLiveMatch.activeLayout}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-zinc-400 font-mono">
+                                Click any tile or press ↵ to snap active foreground window
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleSnapWindow(windowSnapLiveMatch.activeLayout)}
+                            className="px-3 py-1 rounded-lg bg-cyan-400 hover:bg-cyan-300 text-black font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                          >
+                            <span>Snap ↵</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 pt-0.5">
+                          {[
+                            { id: 'left', label: 'Left ½', cmd: '/left', box: 'left-0.5 top-0.5 bottom-0.5 w-[45%]' },
+                            { id: 'right', label: 'Right ½', cmd: '/right', box: 'right-0.5 top-0.5 bottom-0.5 w-[45%]' },
+                            { id: 'max', label: 'Max', cmd: '/max', box: 'inset-0.5' },
+                            { id: 'center', label: 'Center', cmd: '/center', box: 'inset-1.5' },
+                            { id: 'tl', label: 'Top-L', cmd: '/tl', box: 'left-0.5 top-0.5 w-[45%] h-[45%]' },
+                            { id: 'tr', label: 'Top-R', cmd: '/tr', box: 'right-0.5 top-0.5 w-[45%] h-[45%]' },
+                            { id: 'bl', label: 'Bot-L', cmd: '/bl', box: 'left-0.5 bottom-0.5 w-[45%] h-[45%]' },
+                            { id: 'br', label: 'Bot-R', cmd: '/br', box: 'right-0.5 bottom-0.5 w-[45%] h-[45%]' },
+                          ].map((tile) => {
+                            const isSelected = windowSnapLiveMatch.activeLayout === tile.id;
+                            return (
+                              <button
+                                key={tile.id}
+                                type="button"
+                                onClick={() => handleSnapWindow(tile.id)}
+                                className={`p-1.5 rounded-lg border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-cyan-500/25 border-cyan-400/50 text-white shadow-sm'
+                                    : 'bg-black/40 hover:bg-white/10 border-white/10 text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                <div className="w-8 h-5 rounded-[3px] border border-white/25 bg-black/60 relative overflow-hidden">
+                                  <div className={`absolute rounded-[1.5px] bg-cyan-400/80 ${tile.box}`} />
+                                </div>
+                                <span className="text-[9.5px] font-mono leading-none">{tile.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Developer & Text Power Tools Live Card (/json, /b64, /url, /slug, /case, /uuid, /jwt, /epoch) */}
+                    {devToolLiveMatch && (
+                      <div className="mb-2 p-3 rounded-xl bg-violet-500/10 border border-violet-500/25 flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-7 h-7 rounded-lg bg-violet-500/20 text-violet-300 flex items-center justify-center shrink-0">
+                              <Code className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-white truncate">
+                                  {devToolLiveMatch.title}
+                                </span>
                                 <span
-                                  className="w-3.5 h-3.5 rounded-full border border-white/20 shrink-0"
-                                  style={{ backgroundColor: c }}
-                                />
-                                <span className="text-[11px] font-mono text-zinc-300 group-hover:text-white">
-                                  {c}
+                                  className={`text-[9px] font-mono px-1.5 py-0.2 rounded uppercase font-semibold ${
+                                    devToolLiveMatch.isValid
+                                      ? 'bg-violet-500/20 text-violet-300'
+                                      : 'bg-rose-500/20 text-rose-300'
+                                  }`}
+                                >
+                                  {devToolLiveMatch.primaryLabel}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-zinc-400 font-mono truncate">
+                                {devToolLiveMatch.subtitle}
+                              </p>
+                            </div>
+                          </div>
+
+                          {devToolLiveMatch.isValid && devToolLiveMatch.primaryOutput && (
+                            <button
+                              type="button"
+                              onClick={() => handlePaste(devToolLiveMatch.primaryOutput)}
+                              className="px-3 py-1 rounded-lg bg-violet-400 hover:bg-violet-300 text-black font-semibold text-xs flex items-center gap-1 transition-all shrink-0 cursor-pointer"
+                            >
+                              <CornerDownLeft className="w-3 h-3" />
+                              <span>Paste ↵</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {devToolLiveMatch.primaryOutput && (
+                          <pre className="p-2 rounded-lg bg-black/50 border border-white/[0.08] text-[11px] font-mono text-zinc-200 max-h-24 overflow-y-auto custom-slim-scrollbar whitespace-pre-wrap break-all select-text">
+                            {devToolLiveMatch.primaryOutput}
+                          </pre>
+                        )}
+
+                        {devToolLiveMatch.variants.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                            {devToolLiveMatch.variants.map((v, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => handlePaste(v.value)}
+                                className="px-2 py-1 rounded-md bg-black/40 hover:bg-white/15 border border-white/10 text-[10px] font-mono text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
+                                title={`Click to copy & paste: ${v.value.slice(0, 80)}`}
+                              >
+                                <span className="text-violet-300 font-semibold">{v.label}:</span>
+                                <span className="truncate max-w-[140px]">
+                                  {v.value.replace(/\s+/g, ' ')}
                                 </span>
                               </button>
                             ))}
@@ -4699,6 +5331,121 @@ export const SuperNotch: React.FC = () => {
               {superNotchHudView === 'widgets' && (
                 <div className="flex-1 flex flex-col justify-start pt-0.5 overflow-hidden">
                   <WidgetsView />
+                </div>
+              )}
+
+              {/* ================================================================= */}
+              {/* VIEW D: DOCKED NOTCH QUICK SCRATCHPAD & MEETING MEMO              */}
+              {/* ================================================================= */}
+              {superNotchHudView === 'scratchpad' && (
+                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden gap-2">
+                  {/* Scratchpad Header Toolbar */}
+                  <div className="flex items-center justify-between gap-2 px-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold text-white flex items-center gap-1.5">
+                        <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Notch Quick Scratchpad</span>
+                      </span>
+                      <span
+                        className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full border ${
+                          isScratchpadSynced
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                            : 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+                        }`}
+                      >
+                        {isScratchpadSynced ? 'Synced to Notes ✓' : 'Saving...'}
+                      </span>
+                      <span className="text-[10px] font-mono text-zinc-500">
+                        {scratchpadText.trim() ? scratchpadText.trim().split(/\s+/).length : 0} words
+                      </span>
+                    </div>
+
+                    {/* Quick Formatting & Export Pills */}
+                    <div className="flex items-center gap-1 font-mono text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => handleInsertScratchpadToken('- ')}
+                        className="px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.14] text-zinc-300 hover:text-white transition-all cursor-pointer"
+                        title="Insert Bullet Point"
+                      >
+                        • Bullet
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleInsertScratchpadToken('- [ ] ')}
+                        className="px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.14] text-zinc-300 hover:text-white transition-all cursor-pointer"
+                        title="Insert Markdown Checkbox"
+                      >
+                        [ ] Task
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleInsertScratchpadToken(
+                            `**[${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}]** `
+                          )
+                        }
+                        className="px-2 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.14] text-zinc-300 hover:text-white transition-all cursor-pointer"
+                        title="Insert Timestamp"
+                      >
+                        ⏱ Time
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!scratchpadText.trim()) return;
+                          await navigator.clipboard.writeText(scratchpadText);
+                          showStatus('Copied Scratchpad 📋');
+                        }}
+                        className="px-2 py-1 rounded-md bg-white/[0.08] hover:bg-white/[0.16] text-white transition-all cursor-pointer flex items-center gap-1"
+                        title="Copy All Scratchpad Text"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Copy</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('notes');
+                          handleOpenDashboard();
+                        }}
+                        className="px-2 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition-all cursor-pointer"
+                        title="Open Full Notes View in Dashboard"
+                      >
+                        ↗ Notes
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Multi-line Markdown Textarea */}
+                  <textarea
+                    ref={scratchpadTextareaRef}
+                    value={scratchpadText}
+                    onChange={(e) => handleScratchpadChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        closeShelf();
+                        return;
+                      }
+                      e.stopPropagation();
+                    }}
+                    placeholder="Jot down quick meeting bullets, code snippets, or lecture notes right inside the Notch... (Auto-synced to your Notes dashboard)"
+                    className="flex-1 w-full rounded-xl bg-white/[0.04] hover:bg-white/[0.06] focus:bg-white/[0.07] border border-white/10 focus:border-emerald-400/40 p-3 text-xs font-mono text-zinc-100 placeholder:text-zinc-500 focus:outline-none resize-none custom-slim-scrollbar select-text leading-relaxed"
+                  />
+
+                  {/* Scratchpad Footer Hint */}
+                  <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono px-1">
+                    <span>💡 Tip: Click the 📌 Pin icon in the top bar to keep this scratchpad open while watching videos or in Zoom.</span>
+                    {scratchpadText.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => handleScratchpadChange('')}
+                        className="text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer"
+                      >
+                        Clear Scratchpad
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
                 </>

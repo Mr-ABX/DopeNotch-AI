@@ -2379,6 +2379,14 @@ pub async fn validate_license_key() -> Result<bool, String> {
     crate::license::validate_license_remote().await
 }
 
+#[tauri::command]
+pub async fn snap_window(layout: String) -> Result<crate::window_snapper::SnapResult, String> {
+    tokio::task::spawn_blocking(move || crate::window_snapper::snap_active_window(&layout))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+
 
 
 
