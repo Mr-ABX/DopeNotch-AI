@@ -227,50 +227,32 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
       </svg>
 
       {/* ========================================================================= */}
-      {/* 2. AI GHOST MOUSE VIRTUAL CURSOR (Soft, larger, no sharp tail)            */}
+      {/* 2. NATIVE GHOST MOUSE CURSOR (Arrowhead, no tail, matching reference)      */}
       {/* ========================================================================= */}
       {!isLaserMode && (
         <motion.div
           animate={{ x: ghostPos.x, y: ghostPos.y }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           style={{ position: 'fixed', left: 0, top: 0, pointerEvents: 'none' }}
-          className="z-[9998] flex items-center gap-2 transform -translate-x-3 -translate-y-3"
+          className="z-[9998]"
         >
-          {/* Modern Soft Circular Haptic Pointer */}
-          <div className="relative flex items-center justify-center">
-            {/* Outer Breathing Amber Aura */}
-            <motion.div
-              animate={{
-                scale: [1, 1.25, 1],
-                opacity: [0.5, 0.85, 0.5],
-              }}
-              transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-              className="w-7 h-7 rounded-full bg-amber-500/25 border border-amber-400/50 shadow-[0_0_18px_rgba(245,158,11,0.65)]"
+          {/* Native Mac / Windows Arrowhead Cursor (Clean black with white border, rounded corners, no tail stem) */}
+          <svg
+            width="26"
+            height="26"
+            viewBox="0 0 26 26"
+            fill="none"
+            className="filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] transform -translate-x-[2px] -translate-y-[2px]"
+          >
+            <path
+              d="M 2.5 2.5 L 23 9.5 L 13.5 13.5 L 9.5 23 Z"
+              fill="#000000"
+              stroke="#ffffff"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+              strokeLinecap="round"
             />
-
-            {/* Middle Soft-Squeeze Core Squircle / Circle */}
-            <motion.div
-              animate={{
-                scale: isFlying ? [0.95, 1.05, 0.95] : 1,
-              }}
-              transition={{ repeat: Infinity, duration: 0.8 }}
-              className="absolute w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 shadow-[0_0_12px_rgba(245,158,11,0.9)] flex items-center justify-center border border-amber-200/60"
-            >
-              {/* White specular center dot */}
-              <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />
-            </motion.div>
-          </div>
-
-          {/* Dopey Mascot Badge */}
-          <div className="px-2 py-0.5 rounded-full bg-black/85 backdrop-blur-md border border-amber-500/40 text-[9.5px] font-mono font-medium text-amber-200 shadow-[0_4px_12px_rgba(0,0,0,0.6)] flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span>{isFlying ? 'Dopey Flying...' : 'Dopey Pointing'}</span>
-            {hasClicked && (
-              <span className="text-[8.5px] px-1 rounded bg-emerald-500/30 text-emerald-300 font-bold">
-                Clicked!
-              </span>
-            )}
-          </div>
+          </svg>
         </motion.div>
       )}
 
@@ -287,19 +269,19 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
             top: `${Math.min(window.innerHeight - 170, Math.max(60, activeStep.y - 20))}px`,
             zIndex: 9997,
           }}
-          className="w-80 p-3.5 rounded-2xl bg-black/90 backdrop-blur-xl border border-amber-500/30 shadow-[0_15px_35px_-5px_rgba(0,0,0,0.7),0_0_20px_rgba(245,158,11,0.2)] flex flex-col gap-2.5 pointer-events-auto"
+          className="w-80 p-3.5 rounded-2xl bg-[#0e0e12]/95 backdrop-blur-xl border border-white/15 shadow-[0_15px_35px_-5px_rgba(0,0,0,0.8)] flex flex-col gap-2.5 pointer-events-auto"
         >
           {/* Header: Step Number, Shortcuts & Controls */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/10 text-zinc-200 border border-white/15 font-semibold">
                 Step {currentStepIdx + 1} of {currentTarget.steps.length}
               </span>
 
               {/* Glowing Shortcut Keycap Badge */}
               {activeStep.shortcut && (
                 <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/20 text-[10px] font-mono font-bold text-white shadow-sm flex items-center gap-1">
-                  <CornerDownLeft className="w-2.5 h-2.5 text-amber-400" />
+                  <CornerDownLeft className="w-2.5 h-2.5 text-zinc-400" />
                   <span>{activeStep.shortcut}</span>
                 </span>
               )}
@@ -310,7 +292,7 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
               <button
                 type="button"
                 onClick={() => setIsLaserMode(!isLaserMode)}
-                className="p-1 rounded-md text-zinc-400 hover:text-amber-300 hover:bg-white/10 transition-colors cursor-pointer"
+                className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 title="Toggle Circle-to-Ask Laser"
               >
                 <Target className="w-3.5 h-3.5" />
@@ -356,18 +338,18 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
               <button
                 type="button"
                 onClick={handleManualClick}
-                className="px-2 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-amber-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer border border-amber-500/20"
+                className="px-2.5 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-zinc-200 text-[10px] font-mono flex items-center gap-1 cursor-pointer border border-white/10"
                 title="Synthesize real macOS mouse click on this element"
               >
-                <MousePointerClick className="w-3 h-3" />
-                <span>Click It</span>
+                <MousePointerClick className="w-3 h-3 text-zinc-300" />
+                <span>{hasClicked ? 'Clicked! ✓' : 'Click It'}</span>
               </button>
             </div>
 
             <button
               type="button"
               onClick={handleNextStep}
-              className="px-3.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.5)] cursor-pointer"
+              className="px-3.5 py-1 rounded-xl bg-white hover:bg-zinc-200 text-black font-semibold text-xs transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
             >
               <span>
                 {currentStepIdx < currentTarget.steps.length - 1 ? 'Next Step' : 'Done!'}

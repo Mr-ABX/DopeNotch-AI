@@ -1,5 +1,14 @@
 import * as THREE from 'three';
+import { invoke } from '@tauri-apps/api/core';
 import { AIModelId } from './aiChatService';
+
+export interface ScreenVisionPayload {
+  base64_image: string;
+  mime_type: string;
+  width: number;
+  height: number;
+  timestamp: number;
+}
 
 export interface SpatialStep {
   stepNumber: number;
@@ -245,6 +254,118 @@ export function matchPresetForQuery(query: string): PresetMatchResult {
   }
 
   return { intent };
+}
+
+/**
+ * Resolves a real-world screen element dynamically by capturing the user's active screen
+ * and querying Gemini Vision for exact normalized coordinates [ymin, xmin, ymax, xmax].
+ * If offline or key not provided, falls back cleanly to contextual preset library.
+ */
+export async function resolveRealSpatialTarget(
+  query: string,
+  geminiApiKey?: string
+): Promise<SpatialGuideTarget> {
+  const trimmed = query.trim();
+
+  // 1. If Gemini Vision key is present, take real screenshot and spot dynamically
+  if (geminiApiKey) {
+    try {
+      const snap = await invoke<ScreenVisionPayload>('capture_screen_vision');
+      if (snap && snap.base64_image) {
+        const prompt = `You are an expert AI screen locator for desktop computers.
+User query: "${trimmed}"
+Examine this computer screenshot carefully.
+Locate the exact button, tool icon, menu bar item, input, or UI element the user is asking about.
+Return ONLY a valid JSON object matching this schema:
+{
+  "found": true,
+  "title": "Short element name (e.g. Pen Tool)",
+  "instruction": "Action instruction (e.g. Click the Pen Tool icon on the left vertical toolbar)",
+  "box_2d": [ymin, xmin, ymax, xmax],
+  "shortcut": "keyboard shortcut if known (e.g. 'P', 'Cmd+S', etc.)"
+}
+Note: box_2d coordinates MUST be normalized values between 0 and 1000.
+If the element cannot be found, return:
+{
+  "found": false
+}`;
+
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { text: prompt },
+                    {
+                      inlineData: {
+                        mimeType: snap.mime_type || 'image/jpeg',
+                        data: snap.base64_image,
+                      },
+                    },
+                  ],
+                },
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                maxOutputTokens: 600,
+              },
+            }),
+          }
+        );
+
+        if (res.ok) {
+          const json = await res.json();
+          const text = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(cleaned);
+
+          if (parsed.found && Array.isArray(parsed.box_2d) && parsed.box_2d.length === 4) {
+            const [ymin, xmin, ymax, xmax] = parsed.box_2d;
+            const screenW = typeof window !== 'undefined' ? window.screen.width : 1512;
+            const screenH = typeof window !== 'undefined' ? window.screen.height : 982;
+            const targetX = Math.round(((xmin + xmax) / 2 / 1000) * screenW);
+            const targetY = Math.round(((ymin + ymax) / 2 / 1000) * screenH);
+
+            return {
+              id: `real_${Date.now()}`,
+              label: parsed.title || trimmed,
+              instruction: parsed.instruction || `Located ${trimmed} on screen`,
+              shortcut: parsed.shortcut,
+              chalkType: 'circle',
+              targetBox: [ymin, xmin, ymax, xmax],
+              screenX: targetX,
+              screenY: targetY,
+              currentStepIndex: 0,
+              steps: [
+                {
+                  stepNumber: 1,
+                  title: parsed.title || trimmed,
+                  instruction: parsed.instruction || `Found ${trimmed} at (${targetX}, ${targetY})`,
+                  x: targetX,
+                  y: targetY,
+                  shortcut: parsed.shortcut,
+                  chalkType: 'circle',
+                },
+              ],
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Real screen vision detection fallback:', err);
+    }
+  }
+
+  // 2. Contextual Fallback to closest preset or default
+  const match = matchPresetForQuery(trimmed);
+  if (match.spatialTarget) {
+    return match.spatialTarget;
+  }
+  return SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool;
 }
 
 /**

@@ -12,10 +12,11 @@ import {
   MousePointerClick,
   CheckCircle2,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
-import { SAMPLE_SPATIAL_GUIDE_PRESETS } from '../../services/spatialGuideService';
+import { SAMPLE_SPATIAL_GUIDE_PRESETS, resolveRealSpatialTarget } from '../../services/spatialGuideService';
 
 export const DopeyCopilotView: React.FC = () => {
   const { apiKeys, setApiKey, selectedAIProvider, setSelectedAIProvider } = useAppStore();
@@ -26,6 +27,8 @@ export const DopeyCopilotView: React.FC = () => {
   const [selectedPreset, setSelectedPreset] = useState<string>('photoshop_pen_tool');
   const [customX, setCustomX] = useState<number>(300);
   const [customY, setCustomY] = useState<number>(300);
+  const [livePrompt, setLivePrompt] = useState<string>('Pen tool');
+  const [isSpotting, setIsSpotting] = useState<boolean>(false);
 
   // Check accessibility permissions on mount
   useEffect(() => {
@@ -95,6 +98,23 @@ export const DopeyCopilotView: React.FC = () => {
       setTimeout(() => setTestStatus(''), 4000);
     } catch (e: any) {
       setTestStatus(`Error launching ghost guide: ${e?.message || e}`);
+    }
+  };
+
+  const handleSpotElement = async () => {
+    if (!livePrompt.trim() || isSpotting) return;
+    setIsSpotting(true);
+    setTestStatus('Capturing screen & querying Gemini Vision...');
+    try {
+      const geminiKey = apiKeys['gemini'] || localStorage.getItem('gemini_api_key') || undefined;
+      const target = await resolveRealSpatialTarget(livePrompt, geminiKey);
+      await invoke('open_ghost_guide', { target: JSON.stringify({ ...target, autoClick: autoClickEnabled }) });
+      setTestStatus(`Target spotted! Flying cursor to (${target.screenX}, ${target.screenY})`);
+      setTimeout(() => setTestStatus(''), 4500);
+    } catch (e: any) {
+      setTestStatus(`Vision error: ${e?.message || e}`);
+    } finally {
+      setIsSpotting(false);
     }
   };
 
@@ -209,6 +229,58 @@ export const DopeyCopilotView: React.FC = () => {
               className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-white text-xs transition-colors cursor-pointer"
             >
               Go to ({customX}, {customY})
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 1B. LIVE DYNAMIC SCREEN SPOTTER (REAL GEMINI VISION)                      */}
+        {/* ========================================================================= */}
+        <div className="p-5 rounded-2xl bg-[#111114] border border-[#1e1e24] space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
+                <Zap className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-white">Live AI Screen Spotter (Real Vision)</h2>
+                <p className="text-xs text-zinc-400">Takes a live screenshot, finds any button or tool with Gemini 2.5 Flash, and flies the cursor to it</p>
+              </div>
+            </div>
+
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+              Zero Hardcoding
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={livePrompt}
+              onChange={(e) => setLivePrompt(e.target.value)}
+              placeholder="e.g. 'Pen tool', 'Mute button', 'Safari URL bar', 'Terminal close button'"
+              className="flex-1 bg-[#09090b] border border-[#1e1e24] rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-cyan-500/50 font-mono"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSpotElement();
+              }}
+            />
+            <button
+              type="button"
+              onClick={handleSpotElement}
+              disabled={isSpotting}
+              className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-black text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+            >
+              {isSpotting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Spotting...</span>
+                </>
+              ) : (
+                <>
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Spot on Screen</span>
+                </>
+              )}
             </button>
           </div>
         </div>

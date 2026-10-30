@@ -62,11 +62,10 @@ import {
 } from 'lucide-react';
 import { ScreenshotAnnotator } from './ScreenshotAnnotator';
 import { HoloSandboxCard } from './HoloSandboxCard';
-import { GhostGuideOverlay } from './GhostGuideOverlay';
 import {
   matchPresetForQuery,
+  resolveRealSpatialTarget,
   SAMPLE_SPATIAL_GUIDE_PRESETS,
-  SpatialGuideTarget,
 } from '../../services/spatialGuideService';
 import { aiVoiceService } from '../../services/aiVoiceService';
 import { invoke } from '@tauri-apps/api/core';
@@ -281,8 +280,7 @@ export const SuperNotch: React.FC = () => {
   const [isHoloSandboxOpen, setIsHoloSandboxOpen] = useState<boolean>(false);
   const [holoSandboxMode, setHoloSandboxMode] = useState<'3d' | '2d'>('3d');
   const [holoPresetId, setHoloPresetId] = useState<string | undefined>(undefined);
-  const [isGhostGuideOpen, setIsGhostGuideOpen] = useState<boolean>(false);
-  const [ghostGuideTarget, setGhostGuideTarget] = useState<SpatialGuideTarget | null>(null);
+  const [isGhostGuideActive, setIsGhostGuideActive] = useState<boolean>(false);
   const [copilotPromptInput, setCopilotPromptInput] = useState<string>('');
 
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -1144,12 +1142,13 @@ export const SuperNotch: React.FC = () => {
       setIsHoloSandboxOpen(true);
       showStatus('Spawned 2D Diagram Canvas!');
     } else if (spatialMatch.intent === 'spatial_guide') {
-      const target = spatialMatch.spatialTarget || SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool;
-      setGhostGuideTarget(target);
-      invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {
-        setIsGhostGuideOpen(true);
+      showStatus('Locating element on screen with Vision...');
+      closeShelf();
+      const geminiKey = apiKeys['gemini'] || localStorage.getItem('gemini_api_key') || undefined;
+      resolveRealSpatialTarget(userText, geminiKey).then((target) => {
+        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {});
       });
-      showStatus('Summoned Ghost Mouse Guide across screen!');
+      return;
     }
 
     let screenPayload = currentScreenThumbnail;
@@ -1527,13 +1526,13 @@ export const SuperNotch: React.FC = () => {
       subtitle: 'Show-Me mode: AI virtual cursor points directly to buttons & UI elements on screen (/show)',
       icon: MousePointer,
       action: () => {
-        const target = SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool;
-        setGhostGuideTarget(target);
-        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {
-          setIsGhostGuideOpen(true);
-        });
-        showStatus('Summoned Ghost Mouse Guide across screen!');
+        const query = clipboardSearchQuery.replace(/^\/(?:guide|spot|show)\s*/i, '').trim();
+        showStatus('Locating element on screen with Vision...');
         closeShelf();
+        const geminiKey = apiKeys['gemini'] || localStorage.getItem('gemini_api_key') || undefined;
+        resolveRealSpatialTarget(query || 'Pen tool', geminiKey).then((target) => {
+          invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {});
+        });
       },
     },
     {
@@ -1543,13 +1542,13 @@ export const SuperNotch: React.FC = () => {
       subtitle: 'Circle any button, code error, or equation on screen to inspect with AI',
       icon: Target,
       action: () => {
-        const target = SAMPLE_SPATIAL_GUIDE_PRESETS.vs_code_format;
-        setGhostGuideTarget(target);
-        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {
-          setIsGhostGuideOpen(true);
-        });
-        showStatus('Laser Spotter Active! Circle region.');
+        const query = clipboardSearchQuery.replace(/^\/(?:guide|spot|show)\s*/i, '').trim();
+        showStatus('Spotter Active! Locating target...');
         closeShelf();
+        const geminiKey = apiKeys['gemini'] || localStorage.getItem('gemini_api_key') || undefined;
+        resolveRealSpatialTarget(query || 'Code formatting button', geminiKey).then((target) => {
+          invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {});
+        });
       },
     },
     {
@@ -2071,11 +2070,30 @@ export const SuperNotch: React.FC = () => {
       openShelf('shelf');
     });
 
+    const unlistenGhostActivate = listen('dopenotch://activate-ghost-guide', () => {
+      setIsGhostGuideActive(true);
+      closeShelf();
+      invoke('set_notch_expanded', { expanded: false, width: 180, height: 28 }).catch(() => {});
+    });
+
+    const unlistenGhostDeactivate = listen('dopenotch://deactivate-ghost-guide', () => {
+      setIsGhostGuideActive(false);
+      invoke('set_notch_expanded', { expanded: false, width: 160, height: 28 }).catch(() => {});
+    });
+
+    const unlistenGhostClose = listen('dopenotch://close-ghost-guide', () => {
+      setIsGhostGuideActive(false);
+      invoke('set_notch_expanded', { expanded: false, width: 160, height: 28 }).catch(() => {});
+    });
+
     return () => {
       unlistenToggle.then((f) => f());
       unlistenSearch.then((f) => f());
       unlistenHud.then((f) => f());
       unlistenOpen.then((f) => f());
+      unlistenGhostActivate.then((f) => f());
+      unlistenGhostDeactivate.then((f) => f());
+      unlistenGhostClose.then((f) => f());
     };
   }, [activeMode, closeShelf, openShelf, superNotchHudView]);
 
@@ -2333,6 +2351,8 @@ export const SuperNotch: React.FC = () => {
       ? 860
       : activeMode === 'recording'
       ? 220
+      : isGhostGuideActive
+      ? 180
       : noteSavedFeedback
       ? 200
       : isMeetingScribeActive
@@ -3258,9 +3278,10 @@ export const SuperNotch: React.FC = () => {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               onMouseEnter={() => {
+                if (isGhostGuideActive) return;
                 if (hoverExpandTimeoutRef.current) clearTimeout(hoverExpandTimeoutRef.current);
                 hoverExpandTimeoutRef.current = setTimeout(() => {
-                  if (activeMode === 'idle' && !isRecording) {
+                  if (activeMode === 'idle' && !isRecording && !isGhostGuideActive) {
                     openShelf('shelf');
                   }
                 }, 220);
@@ -3340,17 +3361,55 @@ export const SuperNotch: React.FC = () => {
                   </div>
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/40 animate-pulse" />
                 </div>
-              ) : (
-                /* Sleek Dopey Mascot in Idle Notch (Brand Amber Soft Squeeze Squircle) */
-                <motion.div
-                  className="flex items-center justify-center gap-1.5 opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
-                  title="Dopey AI Companion (Hover to open SuperShelf or click /3d, /guide)"
-                  whileHover={{ scale: 1.1 }}
-                >
-                  <div className="w-3.5 h-3.5 rounded-[5px] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.7)] flex items-center justify-center p-0.5">
-                    <Sparkles className="w-2.5 h-2.5 text-black drop-shadow-sm" />
+              ) : isGhostGuideActive ? (
+                /* Clicky-style Assistive Active Mode in Notch */
+                <div className="flex items-center justify-between w-full px-2">
+                  <div className="flex items-center gap-1">
+                    <motion.div
+                      animate={{ scaleY: [1, 1, 0.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 3, times: [0, 0.9, 0.95, 1] }}
+                      className="w-1.5 h-2.5 rounded-full bg-cyan-400"
+                    />
+                    <motion.div
+                      animate={{ scaleY: [1, 1, 0.1, 1] }}
+                      transition={{ repeat: Infinity, duration: 3, times: [0, 0.9, 0.95, 1] }}
+                      className="w-1.5 h-2.5 rounded-full bg-cyan-400"
+                    />
                   </div>
-                </motion.div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                    <span>Guiding</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      invoke('close_ghost_guide').catch(() => {});
+                      setIsGhostGuideActive(false);
+                    }}
+                    className="w-4 h-4 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                    title="Stop Guide"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </div>
+              ) : (
+                /* Native Dopey Cyan Eyes Mascot in Idle Notch (Clean, centered, no glowing fluff) */
+                <div
+                  className="flex items-center justify-center gap-1 opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
+                  title="Dopey AI Companion"
+                >
+                  <motion.div
+                    animate={{ scaleY: [1, 1, 0.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 3.5, times: [0, 0.9, 0.95, 1], ease: 'easeInOut' }}
+                    className="w-1.5 h-2.5 rounded-full bg-cyan-400"
+                  />
+                  <motion.div
+                    animate={{ scaleY: [1, 1, 0.1, 1] }}
+                    transition={{ repeat: Infinity, duration: 3.5, times: [0, 0.9, 0.95, 1], ease: 'easeInOut' }}
+                    className="w-1.5 h-2.5 rounded-full bg-cyan-400"
+                  />
+                </div>
               )}
             </motion.div>
           )}
@@ -5684,12 +5743,9 @@ export const SuperNotch: React.FC = () => {
                       type="button"
                       onClick={() => {
                         const target = SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool;
-                        setGhostGuideTarget(target);
-                        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {
-                          setIsGhostGuideOpen(true);
-                        });
                         showStatus('Summoned Ghost Mouse Guide across screen!');
                         closeShelf();
+                        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {});
                       }}
                       className="p-3 rounded-2xl bg-white/[0.03] hover:bg-amber-500/10 border border-white/[0.08] hover:border-amber-500/30 transition-all text-left flex flex-col justify-between group cursor-pointer"
                     >
@@ -5716,12 +5772,9 @@ export const SuperNotch: React.FC = () => {
                       type="button"
                       onClick={() => {
                         const target = SAMPLE_SPATIAL_GUIDE_PRESETS.vs_code_format;
-                        setGhostGuideTarget(target);
-                        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {
-                          setIsGhostGuideOpen(true);
-                        });
                         showStatus('Laser Spotter Active! Circle any area.');
                         closeShelf();
+                        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {});
                       }}
                       className="p-3 rounded-2xl bg-white/[0.03] hover:bg-rose-500/10 border border-white/[0.08] hover:border-rose-500/30 transition-all text-left flex flex-col justify-between group cursor-pointer"
                     >
@@ -5756,23 +5809,25 @@ export const SuperNotch: React.FC = () => {
                         setHoloPresetId(match.presetId);
                         setHoloSandboxMode('2d');
                         setIsHoloSandboxOpen(true);
+                        closeShelf();
                       } else if (match.intent === '3d_holo') {
                         setHoloPresetId(match.presetId);
                         setHoloSandboxMode('3d');
                         setIsHoloSandboxOpen(true);
-                      } else if (match.intent === 'spatial_guide') {
-                        const target = match.spatialTarget || SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool;
-                        setGhostGuideTarget(target);
-                        invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {
-                          setIsGhostGuideOpen(true);
+                        closeShelf();
+                      } else if (match.intent === 'spatial_guide' || query.toLowerCase().includes('where') || query.toLowerCase().includes('tool') || query.toLowerCase().includes('button')) {
+                        showStatus('Locating element on screen with Vision...');
+                        closeShelf();
+                        const geminiKey = apiKeys['gemini'] || localStorage.getItem('gemini_api_key') || undefined;
+                        resolveRealSpatialTarget(query, geminiKey).then((target) => {
+                          invoke('open_ghost_guide', { target: JSON.stringify(target) }).catch(() => {});
                         });
-                        showStatus('Summoned Ghost Mouse Guide across screen!');
                       } else {
                         handleToggleView('chat');
                         setChatInput(query);
+                        closeShelf();
                       }
                       setCopilotPromptInput('');
-                      closeShelf();
                     }}
                     className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-2xl px-3 py-2 shrink-0"
                   >
@@ -5816,18 +5871,6 @@ export const SuperNotch: React.FC = () => {
       />
     )}
 
-    {/* Clicky AI Ghost Mouse & Screen Chalkboard Overlay */}
-    {isGhostGuideOpen && (
-      <GhostGuideOverlay
-        target={ghostGuideTarget}
-        onClose={() => setIsGhostGuideOpen(false)}
-        onLaserCircleComplete={(rect) => {
-          showStatus(`Circled region (${rect.width}×${rect.height}px)! Analyzing...`);
-          setHoloSandboxMode('3d');
-          setIsHoloSandboxOpen(true);
-        }}
-      />
-    )}
 
     {/* Fullscreen Annotation Studio Overlay */}
     {isAnnotatingScreenshot && activeScreenshot && (
