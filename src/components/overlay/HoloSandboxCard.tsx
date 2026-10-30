@@ -45,7 +45,9 @@ export const HoloSandboxCard: React.FC<HoloSandboxCardProps> = ({
 
   // 3D state
   const [selected3DPresetId, setSelected3DPresetId] = useState<string>(
-    initialPresetId || HOLO_3D_PRESETS[0].id
+    initialPresetId && HOLO_3D_PRESETS.some((p) => p.id === initialPresetId)
+      ? initialPresetId
+      : HOLO_3D_PRESETS[0].id
   );
   const [speed, setSpeed] = useState<number>(1.0);
   const [explodeFactor, setExplodeFactor] = useState<number>(0.0);
@@ -54,7 +56,9 @@ export const HoloSandboxCard: React.FC<HoloSandboxCardProps> = ({
 
   // 2D state
   const [selected2DPresetId, setSelected2DPresetId] = useState<string>(
-    DIAGRAM_2D_PRESETS[0].id
+    initialPresetId && DIAGRAM_2D_PRESETS.some((p) => p.id === initialPresetId)
+      ? initialPresetId
+      : DIAGRAM_2D_PRESETS[0].id
   );
   const [selectedNode, setSelectedNode] = useState<DiagramNode | null>(null);
   const [canvasZoom, setCanvasZoom] = useState<number>(1.0);
@@ -63,16 +67,47 @@ export const HoloSandboxCard: React.FC<HoloSandboxCardProps> = ({
   const [isCopied, setIsCopied] = useState<boolean>(false);
 
   // Window styling & position (Free dragging in transparent overlay)
-  const [isTransparentGlass, setIsTransparentGlass] = useState<boolean>(true);
+  // Default: Transparent window for 3D learning/guiding; Solid Canvas glass for 2D diagram
+  const [isTransparentGlass, setIsTransparentGlass] = useState<boolean>(initialMode === '3d');
   const [isMinimized, setIsMinimized] = useState<boolean>(false);
-  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 24, y: 64 });
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
+    const width = 720;
+    const screenW = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    return {
+      x: Math.max(20, Math.round((screenW - width) / 2)),
+      y: 80,
+    };
+  });
   const [isDraggingWindow, setIsDraggingWindow] = useState<boolean>(false);
   const dragStartRef = useRef<{ mouseX: number; mouseY: number; startX: number; startY: number }>({
     mouseX: 0,
     mouseY: 0,
     startX: 24,
-    startY: 64,
+    startY: 80,
   });
+
+  // Sync mode changes from parent props
+  useEffect(() => {
+    if (initialMode) {
+      setActiveMode(initialMode);
+      setIsTransparentGlass(initialMode === '3d');
+    }
+  }, [initialMode]);
+
+  // Sync preset changes from parent props
+  useEffect(() => {
+    if (initialPresetId) {
+      if (HOLO_3D_PRESETS.some((p) => p.id === initialPresetId)) {
+        setSelected3DPresetId(initialPresetId);
+        setActiveMode('3d');
+        setIsTransparentGlass(true);
+      } else if (DIAGRAM_2D_PRESETS.some((p) => p.id === initialPresetId)) {
+        setSelected2DPresetId(initialPresetId);
+        setActiveMode('2d');
+        setIsTransparentGlass(false);
+      }
+    }
+  }, [initialPresetId]);
 
   // 3D Canvas mount ref & Three.js handle
   const threeContainerRef = useRef<HTMLDivElement>(null);
@@ -246,13 +281,16 @@ export const HoloSandboxCard: React.FC<HoloSandboxCardProps> = ({
             <div className="flex items-center gap-0.5 ml-2 p-0.5 rounded-xl bg-white/[0.06] border border-white/[0.08]">
               <button
                 type="button"
-                onClick={() => setActiveMode('3d')}
+                onClick={() => {
+                  setActiveMode('3d');
+                  setIsTransparentGlass(true);
+                }}
                 className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
                   activeMode === '3d'
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
-                title="Interactive 3D Three.js Holo Sandbox (Default for 3D)"
+                title="Interactive 3D Three.js Holo Sandbox (Default for 3D: Ultra-Translucent Glass)"
               >
                 <Box className="w-3 h-3" />
                 <span>3D Holo</span>
@@ -260,13 +298,16 @@ export const HoloSandboxCard: React.FC<HoloSandboxCardProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveMode('2d')}
+                onClick={() => {
+                  setActiveMode('2d');
+                  setIsTransparentGlass(false);
+                }}
                 className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-all cursor-pointer flex items-center gap-1 ${
                   activeMode === '2d'
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm'
                     : 'text-zinc-400 hover:text-white'
                 }`}
-                title="Live 2D Diagram & Architecture Graph Canvas (Default for 2D)"
+                title="Live 2D Diagram & Architecture Graph Canvas (Default for 2D: Solid Canvas Glass)"
               >
                 <Layers className="w-3 h-3" />
                 <span>2D Canvas</span>

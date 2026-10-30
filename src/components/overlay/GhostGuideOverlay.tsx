@@ -134,8 +134,8 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      className={`fixed inset-0 pointer-events-auto z-[9990] select-none ${
-        isLaserMode ? 'cursor-crosshair' : 'cursor-default'
+      className={`fixed inset-0 z-[9990] select-none ${
+        isLaserMode ? 'pointer-events-auto cursor-crosshair' : 'pointer-events-none cursor-default'
       }`}
       style={{ background: 'transparent' }}
     >

@@ -64,7 +64,7 @@ import { ScreenshotAnnotator } from './ScreenshotAnnotator';
 import { HoloSandboxCard } from './HoloSandboxCard';
 import { GhostGuideOverlay } from './GhostGuideOverlay';
 import {
-  classifySpatialIntent,
+  matchPresetForQuery,
   SAMPLE_SPATIAL_GUIDE_PRESETS,
   SpatialGuideTarget,
 } from '../../services/spatialGuideService';
@@ -280,7 +280,7 @@ export const SuperNotch: React.FC = () => {
   // Clicky Spatial Co-Pilot & 3D Holo-Sandbox state
   const [isHoloSandboxOpen, setIsHoloSandboxOpen] = useState<boolean>(false);
   const [holoSandboxMode, setHoloSandboxMode] = useState<'3d' | '2d'>('3d');
-  const [holoPresetId] = useState<string | undefined>(undefined);
+  const [holoPresetId, setHoloPresetId] = useState<string | undefined>(undefined);
   const [isGhostGuideOpen, setIsGhostGuideOpen] = useState<boolean>(false);
   const [ghostGuideTarget, setGhostGuideTarget] = useState<SpatialGuideTarget | null>(null);
   const [copilotPromptInput, setCopilotPromptInput] = useState<string>('');
@@ -5600,6 +5600,7 @@ export const SuperNotch: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        setHoloPresetId('piston-engine');
                         setHoloSandboxMode('3d');
                         setIsHoloSandboxOpen(true);
                         showStatus('Spawned 3D Holo-Sandbox!');
@@ -5629,6 +5630,7 @@ export const SuperNotch: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        setHoloPresetId('system-architecture');
                         setHoloSandboxMode('2d');
                         setIsHoloSandboxOpen(true);
                         showStatus('Spawned 2D Diagram Canvas!');
@@ -5720,16 +5722,21 @@ export const SuperNotch: React.FC = () => {
                       const query = copilotPromptInput.trim();
                       if (!query) return;
 
-                      const intent = classifySpatialIntent(query);
-                      if (intent === '2d_diagram') {
+                      const match = matchPresetForQuery(query);
+                      if (match.intent === '2d_diagram') {
+                        setHoloPresetId(match.presetId);
                         setHoloSandboxMode('2d');
                         setIsHoloSandboxOpen(true);
-                      } else if (intent === '3d_holo') {
+                      } else if (match.intent === '3d_holo') {
+                        setHoloPresetId(match.presetId);
                         setHoloSandboxMode('3d');
                         setIsHoloSandboxOpen(true);
-                      } else {
-                        setGhostGuideTarget(SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool);
+                      } else if (match.intent === 'spatial_guide') {
+                        setGhostGuideTarget(match.spatialTarget || SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool);
                         setIsGhostGuideOpen(true);
+                      } else {
+                        handleToggleView('chat');
+                        setChatInput(query);
                       }
                       setCopilotPromptInput('');
                       closeShelf();

@@ -90,11 +90,13 @@ export type SpatialIntent = 'spatial_guide' | '3d_holo' | '2d_diagram' | 'genera
  * Classifies user intent into spatial guiding, 3D simulation, 2D diagram, or general chat.
  */
 export function classifySpatialIntent(prompt: string): SpatialIntent {
+  if (!prompt || typeof prompt !== 'string') return 'general_chat';
   const p = prompt.trim().toLowerCase();
+  if (!p) return 'general_chat';
 
   // 1. Spatial Screen Guidance / Ghost Mouse
   if (
-    /^(where\s+is|how\s+(?:do\s+i|to)\s+(?:click|find|use|export|open)|point\s+to|show\s+me\s+where|find\s+button|locate\s+tool|where\s+do\s+i\s+click)/i.test(p) ||
+    /^(where\s+is|how\s+(?:do\s+i|to)\s+(?:click|find|use|export|open|format|run|debug|save)|point\s+to|show\s+me\s+where|find\s+button|locate\s+tool|where\s+do\s+i\s+click)/i.test(p) ||
     p.startsWith('/guide') ||
     p.startsWith('/show') ||
     p.startsWith('/point') ||
@@ -180,6 +182,72 @@ export function routeModelForIntent(
 }
 
 /**
+ * Result of matching a user natural query or slash command to a concrete copilot preset.
+ */
+export interface PresetMatchResult {
+  intent: SpatialIntent;
+  presetId?: string;
+  spatialTarget?: SpatialGuideTarget;
+}
+
+/**
+ * Matches a query to a specific preset (3D, 2D, or Spatial Target) for instant contextual launch.
+ */
+export function matchPresetForQuery(query: string): PresetMatchResult {
+  const intent = classifySpatialIntent(query);
+  const q = (query || '').toLowerCase();
+
+  if (intent === '3d_holo') {
+    if (q.includes('solar') || q.includes('orbit') || q.includes('planet')) {
+      return { intent, presetId: 'solar-orbit' };
+    }
+    if (q.includes('turbine') || q.includes('jet') || q.includes('turbofan') || q.includes('fan')) {
+      return { intent, presetId: 'jet-turbine' };
+    }
+    if (
+      q.includes('neural') ||
+      q.includes('deep') ||
+      q.includes('synapse') ||
+      q.includes('perceptron') ||
+      q.includes('network')
+    ) {
+      return { intent, presetId: 'neural-network-3d' };
+    }
+    return { intent, presetId: 'piston-engine' };
+  }
+
+  if (intent === '2d_diagram') {
+    if (q.includes('oauth') || q.includes('pkce') || q.includes('auth') || q.includes('login') || q.includes('token')) {
+      return { intent, presetId: 'oauth-flow' };
+    }
+    if (
+      q.includes('git') ||
+      q.includes('branch') ||
+      q.includes('ci') ||
+      q.includes('cd') ||
+      q.includes('pipeline') ||
+      q.includes('pr') ||
+      q.includes('release')
+    ) {
+      return { intent, presetId: 'git-flow' };
+    }
+    return { intent, presetId: 'system-architecture' };
+  }
+
+  if (intent === 'spatial_guide') {
+    if (q.includes('figma') || q.includes('frame') || q.includes('artboard')) {
+      return { intent, spatialTarget: SAMPLE_SPATIAL_GUIDE_PRESETS.figma_export };
+    }
+    if (q.includes('code') || q.includes('format') || q.includes('lint') || q.includes('prettier') || q.includes('vs code')) {
+      return { intent, spatialTarget: SAMPLE_SPATIAL_GUIDE_PRESETS.vs_code_format };
+    }
+    return { intent, spatialTarget: SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool };
+  }
+
+  return { intent };
+}
+
+/**
  * Computes a smooth cubic Bézier flight trajectory from the MacBook Notch (screen top center)
  * to any destination screen coordinate `(destX, destY)`.
  */
@@ -190,6 +258,7 @@ export function computeCurvedFlightPath(
   endY: number,
   steps: number = 32
 ): Array<{ x: number; y: number; progress: number }> {
+  const safeSteps = Math.max(1, Math.round(steps || 32));
   const points: Array<{ x: number; y: number; progress: number }> = [];
 
   // Easing control points creating a playful, natural arc
@@ -202,8 +271,8 @@ export function computeCurvedFlightPath(
   const cp2X = startX + dx * 0.85;
   const cp2Y = startY + dy * 0.65;
 
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
+  for (let i = 0; i <= safeSteps; i++) {
+    const t = i / safeSteps;
     // Cubic Bézier formula: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
     const u = 1 - t;
     const tt = t * t;
@@ -228,12 +297,17 @@ export function normalizeSpatialBox(
   screenWidth: number,
   screenHeight: number
 ): { x: number; y: number; width: number; height: number; centerX: number; centerY: number } {
-  const [ymin, xmin, ymax, xmax] = box;
+  let [ymin, xmin, ymax, xmax] = box;
+  if (ymin > ymax) [ymin, ymax] = [ymax, ymin];
+  if (xmin > xmax) [xmin, xmax] = [xmax, xmin];
 
-  const x = Math.round((xmin / 1000) * screenWidth);
-  const y = Math.round((ymin / 1000) * screenHeight);
-  const width = Math.max(28, Math.round(((xmax - xmin) / 1000) * screenWidth));
-  const height = Math.max(28, Math.round(((ymax - ymin) / 1000) * screenHeight));
+  const w = Math.max(1, screenWidth || 1920);
+  const h = Math.max(1, screenHeight || 1080);
+
+  const x = Math.round((xmin / 1000) * w);
+  const y = Math.round((ymin / 1000) * h);
+  const width = Math.max(28, Math.round(((xmax - xmin) / 1000) * w));
+  const height = Math.max(28, Math.round(((ymax - ymin) / 1000) * h));
 
   return {
     x,
@@ -389,11 +463,17 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       let isPaused = false;
       let speedFactor = 1.0;
       let explodeFactor = 0.0;
+      let needsRender = true;
+      let lastFrameTime = 0;
+      const targetFrameInterval = options.isEcoMode ? 1000 / 30 : 0;
+
+      const initialWidth = Math.max(100, container.clientWidth || 680);
+      const initialHeight = Math.max(100, container.clientHeight || 340);
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
         45,
-        container.clientWidth / (container.clientHeight || 1),
+        initialWidth / initialHeight,
         0.1,
         100
       );
@@ -405,8 +485,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         powerPreference: 'high-performance',
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, options.isEcoMode ? 1.0 : 1.5));
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(initialWidth, initialHeight);
       container.appendChild(renderer.domElement);
+
+      let resizeObserver: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = Math.max(100, entry.contentRect.width || container.clientWidth || initialWidth);
+            const h = Math.max(100, entry.contentRect.height || container.clientHeight || initialHeight);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            needsRender = true;
+          }
+        });
+        resizeObserver.observe(container);
+      }
 
       // Lighting
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
@@ -508,6 +603,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         isDragging = true;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
 
       const onMouseMove = (e: MouseEvent) => {
@@ -519,6 +615,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         rootGroup.rotation.x = Math.max(-1.2, Math.min(1.2, rootGroup.rotation.x));
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
 
       const onMouseUp = () => {
@@ -529,6 +626,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         e.preventDefault();
         camera.position.z += e.deltaY * 0.004;
         camera.position.z = Math.max(2.8, Math.min(10.0, camera.position.z));
+        needsRender = true;
       };
 
       const dom = renderer.domElement;
@@ -541,8 +639,22 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       const crankRadius = 0.45;
       const rodLength = 1.8;
 
-      const animate = () => {
+      const animate = (now: number = performance.now()) => {
         animId = requestAnimationFrame(animate);
+
+        // Eco Mode 30 FPS throttle
+        if (targetFrameInterval > 0) {
+          const elapsed = now - lastFrameTime;
+          if (elapsed < targetFrameInterval) return;
+          lastFrameTime = now - (elapsed % targetFrameInterval);
+        }
+
+        // Auto-idle when paused and not dragging
+        if (isPaused && !isDragging && !needsRender) {
+          return;
+        }
+
+        needsRender = false;
 
         if (!isPaused) {
           theta += 0.04 * speedFactor;
@@ -592,6 +704,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       return {
         cleanup: () => {
           cancelAnimationFrame(animId);
+          if (resizeObserver) resizeObserver.disconnect();
           dom.removeEventListener('mousedown', onMouseDown);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('mouseup', onMouseUp);
@@ -603,18 +716,22 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         },
         setSpeed: (s: number) => {
           speedFactor = Math.max(0.1, Math.min(3.0, s));
+          needsRender = true;
         },
         setExplode: (e: number) => {
           explodeFactor = Math.max(0, Math.min(1.0, e));
+          needsRender = true;
         },
         togglePause: () => {
           isPaused = !isPaused;
+          needsRender = true;
           return isPaused;
         },
         isPaused: () => isPaused,
         resetCamera: () => {
           rootGroup.rotation.set(0, 0, 0);
           camera.position.set(0, 1.2, 5.5);
+          needsRender = true;
         },
       };
     },
@@ -640,11 +757,17 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       let isPaused = false;
       let speedFactor = 1.0;
       let explodeFactor = 0.0;
+      let needsRender = true;
+      let lastFrameTime = 0;
+      const targetFrameInterval = options.isEcoMode ? 1000 / 30 : 0;
+
+      const initialWidth = Math.max(100, container.clientWidth || 680);
+      const initialHeight = Math.max(100, container.clientHeight || 340);
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
         45,
-        container.clientWidth / (container.clientHeight || 1),
+        initialWidth / initialHeight,
         0.1,
         100
       );
@@ -656,8 +779,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         powerPreference: 'high-performance',
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, options.isEcoMode ? 1.0 : 1.5));
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(initialWidth, initialHeight);
       container.appendChild(renderer.domElement);
+
+      let resizeObserver: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = Math.max(100, entry.contentRect.width || container.clientWidth || initialWidth);
+            const h = Math.max(100, entry.contentRect.height || container.clientHeight || initialHeight);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            needsRender = true;
+          }
+        });
+        resizeObserver.observe(container);
+      }
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.65));
       const light = new THREE.DirectionalLight(0x38bdf8, 1.4);
@@ -741,6 +879,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         isDragging = true;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
       const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
@@ -748,6 +887,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         rootGroup.rotation.x += (e.clientY - prevMouseY) * 0.008;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
       const onMouseUp = () => {
         isDragging = false;
@@ -756,6 +896,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         e.preventDefault();
         camera.position.z += e.deltaY * 0.004;
         camera.position.z = Math.max(2.5, Math.min(8.0, camera.position.z));
+        needsRender = true;
       };
 
       const dom = renderer.domElement;
@@ -764,8 +905,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       window.addEventListener('mouseup', onMouseUp);
       dom.addEventListener('wheel', onWheel, { passive: false });
 
-      const animate = () => {
+      const animate = (now: number = performance.now()) => {
         animId = requestAnimationFrame(animate);
+
+        // Eco Mode 30 FPS throttle
+        if (targetFrameInterval > 0) {
+          const elapsed = now - lastFrameTime;
+          if (elapsed < targetFrameInterval) return;
+          lastFrameTime = now - (elapsed % targetFrameInterval);
+        }
+
+        // Auto-idle when paused and not dragging
+        if (isPaused && !isDragging && !needsRender) {
+          return;
+        }
+
+        needsRender = false;
+
         if (!isPaused) {
           rotorGroup.rotation.x += 0.08 * speedFactor;
         }
@@ -782,6 +938,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       return {
         cleanup: () => {
           cancelAnimationFrame(animId);
+          if (resizeObserver) resizeObserver.disconnect();
           dom.removeEventListener('mousedown', onMouseDown);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('mouseup', onMouseUp);
@@ -791,18 +948,22 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         },
         setSpeed: (s: number) => {
           speedFactor = Math.max(0.1, Math.min(3.0, s));
+          needsRender = true;
         },
         setExplode: (e: number) => {
           explodeFactor = Math.max(0, Math.min(1.0, e));
+          needsRender = true;
         },
         togglePause: () => {
           isPaused = !isPaused;
+          needsRender = true;
           return isPaused;
         },
         isPaused: () => isPaused,
         resetCamera: () => {
           rootGroup.rotation.set(0, 0, 0);
           camera.position.set(2.8, 1.8, 4.2);
+          needsRender = true;
         },
       };
     },
@@ -827,11 +988,17 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       let animId = 0;
       let isPaused = false;
       let speedFactor = 1.0;
+      let needsRender = true;
+      let lastFrameTime = 0;
+      const targetFrameInterval = options.isEcoMode ? 1000 / 30 : 0;
+
+      const initialWidth = Math.max(100, container.clientWidth || 680);
+      const initialHeight = Math.max(100, container.clientHeight || 340);
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
         45,
-        container.clientWidth / (container.clientHeight || 1),
+        initialWidth / initialHeight,
         0.1,
         100
       );
@@ -844,8 +1011,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         powerPreference: 'high-performance',
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, options.isEcoMode ? 1.0 : 1.5));
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(initialWidth, initialHeight);
       container.appendChild(renderer.domElement);
+
+      let resizeObserver: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = Math.max(100, entry.contentRect.width || container.clientWidth || initialWidth);
+            const h = Math.max(100, entry.contentRect.height || container.clientHeight || initialHeight);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            needsRender = true;
+          }
+        });
+        resizeObserver.observe(container);
+      }
 
       const rootGroup = new THREE.Group();
       scene.add(rootGroup);
@@ -916,6 +1098,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         isDragging = true;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
       const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
@@ -923,6 +1106,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         rootGroup.rotation.x += (e.clientY - prevMouseY) * 0.008;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
       const onMouseUp = () => {
         isDragging = false;
@@ -933,6 +1117,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         camera.position.z += e.deltaY * 0.004;
         camera.position.y = Math.max(2.0, Math.min(10.0, camera.position.y));
         camera.position.z = Math.max(3.0, Math.min(12.0, camera.position.z));
+        needsRender = true;
       };
 
       const dom = renderer.domElement;
@@ -941,8 +1126,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       window.addEventListener('mouseup', onMouseUp);
       dom.addEventListener('wheel', onWheel, { passive: false });
 
-      const animate = () => {
+      const animate = (now: number = performance.now()) => {
         animId = requestAnimationFrame(animate);
+
+        // Eco Mode 30 FPS throttle
+        if (targetFrameInterval > 0) {
+          const elapsed = now - lastFrameTime;
+          if (elapsed < targetFrameInterval) return;
+          lastFrameTime = now - (elapsed % targetFrameInterval);
+        }
+
+        // Auto-idle when paused and not dragging
+        if (isPaused && !isDragging && !needsRender) {
+          return;
+        }
+
+        needsRender = false;
+
         if (!isPaused) {
           planets.forEach((p) => {
             p.angle += 0.015 * p.speed * speedFactor;
@@ -956,6 +1156,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       return {
         cleanup: () => {
           cancelAnimationFrame(animId);
+          if (resizeObserver) resizeObserver.disconnect();
           dom.removeEventListener('mousedown', onMouseDown);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('mouseup', onMouseUp);
@@ -965,10 +1166,12 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         },
         setSpeed: (s: number) => {
           speedFactor = Math.max(0.1, Math.min(3.0, s));
+          needsRender = true;
         },
         setExplode: () => {},
         togglePause: () => {
           isPaused = !isPaused;
+          needsRender = true;
           return isPaused;
         },
         isPaused: () => isPaused,
@@ -976,6 +1179,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
           rootGroup.rotation.set(0, 0, 0);
           camera.position.set(0, 5.0, 6.0);
           camera.lookAt(0, 0, 0);
+          needsRender = true;
         },
       };
     },
@@ -1001,11 +1205,17 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       let isPaused = false;
       let speedFactor = 1.0;
       let explodeFactor = 0.0;
+      let needsRender = true;
+      let lastFrameTime = 0;
+      const targetFrameInterval = options.isEcoMode ? 1000 / 30 : 0;
+
+      const initialWidth = Math.max(100, container.clientWidth || 680);
+      const initialHeight = Math.max(100, container.clientHeight || 340);
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
         45,
-        container.clientWidth / (container.clientHeight || 1),
+        initialWidth / initialHeight,
         0.1,
         100
       );
@@ -1017,8 +1227,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         powerPreference: 'high-performance',
       });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, options.isEcoMode ? 1.0 : 1.5));
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(initialWidth, initialHeight);
       container.appendChild(renderer.domElement);
+
+      let resizeObserver: ResizeObserver | null = null;
+      if (typeof ResizeObserver !== 'undefined') {
+        resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const w = Math.max(100, entry.contentRect.width || container.clientWidth || initialWidth);
+            const h = Math.max(100, entry.contentRect.height || container.clientHeight || initialHeight);
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+            needsRender = true;
+          }
+        });
+        resizeObserver.observe(container);
+      }
 
       const rootGroup = new THREE.Group();
       scene.add(rootGroup);
@@ -1090,6 +1315,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         isDragging = true;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
       const onMouseMove = (e: MouseEvent) => {
         if (!isDragging) return;
@@ -1097,6 +1323,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         rootGroup.rotation.x += (e.clientY - prevMouseY) * 0.008;
         prevMouseX = e.clientX;
         prevMouseY = e.clientY;
+        needsRender = true;
       };
       const onMouseUp = () => {
         isDragging = false;
@@ -1105,6 +1332,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         e.preventDefault();
         camera.position.z += e.deltaY * 0.004;
         camera.position.z = Math.max(3.0, Math.min(9.0, camera.position.z));
+        needsRender = true;
       };
 
       const dom = renderer.domElement;
@@ -1114,8 +1342,23 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       dom.addEventListener('wheel', onWheel, { passive: false });
 
       let time = 0;
-      const animate = () => {
+      const animate = (now: number = performance.now()) => {
         animId = requestAnimationFrame(animate);
+
+        // Eco Mode 30 FPS throttle
+        if (targetFrameInterval > 0) {
+          const elapsed = now - lastFrameTime;
+          if (elapsed < targetFrameInterval) return;
+          lastFrameTime = now - (elapsed % targetFrameInterval);
+        }
+
+        // Auto-idle when paused and not dragging
+        if (isPaused && !isDragging && !needsRender) {
+          return;
+        }
+
+        needsRender = false;
+
         if (!isPaused) {
           time += 0.02 * speedFactor;
           rootGroup.rotation.y = Math.sin(time * 0.5) * 0.25;
@@ -1135,6 +1378,7 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
       return {
         cleanup: () => {
           cancelAnimationFrame(animId);
+          if (resizeObserver) resizeObserver.disconnect();
           dom.removeEventListener('mousedown', onMouseDown);
           window.removeEventListener('mousemove', onMouseMove);
           window.removeEventListener('mouseup', onMouseUp);
@@ -1144,18 +1388,22 @@ export const HOLO_3D_PRESETS: Holo3DPreset[] = [
         },
         setSpeed: (s: number) => {
           speedFactor = Math.max(0.1, Math.min(3.0, s));
+          needsRender = true;
         },
         setExplode: (e: number) => {
           explodeFactor = Math.max(0, Math.min(1.0, e));
+          needsRender = true;
         },
         togglePause: () => {
           isPaused = !isPaused;
+          needsRender = true;
           return isPaused;
         },
         isPaused: () => isPaused,
         resetCamera: () => {
           rootGroup.rotation.set(0, 0, 0);
           camera.position.set(0, 1.5, 6.0);
+          needsRender = true;
         },
       };
     },

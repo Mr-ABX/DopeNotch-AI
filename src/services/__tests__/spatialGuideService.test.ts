@@ -4,6 +4,7 @@ import {
   routeModelForIntent,
   computeCurvedFlightPath,
   normalizeSpatialBox,
+  matchPresetForQuery,
   SAMPLE_SPATIAL_GUIDE_PRESETS,
   HOLO_3D_PRESETS,
   DIAGRAM_2D_PRESETS,
@@ -35,9 +36,34 @@ describe('spatialGuideService - Intent Classification', () => {
     expect(classifySpatialIntent('Show React component tree state machine')).toBe('2d_diagram');
   });
 
-  it('correctly falls back to general chat for generic queries', () => {
+  it('correctly falls back to general chat for generic queries and handles edge inputs', () => {
     expect(classifySpatialIntent('Hello, what time is it?')).toBe('general_chat');
     expect(classifySpatialIntent('Explain quantum entanglement simply')).toBe('general_chat');
+    expect(classifySpatialIntent('')).toBe('general_chat');
+    expect(classifySpatialIntent('   ')).toBe('general_chat');
+    expect(classifySpatialIntent(null as any)).toBe('general_chat');
+    expect(classifySpatialIntent(undefined as any)).toBe('general_chat');
+  });
+});
+
+describe('spatialGuideService - Preset Matching', () => {
+  it('matches 3D presets accurately based on query keywords', () => {
+    expect(matchPresetForQuery('/3d solar system').presetId).toBe('solar-orbit');
+    expect(matchPresetForQuery('/3d jet turbine').presetId).toBe('jet-turbine');
+    expect(matchPresetForQuery('/3d deep neural network').presetId).toBe('neural-network-3d');
+    expect(matchPresetForQuery('/3d 4-stroke engine').presetId).toBe('piston-engine');
+  });
+
+  it('matches 2D diagram presets accurately based on query keywords', () => {
+    expect(matchPresetForQuery('/diagram OAuth PKCE flow').presetId).toBe('oauth-flow');
+    expect(matchPresetForQuery('/flow git branching ci/cd pipeline').presetId).toBe('git-flow');
+    expect(matchPresetForQuery('/diagram cloud microservices').presetId).toBe('system-architecture');
+  });
+
+  it('matches spatial targets for on-screen guidance', () => {
+    expect(matchPresetForQuery('Where is figma export button?').spatialTarget?.id).toBe('figma_export');
+    expect(matchPresetForQuery('How to format code document?').spatialTarget?.id).toBe('vs_format');
+    expect(matchPresetForQuery('Where is pen tool?').spatialTarget?.id).toBe('ps_pen');
   });
 });
 
@@ -90,6 +116,17 @@ describe('spatialGuideService - Bézier Flight Physics & Normalization', () => {
     expect(path[10].progress).toBeCloseTo(0.5, 2);
   });
 
+  it('handles edge case flight steps safely without NaN', () => {
+    const zeroStepPath = computeCurvedFlightPath(100, 100, 200, 200, 0);
+    expect(zeroStepPath.length).toBeGreaterThanOrEqual(2);
+    expect(Number.isNaN(zeroStepPath[0].x)).toBe(false);
+    expect(Number.isNaN(zeroStepPath[0].y)).toBe(false);
+
+    const negativeStepPath = computeCurvedFlightPath(100, 100, 200, 200, -5);
+    expect(negativeStepPath.length).toBeGreaterThanOrEqual(2);
+    expect(Number.isNaN(negativeStepPath[0].x)).toBe(false);
+  });
+
   it('normalizes 0-1000 coordinate bounding boxes into screen pixel dimensions', () => {
     const screenW = 1920;
     const screenH = 1080;
@@ -103,6 +140,16 @@ describe('spatialGuideService - Bézier Flight Physics & Normalization', () => {
     expect(norm.height).toBe(Math.round((100 / 1000) * 1080)); // 108
     expect(norm.centerX).toBe(norm.x + norm.width / 2);
     expect(norm.centerY).toBe(norm.y + norm.height / 2);
+  });
+
+  it('handles inverted bounding boxes gracefully', () => {
+    // Inverted: ymin > ymax, xmin > xmax
+    const invertedBox: [number, number, number, number] = [300, 500, 100, 200];
+    const norm = normalizeSpatialBox(invertedBox, 1000, 1000);
+    expect(norm.x).toBe(200);
+    expect(norm.y).toBe(100);
+    expect(norm.width).toBe(300);
+    expect(norm.height).toBe(200);
   });
 });
 
