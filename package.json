@@ -18,10 +18,12 @@
     "@tauri-apps/plugin-global-shortcut": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
     "@tauri-apps/plugin-shell": "^2.0.0",
+    "@types/three": "^0.186.0",
     "framer-motion": "^11.0.0",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "three": "^0.187.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

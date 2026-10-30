@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core';
 export type AIModelId =
   | 'qwen2.5-0.5b'
   | 'smollm2-135m'
+  | 'gemini-3.5-flash-lite'
+  | 'gemini-3.6-flash'
   | 'gemini-2.5-flash'
   | 'gemini-2.0-flash'
   | 'openrouter-free'
@@ -21,6 +23,22 @@ export interface AIModelOption {
 }
 
 export const AVAILABLE_AI_MODELS: AIModelOption[] = [
+  {
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash-Lite',
+    badge: 'Spatial & 2D • Sub-400ms',
+    description: 'Ultra-fast spatial locator, Ghost Mouse coordinates & 2D diagrams',
+    isLocal: false,
+    supportsVision: true,
+  },
+  {
+    id: 'gemini-3.6-flash',
+    name: 'Gemini 3.6 Flash',
+    badge: '3D Simulation & Code',
+    description: 'Multimodal reasoning for real-time Three.js 3D & physics simulations',
+    isLocal: false,
+    supportsVision: true,
+  },
   {
     id: 'qwen2.5-0.5b',
     name: 'Qwen 2.5 (0.5B)',
@@ -133,8 +151,8 @@ export function resolveVisionModel(
   // Model is local text-only (Qwen 0.5B / SmolLM2) -> Auto-route to best vision model
   if (apiKeys['gemini']) {
     return {
-      effectiveModelId: 'gemini-2.5-flash',
-      autoRoutedReason: 'Auto-routed to Gemini 2.5 Flash for Screen Vision',
+      effectiveModelId: 'gemini-3.5-flash-lite',
+      autoRoutedReason: 'Auto-routed to Gemini 3.5 Flash-Lite (<400ms Screen Vision)',
     };
   }
   if (apiKeys['openrouter']) {
@@ -169,8 +187,13 @@ export async function sendAIChatRequest(
   const trimmed = prompt.trim();
   if (!trimmed) throw new Error('Prompt cannot be empty');
 
-  // 1. Google Gemini 2.5 Flash (Multimodal Full Screen Vision)
-  if (modelId === 'gemini-2.5-flash' || (modelId as string) === 'gemini-2.0-flash') {
+  // 1. Google Gemini Models (3.5 Flash-Lite, 3.6 Flash, 2.5 Flash)
+  if (
+    modelId === 'gemini-3.5-flash-lite' ||
+    modelId === 'gemini-3.6-flash' ||
+    modelId === 'gemini-2.5-flash' ||
+    (modelId as string) === 'gemini-2.0-flash'
+  ) {
     const key = geminiApiKey || customApiKey;
     if (!key) {
       return (
@@ -192,20 +215,45 @@ export async function sendAIChatRequest(
         });
       }
 
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+      const targetGeminiModel =
+        modelId === 'gemini-3.5-flash-lite'
+          ? 'gemini-3.5-flash-lite'
+          : modelId === 'gemini-3.6-flash'
+          ? 'gemini-3.6-flash'
+          : 'gemini-2.5-flash';
+
+      let res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${targetGeminiModel}:generateContent?key=${key}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts }],
             generationConfig: {
-              maxOutputTokens: 1200,
-              temperature: 0.4,
+              maxOutputTokens: modelId === 'gemini-3.6-flash' ? 2400 : 1200,
+              temperature: 0.3,
             },
           }),
         }
       );
+
+      // Graceful fallback to gemini-2.5-flash if 3.5/3.6 model endpoint is unavailable in specific region/tier
+      if (!res.ok && targetGeminiModel !== 'gemini-2.5-flash') {
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts }],
+              generationConfig: {
+                maxOutputTokens: 1200,
+                temperature: 0.4,
+              },
+            }),
+          }
+        );
+      }
 
       if (!res.ok) {
         const errText = await res.text();

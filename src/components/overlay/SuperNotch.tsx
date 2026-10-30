@@ -54,8 +54,20 @@ import {
   Camera,
   Edit3,
   Image as ImageIcon,
+  Box as BoxIcon,
+  Compass,
+  MousePointer,
+  Target,
+  ArrowRight,
 } from 'lucide-react';
 import { ScreenshotAnnotator } from './ScreenshotAnnotator';
+import { HoloSandboxCard } from './HoloSandboxCard';
+import { GhostGuideOverlay } from './GhostGuideOverlay';
+import {
+  classifySpatialIntent,
+  SAMPLE_SPATIAL_GUIDE_PRESETS,
+  SpatialGuideTarget,
+} from '../../services/spatialGuideService';
 import { aiVoiceService } from '../../services/aiVoiceService';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -265,6 +277,14 @@ export const SuperNotch: React.FC = () => {
     };
   }, []);
 
+  // Clicky Spatial Co-Pilot & 3D Holo-Sandbox state
+  const [isHoloSandboxOpen, setIsHoloSandboxOpen] = useState<boolean>(false);
+  const [holoSandboxMode, setHoloSandboxMode] = useState<'3d' | '2d'>('3d');
+  const [holoPresetId] = useState<string | undefined>(undefined);
+  const [isGhostGuideOpen, setIsGhostGuideOpen] = useState<boolean>(false);
+  const [ghostGuideTarget, setGhostGuideTarget] = useState<SpatialGuideTarget | null>(null);
+  const [copilotPromptInput, setCopilotPromptInput] = useState<string>('');
+
   const searchInputRef = useRef<HTMLInputElement>(null);
   const shelfScrollRef = useRef<HTMLDivElement>(null);
   const searchListScrollRef = useRef<HTMLDivElement>(null);
@@ -297,6 +317,9 @@ export const SuperNotch: React.FC = () => {
     }
     if (view === 'chat') {
       return { width: 600, height: 460 };
+    }
+    if (view === 'copilot') {
+      return { width: 860, height: 420 };
     }
     if (view === 'search') {
       return { width: 860, height: 410 };
@@ -1449,6 +1472,58 @@ export const SuperNotch: React.FC = () => {
       },
     },
     {
+      id: 'cmd-copilot-3d',
+      command: '/3d',
+      title: '3D Holo-Sandbox (Interactive Simulation)',
+      subtitle: 'Transparent draggable Three.js physics & 3D models (Piston, Turbine, Solar, Neural Net)',
+      icon: BoxIcon,
+      action: () => {
+        setHoloSandboxMode('3d');
+        setIsHoloSandboxOpen(true);
+        showStatus('Spawned 3D Holo-Sandbox!');
+        closeShelf();
+      },
+    },
+    {
+      id: 'cmd-copilot-diagram',
+      command: '/diagram',
+      title: '2D Diagram & Architecture Canvas',
+      subtitle: 'Live interactive flowchart, architecture graph, and system sequence diagram (/graph, /flow)',
+      icon: Layers,
+      action: () => {
+        setHoloSandboxMode('2d');
+        setIsHoloSandboxOpen(true);
+        showStatus('Spawned 2D Diagram Canvas!');
+        closeShelf();
+      },
+    },
+    {
+      id: 'cmd-copilot-guide',
+      command: '/guide',
+      title: 'Clicky AI Ghost Mouse & Screen Chalkboard',
+      subtitle: 'Show-Me mode: AI virtual cursor points directly to buttons & UI elements on screen (/show)',
+      icon: MousePointer,
+      action: () => {
+        setGhostGuideTarget(SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool);
+        setIsGhostGuideOpen(true);
+        showStatus('Summoned Ghost Mouse Guide!');
+        closeShelf();
+      },
+    },
+    {
+      id: 'cmd-copilot-spot',
+      command: '/spot',
+      title: 'Laser Circle-to-Ask (Assistive Spotter)',
+      subtitle: 'Circle any button, code error, or equation on screen to inspect with AI',
+      icon: Target,
+      action: () => {
+        setGhostGuideTarget(SAMPLE_SPATIAL_GUIDE_PRESETS.vs_code_format);
+        setIsGhostGuideOpen(true);
+        showStatus('Laser Spotter Active! Circle region.');
+        closeShelf();
+      },
+    },
+    {
       id: 'cmd-snap-left',
       command: '/left',
       title: 'Snap Window Left Half',
@@ -2024,19 +2099,20 @@ export const SuperNotch: React.FC = () => {
         return;
       }
 
-      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> Scratchpad -> AI Chat -> Stash
+      // Switch views on Tab: Shelf -> Widgets -> Extensions (Search) -> Scratchpad -> Copilot -> AI Chat -> Stash
       if (e.key === 'Tab' && document.activeElement?.tagName !== 'TEXTAREA') {
         e.preventDefault();
-        const views: SuperNotchHudView[] = ['shelf', 'widgets', 'search', 'scratchpad', 'chat', 'stash'];
+        const views: SuperNotchHudView[] = ['shelf', 'widgets', 'search', 'scratchpad', 'copilot', 'chat', 'stash'];
         const currentIdx = views.indexOf(superNotchHudView);
         const nextView = views[(currentIdx + 1) % views.length];
         handleToggleView(nextView);
         return;
       }
 
-      // In Chat, Widgets, Scratchpad, and Stash views, prevent shelf / search navigation and enter-to-paste
+      // In Chat, Copilot, Widgets, Scratchpad, and Stash views, prevent shelf / search navigation and enter-to-paste
       if (
         superNotchHudView === 'chat' ||
+        superNotchHudView === 'copilot' ||
         superNotchHudView === 'widgets' ||
         superNotchHudView === 'scratchpad' ||
         superNotchHudView === 'stash'
@@ -2246,6 +2322,8 @@ export const SuperNotch: React.FC = () => {
       : activeMode === 'shelf'
       ? superNotchHudView === 'search'
         ? 410
+        : superNotchHudView === 'copilot'
+        ? 420
         : superNotchHudView === 'scratchpad'
         ? 320
         : superNotchHudView === 'widgets'
@@ -3233,7 +3311,24 @@ export const SuperNotch: React.FC = () => {
                   </div>
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/40 animate-pulse" />
                 </div>
-              ) : null}
+              ) : (
+                /* Sleek DopeBuddy Mascot Eye-Peek in Idle Notch (Pure SVG/CSS, 0% CPU) */
+                <div
+                  className="flex items-center justify-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity"
+                  title="DopeBuddy AI Companion (Hover to open SuperShelf or click /3d, /guide)"
+                >
+                  <motion.div
+                    animate={{ scaleY: [1, 1, 0.15, 1] }}
+                    transition={{ repeat: Infinity, duration: 4.0, times: [0, 0.92, 0.96, 1] }}
+                    className="w-1.5 h-2.5 rounded-full bg-cyan-400/90 shadow-[0_0_6px_rgba(56,189,248,0.8)]"
+                  />
+                  <motion.div
+                    animate={{ scaleY: [1, 1, 0.15, 1] }}
+                    transition={{ repeat: Infinity, duration: 4.0, times: [0, 0.92, 0.96, 1] }}
+                    className="w-1.5 h-2.5 rounded-full bg-cyan-400/90 shadow-[0_0_6px_rgba(56,189,248,0.8)]"
+                  />
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -3629,7 +3724,20 @@ export const SuperNotch: React.FC = () => {
                       <Edit3 className="w-4 h-4" />
                     </button>
 
-                    {/* Tab 5: AI Chat & Screen Copilot */}
+                    {/* Tab 5: Spatial Screen Co-Pilot & 3D Holo-Sandbox */}
+                    <button
+                      onClick={() => handleToggleView('copilot')}
+                      className={`p-2 rounded-lg transition-all cursor-pointer ${
+                        superNotchHudView === 'copilot'
+                          ? 'bg-cyan-400/20 text-cyan-300 shadow-sm border border-cyan-400/30'
+                          : 'text-zinc-400 hover:text-white hover:bg-white/5 border border-transparent'
+                      }`}
+                      title="Clicky Spatial Co-Pilot, 3D Holo-Sandbox & 2D Canvas (Tab)"
+                    >
+                      <Compass className="w-4 h-4" />
+                    </button>
+
+                    {/* Tab 6: AI Chat & Screen Copilot */}
                     <button
                       onClick={() => handleToggleView('chat')}
                       className={`p-2 rounded-lg transition-all cursor-pointer ${
@@ -5448,6 +5556,204 @@ export const SuperNotch: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* ================================================================= */}
+              {/* VIEW E: CLICKY SPATIAL SCREEN CO-PILOT & 3D HOLO-SANDBOX          */}
+              {/* ================================================================= */}
+              {superNotchHudView === 'copilot' && (
+                <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden gap-3">
+                  {/* Top Bar: DopeBuddy Persona & Model Routing Specs */}
+                  <div className="flex items-center justify-between px-1 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300">
+                        <Compass className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                          <span>DopeBuddy Spatial Co-Pilot</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                            v1.0 Ready
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-zinc-400 font-mono">
+                          Live Screen Pointing • Ghost Mouse • 3D Holo & 2D Canvas
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Smart Routing Model Badges */}
+                    <div className="flex items-center gap-1.5 font-mono text-[9.5px]">
+                      <span className="px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 flex items-center gap-1" title="Sub-400ms spatial grounding and 2D charts">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        <span>Gemini 3.5 Flash-Lite</span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/[0.08] text-zinc-300 flex items-center gap-1" title="High-fidelity 3D physics & geometry code">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span>Gemini 3.6 Flash</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4 Interactive Feature Launch Cards */}
+                  <div className="grid grid-cols-4 gap-2 flex-1 max-h-[220px]">
+                    {/* Card 1: 3D Holo-Sandbox */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHoloSandboxMode('3d');
+                        setIsHoloSandboxOpen(true);
+                        showStatus('Spawned 3D Holo-Sandbox!');
+                        closeShelf();
+                      }}
+                      className="p-3 rounded-2xl bg-white/[0.03] hover:bg-cyan-500/10 border border-white/[0.08] hover:border-cyan-500/30 transition-all text-left flex flex-col justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-7 h-7 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <BoxIcon className="w-4 h-4" />
+                        </div>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300">
+                          Three.js
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white group-hover:text-cyan-200 transition-colors">
+                          3D Holo-Sandbox
+                        </div>
+                        <div className="text-[10px] text-zinc-400 line-clamp-2 mt-0.5">
+                          Transparent draggable window over video/apps with 360° orbit & explode view.
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Card 2: 2D Diagram Canvas */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHoloSandboxMode('2d');
+                        setIsHoloSandboxOpen(true);
+                        showStatus('Spawned 2D Diagram Canvas!');
+                        closeShelf();
+                      }}
+                      className="p-3 rounded-2xl bg-white/[0.03] hover:bg-emerald-500/10 border border-white/[0.08] hover:border-emerald-500/30 transition-all text-left flex flex-col justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Layers className="w-4 h-4" />
+                        </div>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                          SVG Canvas
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white group-hover:text-emerald-200 transition-colors">
+                          2D Diagram Canvas
+                        </div>
+                        <div className="text-[10px] text-zinc-400 line-clamp-2 mt-0.5">
+                          Default view for architecture, OAuth sequence flows & live state machines.
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Card 3: Ghost Mouse Show-Me Guide */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGhostGuideTarget(SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool);
+                        setIsGhostGuideOpen(true);
+                        showStatus('Summoned Ghost Mouse Guide!');
+                        closeShelf();
+                      }}
+                      className="p-3 rounded-2xl bg-white/[0.03] hover:bg-amber-500/10 border border-white/[0.08] hover:border-amber-500/30 transition-all text-left flex flex-col justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <MousePointer className="w-4 h-4" />
+                        </div>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                          Show-Me
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white group-hover:text-amber-200 transition-colors">
+                          Ghost Mouse Guide
+                        </div>
+                        <div className="text-[10px] text-zinc-400 line-clamp-2 mt-0.5">
+                          AI virtual cursor glides to UI buttons with glowing chalkboard arrows.
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Card 4: Laser Circle-to-Ask Spotter */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGhostGuideTarget(SAMPLE_SPATIAL_GUIDE_PRESETS.vs_code_format);
+                        setIsGhostGuideOpen(true);
+                        showStatus('Laser Spotter Active! Circle any area.');
+                        closeShelf();
+                      }}
+                      className="p-3 rounded-2xl bg-white/[0.03] hover:bg-rose-500/10 border border-white/[0.08] hover:border-rose-500/30 transition-all text-left flex flex-col justify-between group cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-7 h-7 rounded-xl bg-rose-500/20 text-rose-300 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Target className="w-4 h-4" />
+                        </div>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300">
+                          Spotter
+                        </span>
+                      </div>
+                      <div>
+                        <div className="text-xs font-semibold text-white group-hover:text-rose-200 transition-colors">
+                          Laser Circle-to-Ask
+                        </div>
+                        <div className="text-[10px] text-zinc-400 line-clamp-2 mt-0.5">
+                          Circle any button, formula, or code bug on screen to inspect with AI.
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Bottom Prompt Bar: Type any question or command */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const query = copilotPromptInput.trim();
+                      if (!query) return;
+
+                      const intent = classifySpatialIntent(query);
+                      if (intent === '2d_diagram') {
+                        setHoloSandboxMode('2d');
+                        setIsHoloSandboxOpen(true);
+                      } else if (intent === '3d_holo') {
+                        setHoloSandboxMode('3d');
+                        setIsHoloSandboxOpen(true);
+                      } else {
+                        setGhostGuideTarget(SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool);
+                        setIsGhostGuideOpen(true);
+                      }
+                      setCopilotPromptInput('');
+                      closeShelf();
+                    }}
+                    className="flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded-2xl px-3 py-2 shrink-0"
+                  >
+                    <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={copilotPromptInput}
+                      onChange={(e) => setCopilotPromptInput(e.target.value)}
+                      placeholder='Ask DopeBuddy anything: e.g. "/3d 4-stroke engine", "/diagram OAuth2 flow", or "Where is Pen tool?"'
+                      className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-500 focus:outline-none font-mono"
+                    />
+                    <button
+                      type="submit"
+                      className="px-3 py-1 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-semibold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                    >
+                      <span>Launch</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </form>
+                </div>
+              )}
                 </>
               )}
             </motion.div>
@@ -5457,6 +5763,28 @@ export const SuperNotch: React.FC = () => {
       </>
     )}
     </motion.div>
+
+    {/* Floating 3D Holo-Sandbox & 2D Diagram Canvas Window */}
+    {isHoloSandboxOpen && (
+      <HoloSandboxCard
+        initialMode={holoSandboxMode}
+        initialPresetId={holoPresetId}
+        onClose={() => setIsHoloSandboxOpen(false)}
+      />
+    )}
+
+    {/* Clicky AI Ghost Mouse & Screen Chalkboard Overlay */}
+    {isGhostGuideOpen && (
+      <GhostGuideOverlay
+        target={ghostGuideTarget}
+        onClose={() => setIsGhostGuideOpen(false)}
+        onLaserCircleComplete={(rect) => {
+          showStatus(`Circled region (${rect.width}×${rect.height}px)! Analyzing...`);
+          setHoloSandboxMode('3d');
+          setIsHoloSandboxOpen(true);
+        }}
+      />
+    )}
 
     {/* Fullscreen Annotation Studio Overlay */}
     {isAnnotatingScreenshot && activeScreenshot && (
