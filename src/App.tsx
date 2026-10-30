@@ -8,6 +8,7 @@ import { GhostGuideOverlay } from './components/overlay/GhostGuideOverlay';
 import { AssetInspectorWindow } from './components/overlay/AssetInspectorWindow';
 import { TrayMenu } from './components/TrayMenu';
 import { useLiquidSync } from './hooks/useLiquidSync';
+import { SAMPLE_SPATIAL_GUIDE_PRESETS } from './services/spatialGuideService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -29,6 +30,7 @@ function App() {
   const [overlayTool, setOverlayTool] = useState<'ruler' | 'loupe' | 'ghost_guide'>('ruler');
   const [loupeScreenshot, setLoupeScreenshot] = useState<string>('');
   const [ghostGuideTarget, setGhostGuideTarget] = useState<any>(null);
+  const [ghostGuideAutoClick, setGhostGuideAutoClick] = useState<boolean>(false);
 
   useEffect(() => {
     if (view !== 'ruler') return;
@@ -44,10 +46,21 @@ function App() {
       setOverlayTool('ghost_guide');
       if (event.payload) {
         try {
-          const parsed = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+          let parsed: any;
+          if (typeof event.payload === 'string') {
+            if ((SAMPLE_SPATIAL_GUIDE_PRESETS as any)[event.payload]) {
+              parsed = (SAMPLE_SPATIAL_GUIDE_PRESETS as any)[event.payload];
+            } else {
+              parsed = JSON.parse(event.payload);
+            }
+          } else {
+            parsed = event.payload;
+          }
           setGhostGuideTarget(parsed);
+          setGhostGuideAutoClick(Boolean(parsed?.autoClick));
         } catch {
           setGhostGuideTarget(null);
+          setGhostGuideAutoClick(false);
         }
       }
     });
@@ -106,6 +119,7 @@ function App() {
       return (
         <GhostGuideOverlay
           target={ghostGuideTarget}
+          autoClickOnArrival={ghostGuideAutoClick}
           onClose={() => {
             invoke('close_ghost_guide');
             setOverlayTool('ruler');

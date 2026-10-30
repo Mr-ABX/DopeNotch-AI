@@ -209,21 +209,21 @@ export const ScratchpadView: React.FC = () => {
 
         <button
           onClick={() => handleInsertToken('• [TODO] ')}
-          className="px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-amber-300 border border-white/[0.06] hover:border-amber-500/30 transition-all cursor-pointer"
+          className="px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-amber-300 border border-white/[0.06] hover:border-amber-500/30 transition-all cursor-pointer"
         >
           + [TODO]
         </button>
 
         <button
           onClick={() => handleInsertToken('💡 [IDEA] ')}
-          className="px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-purple-300 border border-white/[0.06] hover:border-purple-500/30 transition-all cursor-pointer"
+          className="px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-amber-300 border border-white/[0.06] hover:border-amber-500/30 transition-all cursor-pointer"
         >
           + [IDEA]
         </button>
 
         <button
           onClick={() => handleInsertToken('🐞 [BUG] ')}
-          className="px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-rose-300 border border-white/[0.06] hover:border-rose-500/30 transition-all cursor-pointer"
+          className="px-2 py-0.5 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-zinc-300 hover:text-amber-300 border border-white/[0.06] hover:border-amber-500/30 transition-all cursor-pointer"
         >
           + [BUG]
         </button>

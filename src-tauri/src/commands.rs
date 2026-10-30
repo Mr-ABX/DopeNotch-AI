@@ -1459,6 +1459,7 @@ pub async fn perform_ghost_click(x: f64, y: f64) -> Result<(), String> {
             y: f64,
         }
 
+        const K_CGEVENT_MOUSE_MOVED: u32 = 5;
         const K_CGEVENT_LEFT_MOUSE_DOWN: u32 = 1;
         const K_CGEVENT_LEFT_MOUSE_UP: u32 = 2;
         const K_CGMOUSE_BUTTON_LEFT: u32 = 0;
@@ -1467,6 +1468,20 @@ pub async fn perform_ghost_click(x: f64, y: f64) -> Result<(), String> {
         let pt = CGPoint { x, y };
 
         unsafe {
+            // First move cursor to exact target coordinate
+            let move_event = CGEventCreateMouseEvent(
+                std::ptr::null(),
+                K_CGEVENT_MOUSE_MOVED,
+                pt,
+                K_CGMOUSE_BUTTON_LEFT,
+            );
+            if !move_event.is_null() {
+                CGEventPost(K_CGHID_EVENT_TAP, move_event);
+                CFRelease(move_event);
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+
             let down_event = CGEventCreateMouseEvent(
                 std::ptr::null(),
                 K_CGEVENT_LEFT_MOUSE_DOWN,

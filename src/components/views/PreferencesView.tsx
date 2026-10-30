@@ -1341,8 +1341,38 @@ export const PreferencesView: React.FC = () => {
                   <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
                     Compare Editions
                   </span>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-                    {/* 1. Pro Core: Solid Vibrant Amber Base */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+                    {/* 1. Community Free: Solid Sleek Slate/Zinc Base */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-zinc-800 via-zinc-900 to-black border border-white/15 shadow-[0_8px_20px_rgba(0,0,0,0.5)] space-y-2.5 text-white relative overflow-hidden group">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                          <span className="font-bold text-white text-sm tracking-tight">Community</span>
+                        </div>
+                        <span className="font-mono text-zinc-200 font-extrabold text-base bg-white/10 px-2 py-0.5 rounded-lg border border-white/10">
+                          $0
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-300 leading-relaxed font-medium">
+                        100% free & open on macOS. On-device Whisper dictation, 25 clipboard items, and standard notch HUD.
+                      </p>
+                      <div className="space-y-1.5 pt-2 border-t border-white/10 text-[10.5px] text-zinc-300">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>Local On-Device Whisper</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>25 Clipboard History Clips</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span>Standard Hardware Notch HUD</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. Pro Core: Solid Vibrant Amber Base */}
                     <div className="p-4 rounded-xl bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 border border-amber-400/50 shadow-[0_8px_20px_rgba(217,119,6,0.3)] space-y-2.5 text-white relative overflow-hidden group">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
@@ -1372,7 +1402,7 @@ export const PreferencesView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 2. Forever Updates: Solid Vibrant Purple Base with Animated Shimmer */}
+                    {/* 3. Forever Updates: Solid Vibrant Purple Base with Animated Shimmer */}
                     <div className="p-4 rounded-xl bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-900 border border-purple-300/60 shadow-[0_8px_24px_rgba(147,51,234,0.35)] space-y-2.5 text-white relative overflow-hidden group">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
@@ -1398,11 +1428,11 @@ export const PreferencesView: React.FC = () => {
                         </div>
                         <div className="flex items-center gap-1.5 font-medium">
                           <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span>All Future AI Copilot & Vision Engines</span>
+                          <span>All Future AI Copilot & Vision</span>
                         </div>
                         <div className="flex items-center gap-1.5 font-medium">
                           <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
-                          <span>Priority Direct Support & Discord Access</span>
+                          <span>Priority Direct Support</span>
                         </div>
                       </div>
                     </div>

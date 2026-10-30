@@ -104,14 +104,13 @@ export const Dashboard: React.FC = () => {
         <Sidebar />
 
         <main className="flex-1 h-full overflow-hidden bg-[#000000] flex flex-col relative">
-          {/* Subtle Draggable Header Strip without bulky bar */}
-          <div
-            data-tauri-drag-region
-            onDoubleClick={handleMaximize}
-            className="h-6 w-full shrink-0 flex items-center justify-end px-3 select-none cursor-default bg-transparent z-10"
-          >
-            {/* Windows / Linux window buttons only */}
-            {!isMac && (
+          {/* Window Drag Header / Controls */}
+          {!isMac ? (
+            <div
+              data-tauri-drag-region
+              onDoubleClick={handleMaximize}
+              className="h-7 w-full shrink-0 flex items-center justify-end px-3 select-none cursor-default bg-transparent z-10"
+            >
               <div
                 className="flex items-center gap-1"
                 onMouseDown={(e) => e.stopPropagation()}
@@ -138,8 +137,15 @@ export const Dashboard: React.FC = () => {
                   <X className="w-3 h-3" />
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            /* On macOS, top drag strip floats absolutely without taking any vertical layout height */
+            <div
+              data-tauri-drag-region
+              onDoubleClick={handleMaximize}
+              className="absolute top-0 inset-x-0 h-6 select-none cursor-default bg-transparent z-10 pointer-events-auto"
+            />
+          )}
 
           {/* Active View Container */}
           <div className="flex-1 overflow-hidden flex flex-col">

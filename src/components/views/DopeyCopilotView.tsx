@@ -64,8 +64,33 @@ export const DopeyCopilotView: React.FC = () => {
       const targetX = x !== undefined ? x : targetPreset?.steps[0]?.x || 200;
       const targetY = y !== undefined ? y : targetPreset?.steps[0]?.y || 200;
 
+      let payloadToSend: any;
+      if (x !== undefined && y !== undefined) {
+        payloadToSend = {
+          id: 'custom_target',
+          title: `Point (${x}, ${y})`,
+          app_name: 'Custom Target',
+          target_description: `Target at pixel coordinate (${x}, ${y})`,
+          autoClick: autoClickEnabled,
+          steps: [
+            {
+              step_number: 1,
+              title: 'Target Element',
+              instruction: `Dopey has arrived at coordinates (${x}, ${y}) on your screen.`,
+              x,
+              y,
+            },
+          ],
+        };
+      } else {
+        payloadToSend = {
+          ...(targetPreset || SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool),
+          autoClick: autoClickEnabled,
+        };
+      }
+
       // Open ghost guide via Tauri IPC
-      await invoke('open_ghost_guide', { target: selectedPreset });
+      await invoke('open_ghost_guide', { target: JSON.stringify(payloadToSend) });
       setTestStatus(`Dopey Ghost Mouse is flying to (${targetX}, ${targetY})!`);
       setTimeout(() => setTestStatus(''), 4000);
     } catch (e: any) {

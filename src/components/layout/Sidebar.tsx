@@ -58,9 +58,9 @@ export const Sidebar: React.FC = () => {
   return (
     <aside
       className={`h-full flex flex-col justify-between bg-[#0a0a0c] border-r border-[#1e1e24] select-none transition-all duration-200 ${
-        isMac ? 'pt-7' : 'pt-2'
+        isSidebarCollapsed ? 'w-[64px] px-2 pb-2' : 'w-[220px] px-3.5 pb-3.5'
       } ${
-        isSidebarCollapsed ? 'w-[64px] p-2' : 'w-[220px] p-3.5'
+        isMac ? 'pt-8' : 'pt-2.5'
       }`}
     >
       <div className="flex flex-col">
