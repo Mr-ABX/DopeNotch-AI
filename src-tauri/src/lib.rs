@@ -192,6 +192,7 @@ pub fn run() {
             commands::close_loupe,
             commands::open_ghost_guide,
             commands::close_ghost_guide,
+            commands::perform_ghost_click,
             commands::check_system_permissions,
             commands::request_system_permissions,
             commands::get_system_vitals,

@@ -3341,22 +3341,16 @@ export const SuperNotch: React.FC = () => {
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/40 animate-pulse" />
                 </div>
               ) : (
-                /* Sleek DopeBuddy Mascot Eye-Peek in Idle Notch (Pure SVG/CSS, 0% CPU) */
-                <div
-                  className="flex items-center justify-center gap-1.5 opacity-80 hover:opacity-100 transition-opacity"
-                  title="DopeBuddy AI Companion (Hover to open SuperShelf or click /3d, /guide)"
+                /* Sleek Dopey Mascot in Idle Notch (Brand Amber Soft Squeeze Squircle) */
+                <motion.div
+                  className="flex items-center justify-center gap-1.5 opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
+                  title="Dopey AI Companion (Hover to open SuperShelf or click /3d, /guide)"
+                  whileHover={{ scale: 1.1 }}
                 >
-                  <motion.div
-                    animate={{ scaleY: [1, 1, 0.15, 1] }}
-                    transition={{ repeat: Infinity, duration: 4.0, times: [0, 0.92, 0.96, 1] }}
-                    className="w-1.5 h-2.5 rounded-full bg-cyan-400/90 shadow-[0_0_6px_rgba(56,189,248,0.8)]"
-                  />
-                  <motion.div
-                    animate={{ scaleY: [1, 1, 0.15, 1] }}
-                    transition={{ repeat: Infinity, duration: 4.0, times: [0, 0.92, 0.96, 1] }}
-                    className="w-1.5 h-2.5 rounded-full bg-cyan-400/90 shadow-[0_0_6px_rgba(56,189,248,0.8)]"
-                  />
-                </div>
+                  <div className="w-3.5 h-3.5 rounded-[5px] bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 shadow-[0_0_8px_rgba(245,158,11,0.7)] flex items-center justify-center p-0.5">
+                    <Sparkles className="w-2.5 h-2.5 text-black drop-shadow-sm" />
+                  </div>
+                </motion.div>
               )}
             </motion.div>
           )}
@@ -5591,7 +5585,7 @@ export const SuperNotch: React.FC = () => {
               {/* ================================================================= */}
               {superNotchHudView === 'copilot' && (
                 <div className="flex-1 flex flex-col justify-between pt-1 overflow-hidden gap-3">
-                  {/* Top Bar: DopeBuddy Persona & Model Routing Specs */}
+                  {/* Top Bar: Dopey Persona & Model Routing Specs */}
                   <div className="flex items-center justify-between px-1 shrink-0">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-300">
@@ -5599,8 +5593,8 @@ export const SuperNotch: React.FC = () => {
                       </div>
                       <div>
                         <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                          <span>DopeBuddy Spatial Co-Pilot</span>
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                          <span>Dopey Spatial Co-Pilot</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
                             v1.0 Ready
                           </span>
                         </div>
@@ -5787,7 +5781,7 @@ export const SuperNotch: React.FC = () => {
                       type="text"
                       value={copilotPromptInput}
                       onChange={(e) => setCopilotPromptInput(e.target.value)}
-                      placeholder='Ask DopeBuddy anything: e.g. "/3d 4-stroke engine", "/diagram OAuth2 flow", or "Where is Pen tool?"'
+                      placeholder='Ask Dopey anything: e.g. "/3d 4-stroke engine", "/diagram OAuth2 flow", or "Where is Pen tool?"'
                       className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-500 focus:outline-none font-mono"
                     />
                     <button

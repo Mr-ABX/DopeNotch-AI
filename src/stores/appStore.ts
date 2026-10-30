@@ -19,7 +19,9 @@ export type SidebarTab =
   | 'extensions'
   | 'preferences'
   | 'changelog'
-  | 'feedback';
+  | 'feedback'
+  | 'scratchpad'
+  | 'copilot';
 
 export interface NoteItem {
   id: string;
@@ -527,7 +529,7 @@ export const useAppStore = create<AppState>((set) => ({
   // Navigation
   activeTab: 'welcome',
   setActiveTab: (tab) => set({ activeTab: tab }),
-  isSidebarCollapsed: false,
+  isSidebarCollapsed: true,
   toggleSidebarCollapsed: () => set((state) => ({ isSidebarCollapsed: !state.isSidebarCollapsed })),
   isSettingsOpen: false,
   setIsSettingsOpen: (open) => set({ isSettingsOpen: open }),
@@ -701,7 +703,7 @@ export const useAppStore = create<AppState>((set) => ({
   recordingMode: 'dictate',
   superNotchMode: 'idle',
   superNotchHudView: 'search',
-  orbTheme: (typeof window !== 'undefined' && (localStorage.getItem('dopenotch_orb_theme') as OrbTheme)) || 'aurora',
+  orbTheme: (typeof window !== 'undefined' && (localStorage.getItem('dopenotch_orb_theme') as OrbTheme)) || 'brand',
   liveWPM: 150,
   liveLatencyMs: 65,
   setIsRecording: (isRecording) => set({ isRecording }),

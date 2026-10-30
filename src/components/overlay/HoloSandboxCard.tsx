@@ -270,8 +270,8 @@ export const HoloSandboxCard: React.FC<HoloSandboxCardProps> = ({
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
           <span className="text-xs font-semibold text-white tracking-wide flex items-center gap-1.5">
-            <span>DopeBuddy</span>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-white/10 text-cyan-300">
+            <span>Dopey</span>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-white/10 text-amber-300">
               {activeMode === '3d' ? '3D Holo-Sandbox' : '2D Diagram Canvas'}
             </span>
           </span>

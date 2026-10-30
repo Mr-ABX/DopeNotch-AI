@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  MousePointer,
   ArrowRight,
   ArrowLeft,
   X,
   Target,
   Zap,
   CornerDownLeft,
+  MousePointerClick,
 } from 'lucide-react';
+import { invoke } from '@tauri-apps/api/core';
 import {
   SpatialGuideTarget,
   SpatialStep,
@@ -21,6 +22,7 @@ export interface GhostGuideOverlayProps {
   onClose?: () => void;
   onStepComplete?: (stepNumber: number) => void;
   onLaserCircleComplete?: (rect: { x: number; y: number; width: number; height: number }) => void;
+  autoClickOnArrival?: boolean;
 }
 
 export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
@@ -28,6 +30,7 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
   onClose,
   onStepComplete,
   onLaserCircleComplete,
+  autoClickOnArrival = false,
 }) => {
   const currentTarget = target || SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool;
 
@@ -41,6 +44,7 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
     y: 14, // Starts right at the MacBook notch
   });
   const [isFlying, setIsFlying] = useState<boolean>(true);
+  const [hasClicked, setHasClicked] = useState<boolean>(false);
 
   // Laser Circle-to-Ask state
   const [isLaserMode, setIsLaserMode] = useState<boolean>(false);
@@ -50,6 +54,7 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
   // Animate Ghost Mouse gliding from Notch to target coordinate
   useEffect(() => {
     setIsFlying(true);
+    setHasClicked(false);
     const startX = window.innerWidth / 2;
     const startY = 14; // Notch center
     const destX = activeStep.x;
@@ -65,11 +70,17 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
       } else {
         clearInterval(interval);
         setIsFlying(false);
+        // Optional physical click on arrival if enabled
+        if (autoClickOnArrival) {
+          invoke('perform_ghost_click', { x: destX, y: destY })
+            .then(() => setHasClicked(true))
+            .catch(() => {});
+        }
       }
     }, 16); // ~60fps smooth flight
 
     return () => clearInterval(interval);
-  }, [activeStep]);
+  }, [activeStep, autoClickOnArrival]);
 
   // Step navigation
   const handleNextStep = () => {
@@ -86,6 +97,12 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
     if (currentStepIdx > 0) {
       setCurrentStepIdx(currentStepIdx - 1);
     }
+  };
+
+  const handleManualClick = () => {
+    invoke('perform_ghost_click', { x: activeStep.x, y: activeStep.y })
+      .then(() => setHasClicked(true))
+      .catch((e) => console.warn('Could not perform click:', e));
   };
 
   // Laser Circle-to-Ask Mouse Handlers
@@ -140,86 +157,11 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
       style={{ background: 'transparent' }}
     >
       {/* ========================================================================= */}
-      {/* 1. DYNAMIC NOTCH MASCOT ("DopeBuddy" Eyes peeking from notch)             */}
-      {/* ========================================================================= */}
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: 9995,
-        }}
-        className="flex flex-col items-center pointer-events-auto"
-      >
-        <motion.div
-          initial={{ y: -8, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="px-3 py-1 rounded-b-2xl bg-black/90 backdrop-blur-md border-x border-b border-cyan-400/30 flex items-center gap-2 shadow-[0_4px_16px_rgba(56,189,248,0.25)]"
-        >
-          {/* Animated Mascot Eyes */}
-          <div className="flex items-center gap-1">
-            <motion.div
-              animate={{
-                scaleY: [1, 1, 0.1, 1],
-                x: ghostPos.x < window.innerWidth / 2 ? -1.5 : 1.5,
-              }}
-              transition={{ repeat: Infinity, duration: 3.2, times: [0, 0.9, 0.95, 1] }}
-              className="w-2 h-2.5 rounded-full bg-cyan-300 shadow-[0_0_6px_#38bdf8]"
-            />
-            <motion.div
-              animate={{
-                scaleY: [1, 1, 0.1, 1],
-                x: ghostPos.x < window.innerWidth / 2 ? -1.5 : 1.5,
-              }}
-              transition={{ repeat: Infinity, duration: 3.2, times: [0, 0.9, 0.95, 1] }}
-              className="w-2 h-2.5 rounded-full bg-cyan-300 shadow-[0_0_6px_#38bdf8]"
-            />
-          </div>
-
-          <span className="text-[10px] font-mono font-medium text-cyan-200">
-            DopeBuddy Guiding
-          </span>
-
-          {/* Toggle Laser Circle-to-Ask pill */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsLaserMode(!isLaserMode);
-            }}
-            className={`px-1.5 py-0.5 rounded-md text-[9px] font-mono transition-all cursor-pointer flex items-center gap-1 ${
-              isLaserMode
-                ? 'bg-rose-500/30 text-rose-300 border border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.4)]'
-                : 'bg-white/10 text-zinc-300 hover:text-white'
-            }`}
-          >
-            <Target className="w-2.5 h-2.5" />
-            <span>{isLaserMode ? 'Laser Active' : 'Circle-to-Ask'}</span>
-          </button>
-
-          {/* Close Guiding Button */}
-          {onClose && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
-              className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </motion.div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. LIVE SCREEN CHALKBOARD SVG OVERLAY                                      */}
+      {/* 1. LIVE SCREEN CHALKBOARD SVG OVERLAY (Brand Amber Glow)                   */}
       {/* ========================================================================= */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
         <defs>
-          <filter id="neon-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <filter id="amber-glow" x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur stdDeviation="3.5" result="coloredBlur" />
             <feMerge>
               <feMergeNode in="coloredBlur" />
@@ -231,15 +173,15 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
         {/* Chalk Circle around Target Coordinate */}
         {!isLaserMode && (
           <g transform={`translate(${activeStep.x}, ${activeStep.y})`}>
-            {/* Pulsing Target Radar Ring */}
+            {/* Pulsing Target Radar Ring (Amber) */}
             <circle
               cx="0"
               cy="0"
               r="24"
               fill="none"
-              stroke="#38bdf8"
+              stroke="#f59e0b"
               strokeWidth="2"
-              filter="url(#neon-glow)"
+              filter="url(#amber-glow)"
               className="animate-ping opacity-60"
             />
 
@@ -249,22 +191,22 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
               cy="0"
               r="20"
               fill="none"
-              stroke="#38bdf8"
+              stroke="#fbbf24"
               strokeWidth="2.5"
               strokeDasharray="90 8"
-              filter="url(#neon-glow)"
+              filter="url(#amber-glow)"
             />
 
-            {/* Pointing Arrow Stem */}
+            {/* Pointing Accent Line */}
             <line
-              x1="34"
-              y1="-34"
+              x1="32"
+              y1="-32"
               x2="16"
               y2="-16"
-              stroke="#38bdf8"
+              stroke="#f59e0b"
               strokeWidth="3"
               strokeLinecap="round"
-              filter="url(#neon-glow)"
+              filter="url(#amber-glow)"
             />
           </g>
         )}
@@ -274,47 +216,66 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
           <polyline
             points={laserPoints.map((p) => `${p.x},${p.y}`).join(' ')}
             fill="none"
-            stroke="#f43f5e"
+            stroke="#f59e0b"
             strokeWidth="3.5"
             strokeLinecap="round"
             strokeLinejoin="round"
-            filter="url(#neon-glow)"
+            filter="url(#amber-glow)"
             className="opacity-95"
           />
         )}
       </svg>
 
       {/* ========================================================================= */}
-      {/* 3. AI GHOST MOUSE VIRTUAL CURSOR                                          */}
+      {/* 2. AI GHOST MOUSE VIRTUAL CURSOR (Soft, larger, no sharp tail)            */}
       {/* ========================================================================= */}
       {!isLaserMode && (
         <motion.div
           animate={{ x: ghostPos.x, y: ghostPos.y }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
           style={{ position: 'fixed', left: 0, top: 0, pointerEvents: 'none' }}
-          className="z-[9998] flex items-center gap-1.5"
+          className="z-[9998] flex items-center gap-2 transform -translate-x-3 -translate-y-3"
         >
-          {/* Virtual AI Mouse Cursor */}
-          <div className="relative">
-            <MousePointer className="w-5 h-5 text-cyan-400 fill-cyan-400/80 drop-shadow-[0_0_8px_rgba(56,189,248,0.9)] transform -rotate-12" />
+          {/* Modern Soft Circular Haptic Pointer */}
+          <div className="relative flex items-center justify-center">
+            {/* Outer Breathing Amber Aura */}
             <motion.div
-              animate={{ scale: [1, 1.4, 1], opacity: [0.9, 0, 0.9] }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
-              className="absolute -inset-1 rounded-full bg-cyan-400/30 -z-10"
+              animate={{
+                scale: [1, 1.25, 1],
+                opacity: [0.5, 0.85, 0.5],
+              }}
+              transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+              className="w-7 h-7 rounded-full bg-amber-500/25 border border-amber-400/50 shadow-[0_0_18px_rgba(245,158,11,0.65)]"
             />
+
+            {/* Middle Soft-Squeeze Core Squircle / Circle */}
+            <motion.div
+              animate={{
+                scale: isFlying ? [0.95, 1.05, 0.95] : 1,
+              }}
+              transition={{ repeat: Infinity, duration: 0.8 }}
+              className="absolute w-4 h-4 rounded-full bg-gradient-to-br from-amber-400 via-amber-500 to-orange-500 shadow-[0_0_12px_rgba(245,158,11,0.9)] flex items-center justify-center border border-amber-200/60"
+            >
+              {/* White specular center dot */}
+              <div className="w-1.5 h-1.5 rounded-full bg-white shadow-sm" />
+            </motion.div>
           </div>
 
-          {/* Ghost Cursor Comet Badge */}
-          {isFlying && (
-            <span className="px-1.5 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 text-[9px] font-mono text-cyan-200">
-              Moving...
-            </span>
-          )}
+          {/* Dopey Mascot Badge */}
+          <div className="px-2 py-0.5 rounded-full bg-black/85 backdrop-blur-md border border-amber-500/40 text-[9.5px] font-mono font-medium text-amber-200 shadow-[0_4px_12px_rgba(0,0,0,0.6)] flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>{isFlying ? 'Dopey Flying...' : 'Dopey Pointing'}</span>
+            {hasClicked && (
+              <span className="text-[8.5px] px-1 rounded bg-emerald-500/30 text-emerald-300 font-bold">
+                Clicked!
+              </span>
+            )}
+          </div>
         </motion.div>
       )}
 
       {/* ========================================================================= */}
-      {/* 4. FLOATING STEP-BY-STEP GUIDANCE PILL & SHORTCUT CALLOUT                 */}
+      {/* 3. FLOATING STEP-BY-STEP GUIDANCE PILL & SHORTCUT CALLOUT                 */}
       {/* ========================================================================= */}
       {!isLaserMode && !isFlying && (
         <motion.div
@@ -322,57 +283,96 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           style={{
             position: 'fixed',
-            left: `${Math.min(window.innerWidth - 320, Math.max(20, activeStep.x + 30))}px`,
-            top: `${Math.min(window.innerHeight - 160, Math.max(60, activeStep.y - 20))}px`,
+            left: `${Math.min(window.innerWidth - 330, Math.max(20, activeStep.x + 35))}px`,
+            top: `${Math.min(window.innerHeight - 170, Math.max(60, activeStep.y - 20))}px`,
             zIndex: 9997,
           }}
-          className="w-72 p-3 rounded-2xl bg-black/85 backdrop-blur-xl border border-cyan-400/30 shadow-[0_15px_35px_-5px_rgba(0,0,0,0.65),0_0_15px_rgba(56,189,248,0.2)] flex flex-col gap-2 pointer-events-auto"
+          className="w-80 p-3.5 rounded-2xl bg-black/90 backdrop-blur-xl border border-amber-500/30 shadow-[0_15px_35px_-5px_rgba(0,0,0,0.7),0_0_20px_rgba(245,158,11,0.2)] flex flex-col gap-2.5 pointer-events-auto"
         >
-          {/* Header: Step Number & Title */}
+          {/* Header: Step Number, Shortcuts & Controls */}
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              Step {currentStepIdx + 1} of {currentTarget.steps.length}
-            </span>
-
-            {/* Glowing Shortcut Keycap Badge */}
-            {activeStep.shortcut && (
-              <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/20 text-[10px] font-mono font-bold text-white shadow-sm flex items-center gap-1">
-                <CornerDownLeft className="w-2.5 h-2.5 text-cyan-400" />
-                <span>{activeStep.shortcut}</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 font-semibold">
+                Step {currentStepIdx + 1} of {currentTarget.steps.length}
               </span>
-            )}
+
+              {/* Glowing Shortcut Keycap Badge */}
+              {activeStep.shortcut && (
+                <span className="px-2 py-0.5 rounded-md bg-white/10 border border-white/20 text-[10px] font-mono font-bold text-white shadow-sm flex items-center gap-1">
+                  <CornerDownLeft className="w-2.5 h-2.5 text-amber-400" />
+                  <span>{activeStep.shortcut}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1">
+              {/* Laser Circle Toggle */}
+              <button
+                type="button"
+                onClick={() => setIsLaserMode(!isLaserMode)}
+                className="p-1 rounded-md text-zinc-400 hover:text-amber-300 hover:bg-white/10 transition-colors cursor-pointer"
+                title="Toggle Circle-to-Ask Laser"
+              >
+                <Target className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Close Guide Button */}
+              {onClose && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  title="Close Guide"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Title & Instruction */}
           <div className="flex flex-col gap-0.5">
-            <h4 className="text-xs font-semibold text-white">{activeStep.title}</h4>
+            <h4 className="text-xs font-semibold text-white flex items-center gap-1.5">
+              <span>{activeStep.title}</span>
+            </h4>
             <p className="text-[11px] text-zinc-300 leading-snug">{activeStep.instruction}</p>
           </div>
 
-          {/* Step Actions (Previous, Next, Finish) */}
-          <div className="flex items-center justify-between pt-1 border-t border-white/[0.08]">
-            {currentStepIdx > 0 ? (
+          {/* Step Actions (Previous, Next, Auto-Click) */}
+          <div className="flex items-center justify-between pt-1.5 border-t border-white/[0.08]">
+            <div className="flex items-center gap-1.5">
+              {currentStepIdx > 0 && (
+                <button
+                  type="button"
+                  onClick={handlePrevStep}
+                  className="px-2 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.1] text-zinc-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3 h-3" />
+                  <span>Back</span>
+                </button>
+              )}
+
+              {/* Manual Click Trigger */}
               <button
                 type="button"
-                onClick={handlePrevStep}
-                className="px-2 py-1 rounded-xl bg-white/[0.04] hover:bg-white/[0.1] text-zinc-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer"
+                onClick={handleManualClick}
+                className="px-2 py-1 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-amber-300 text-[10px] font-mono flex items-center gap-1 cursor-pointer border border-amber-500/20"
+                title="Synthesize real macOS mouse click on this element"
               >
-                <ArrowLeft className="w-3 h-3" />
-                <span>Back</span>
+                <MousePointerClick className="w-3 h-3" />
+                <span>Click It</span>
               </button>
-            ) : (
-              <div />
-            )}
+            </div>
 
             <button
               type="button"
               onClick={handleNextStep}
-              className="px-3 py-1 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-semibold text-xs transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(56,189,248,0.5)] cursor-pointer"
+              className="px-3.5 py-1 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs transition-all flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.5)] cursor-pointer"
             >
               <span>
                 {currentStepIdx < currentTarget.steps.length - 1 ? 'Next Step' : 'Done!'}
               </span>
-              <ArrowRight className="w-3 h-3" />
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </motion.div>
@@ -388,9 +388,9 @@ export const GhostGuideOverlay: React.FC<GhostGuideOverlayProps> = ({
             transform: 'translateX(-50%)',
             zIndex: 9996,
           }}
-          className="px-4 py-2 rounded-2xl bg-black/90 backdrop-blur-md border border-rose-500/40 text-xs font-mono text-rose-200 flex items-center gap-2 shadow-[0_0_20px_rgba(244,63,94,0.3)] pointer-events-none"
+          className="px-4 py-2 rounded-2xl bg-black/90 backdrop-blur-md border border-amber-500/40 text-xs font-mono text-amber-200 flex items-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.3)] pointer-events-none"
         >
-          <Zap className="w-4 h-4 text-rose-400 animate-pulse" />
+          <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
           <span>Click & Drag to circle any button, error, or equation on your screen</span>
         </div>
       )}

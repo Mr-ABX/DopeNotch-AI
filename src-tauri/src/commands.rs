@@ -1432,6 +1432,77 @@ pub async fn close_ghost_guide(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn perform_ghost_click(x: f64, y: f64) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        if !is_accessibility_granted() {
+            return Err("Accessibility permission required to perform mouse clicks. Enable it in macOS System Settings -> Privacy & Security -> Accessibility.".to_string());
+        }
+
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGEventCreateMouseEvent(
+                source: *const std::ffi::c_void,
+                mouseType: u32,
+                mouseCursorPosition: CGPoint,
+                mouseButton: u32,
+            ) -> *mut std::ffi::c_void;
+            fn CGEventPost(tap: u32, event: *mut std::ffi::c_void);
+            fn CFRelease(cf: *const std::ffi::c_void);
+        }
+
+        #[repr(C)]
+        #[derive(Clone, Copy)]
+        struct CGPoint {
+            x: f64,
+            y: f64,
+        }
+
+        const K_CGEVENT_LEFT_MOUSE_DOWN: u32 = 1;
+        const K_CGEVENT_LEFT_MOUSE_UP: u32 = 2;
+        const K_CGMOUSE_BUTTON_LEFT: u32 = 0;
+        const K_CGHID_EVENT_TAP: u32 = 0;
+
+        let pt = CGPoint { x, y };
+
+        unsafe {
+            let down_event = CGEventCreateMouseEvent(
+                std::ptr::null(),
+                K_CGEVENT_LEFT_MOUSE_DOWN,
+                pt,
+                K_CGMOUSE_BUTTON_LEFT,
+            );
+            if !down_event.is_null() {
+                CGEventPost(K_CGHID_EVENT_TAP, down_event);
+                CFRelease(down_event);
+            }
+
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+            let up_event = CGEventCreateMouseEvent(
+                std::ptr::null(),
+                K_CGEVENT_LEFT_MOUSE_UP,
+                pt,
+                K_CGMOUSE_BUTTON_LEFT,
+            );
+            if !up_event.is_null() {
+                CGEventPost(K_CGHID_EVENT_TAP, up_event);
+                CFRelease(up_event);
+            }
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        use enigo::{Enigo, Mouse, Button, Coordinate, Direction, Settings};
+        let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+        let _ = enigo.move_mouse(x as i32, y as i32, Coordinate::Abs);
+        let _ = enigo.button(Button::Left, Direction::Click);
+        Ok(())
+    }
+}
+
 // ============================================================
 // System Vitals & Media Control Commands
 // ============================================================

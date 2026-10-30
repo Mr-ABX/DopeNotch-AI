@@ -797,7 +797,37 @@ export const PreferencesView: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Option 1: City Lights Aurora */}
+              {/* Option 1: DopeNotch Brand Amber (Default) */}
+              <button
+                type="button"
+                onClick={() => setOrbTheme('brand')}
+                className={`p-3.5 rounded-xl text-left transition-all border cursor-pointer relative overflow-hidden flex flex-col justify-between ${
+                  orbTheme === 'brand'
+                    ? 'bg-[#18181c] border-amber-500/40 shadow-sm ring-1 ring-amber-500/20'
+                    : 'bg-[#111114] border-[#1e1e24] hover:border-zinc-700'
+                }`}
+              >
+                <div className="flex items-center justify-between w-full mb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center relative bg-black/60 border border-white/10">
+                      <div className="w-3 h-3 rounded-full blur-[1px] bg-gradient-to-r from-amber-400 via-orange-500 to-emerald-400" />
+                      <div className="absolute w-1 h-1 rounded-full bg-white" />
+                    </div>
+                    <span className="text-xs font-semibold text-white">DopeNotch Brand Amber</span>
+                    <span className="text-[9px] font-mono text-amber-300 bg-amber-500/15 px-1 rounded">Default</span>
+                  </div>
+                  {orbTheme === 'brand' && (
+                    <span className="text-[10px] font-mono font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Warm amber, fiery orange, and energetic emerald glowing aura. Matches the signature DopeNotch brand palette.
+                </p>
+              </button>
+
+              {/* Option 2: City Lights Aurora */}
               <button
                 type="button"
                 onClick={() => setOrbTheme('aurora')}
@@ -823,35 +853,6 @@ export const PreferencesView: React.FC = () => {
                 </div>
                 <p className="text-[11px] text-zinc-400 leading-relaxed">
                   Cool cyan, violet, and emerald fluid aura. Inspired by Apple Intelligence on macOS Sequoia.
-                </p>
-              </button>
-
-              {/* Option 2: DopeNotch Brand Amber */}
-              <button
-                type="button"
-                onClick={() => setOrbTheme('brand')}
-                className={`p-3.5 rounded-xl text-left transition-all border cursor-pointer relative overflow-hidden flex flex-col justify-between ${
-                  orbTheme === 'brand'
-                    ? 'bg-[#18181c] border-amber-500/40 shadow-sm ring-1 ring-amber-500/20'
-                    : 'bg-[#111114] border-[#1e1e24] hover:border-zinc-700'
-                }`}
-              >
-                <div className="flex items-center justify-between w-full mb-2.5">
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 rounded-full flex items-center justify-center relative bg-black/60 border border-white/10">
-                      <div className="w-3 h-3 rounded-full blur-[1px] bg-gradient-to-r from-amber-400 via-orange-500 to-emerald-400" />
-                      <div className="absolute w-1 h-1 rounded-full bg-white" />
-                    </div>
-                    <span className="text-xs font-semibold text-white">DopeNotch Brand Amber</span>
-                  </div>
-                  {orbTheme === 'brand' && (
-                    <span className="text-[10px] font-mono font-medium text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-zinc-400 leading-relaxed">
-                  Warm amber, fiery orange, and energetic emerald glowing aura. Matches the signature DopeNotch brand palette.
                 </p>
               </button>
             </div>
@@ -901,7 +902,7 @@ export const PreferencesView: React.FC = () => {
             <div className="p-4 rounded-xl bg-[#111114] border border-[#1e1e24] space-y-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-lg bg-white/[0.06] text-zinc-200 border border-white/10 flex items-center justify-center">
                     <HardDrive className="w-4 h-4" />
                   </div>
                   <div>
@@ -909,8 +910,8 @@ export const PreferencesView: React.FC = () => {
                       <span className="text-xs font-semibold text-white">DopeNotch Unified Folder</span>
                       <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
                         storageInfo?.isCustom
-                          ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          ? 'bg-white/10 text-zinc-300 border-white/20'
+                          : 'bg-white/5 text-zinc-400 border-white/10'
                       }`}>
                         {storageInfo?.isCustom ? 'Custom Location' : 'Default Documents'}
                       </span>
@@ -976,7 +977,7 @@ export const PreferencesView: React.FC = () => {
                 {/* 1. Notes */}
                 <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.05] text-zinc-300 border border-white/[0.08] flex items-center justify-center">
                       <FileText className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -996,7 +997,7 @@ export const PreferencesView: React.FC = () => {
                 {/* 2. History */}
                 <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.05] text-zinc-300 border border-white/[0.08] flex items-center justify-center">
                       <ClipboardList className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -1016,7 +1017,7 @@ export const PreferencesView: React.FC = () => {
                 {/* 3. Extensions */}
                 <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.05] text-zinc-300 border border-white/[0.08] flex items-center justify-center">
                       <Puzzle className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -1036,7 +1037,7 @@ export const PreferencesView: React.FC = () => {
                 {/* 4. Voice Models */}
                 <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.05] text-zinc-300 border border-white/[0.08] flex items-center justify-center">
                       <Mic2 className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -1056,7 +1057,7 @@ export const PreferencesView: React.FC = () => {
                 {/* 5. AI Models */}
                 <div className="p-3 rounded-xl bg-[#111114] border border-[#1e1e24] flex items-center justify-between hover:border-zinc-700 transition-colors">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-lg bg-white/[0.05] text-zinc-300 border border-white/[0.08] flex items-center justify-center">
                       <Sparkles className="w-3.5 h-3.5" />
                     </div>
                     <div>
@@ -1336,29 +1337,74 @@ export const PreferencesView: React.FC = () => {
                 </div>
 
                 {/* Editions Comparison Card */}
-                <div className="p-4 rounded-xl bg-[#0e0e11] border border-[#1e1e24] space-y-3">
+                <div className="p-4 rounded-2xl bg-[#0e0e11] border border-[#1e1e24] space-y-3.5">
                   <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
                     Compare Editions
                   </span>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="p-3 rounded-lg bg-[#141418] border border-[#1e1e24] space-y-1.5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+                    {/* 1. Pro Core: Solid Vibrant Amber Base */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 border border-amber-400/50 shadow-[0_8px_20px_rgba(217,119,6,0.3)] space-y-2.5 text-white relative overflow-hidden group">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-white">Pro Core</span>
-                        <span className="font-mono text-amber-400 font-semibold">$15</span>
+                        <div className="flex items-center gap-1.5">
+                          <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
+                          <span className="font-bold text-white text-sm tracking-tight">Pro Core</span>
+                        </div>
+                        <span className="font-mono text-amber-100 font-extrabold text-base bg-black/25 px-2 py-0.5 rounded-lg border border-white/10">
+                          $15
+                        </span>
                       </div>
-                      <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      <p className="text-[11px] text-amber-100/90 leading-relaxed font-medium">
                         Keeps current stable release (v0.4.x) forever. Unlimited dictation, 1,000 clips history, all maintenance & security patches.
                       </p>
+                      <div className="space-y-1.5 pt-2 border-t border-amber-500/40 text-[10.5px] text-amber-100">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span>Perpetual v0.4.x Mac License</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span>Unlimited Voice Transcription</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span>1,000 SuperShelf Clipboard Items</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-[#141418] border border-purple-500/20 space-y-1.5">
+                    {/* 2. Forever Updates: Solid Vibrant Purple Base with Animated Shimmer */}
+                    <div className="p-4 rounded-xl bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-900 border border-purple-300/60 shadow-[0_8px_24px_rgba(147,51,234,0.35)] space-y-2.5 text-white relative overflow-hidden group">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-purple-300">Forever Updates</span>
-                        <span className="font-mono text-purple-400 font-semibold">$24</span>
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="w-4 h-4 text-purple-200 fill-purple-200 animate-pulse" />
+                          <span className="font-bold text-white text-sm tracking-tight">Forever Updates</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-400 text-black px-1.5 py-0.5 rounded-md shadow-sm">
+                            Best Value
+                          </span>
+                          <span className="font-mono text-purple-100 font-extrabold text-base bg-black/25 px-2 py-0.5 rounded-lg border border-white/10">
+                            $24
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      <p className="text-[11px] text-purple-100/90 leading-relaxed font-medium">
                         Everything in Core + all future feature releases and major version upgrades (v1.0, v2.0+) forever with zero renewal fees.
                       </p>
+                      <div className="space-y-1.5 pt-2 border-t border-purple-500/40 text-[10.5px] text-purple-100">
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+                          <span className="font-semibold text-white">Lifetime Major Upgrades (v1.0, v2.0+)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span>All Future AI Copilot & Vision Engines</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span>Priority Direct Support & Discord Access</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
