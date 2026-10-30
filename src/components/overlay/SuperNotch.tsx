@@ -1129,6 +1129,24 @@ export const SuperNotch: React.FC = () => {
     const userText = chatInput.trim();
     setChatInput('');
 
+    // Spatial & Clicky Co-Pilot Intent Trigger (from voice dictation or typed chat)
+    const spatialMatch = matchPresetForQuery(userText);
+    if (spatialMatch.intent === '3d_holo') {
+      setHoloPresetId(spatialMatch.presetId);
+      setHoloSandboxMode('3d');
+      setIsHoloSandboxOpen(true);
+      showStatus('Spawned 3D Holo-Sandbox!');
+    } else if (spatialMatch.intent === '2d_diagram') {
+      setHoloPresetId(spatialMatch.presetId);
+      setHoloSandboxMode('2d');
+      setIsHoloSandboxOpen(true);
+      showStatus('Spawned 2D Diagram Canvas!');
+    } else if (spatialMatch.intent === 'spatial_guide') {
+      setGhostGuideTarget(spatialMatch.spatialTarget || SAMPLE_SPATIAL_GUIDE_PRESETS.photoshop_pen_tool);
+      setIsGhostGuideOpen(true);
+      showStatus('Summoned Ghost Mouse Guide!');
+    }
+
     let screenPayload = currentScreenThumbnail;
     if (isScreenVisionEnabled && !screenPayload) {
       try {
