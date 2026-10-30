@@ -4,6 +4,7 @@ import { Dashboard } from './components/layout/Dashboard';
 import { SuperNotch } from './components/overlay/SuperNotch';
 import { PixelRulerOverlay } from './components/overlay/PixelRulerOverlay';
 import { ScreenLoupeOverlay } from './components/overlay/ScreenLoupeOverlay';
+import { GhostGuideOverlay } from './components/overlay/GhostGuideOverlay';
 import { AssetInspectorWindow } from './components/overlay/AssetInspectorWindow';
 import { TrayMenu } from './components/TrayMenu';
 import { useLiquidSync } from './hooks/useLiquidSync';
@@ -25,8 +26,9 @@ function App() {
     'dashboard'
   );
 
-  const [overlayTool, setOverlayTool] = useState<'ruler' | 'loupe'>('ruler');
+  const [overlayTool, setOverlayTool] = useState<'ruler' | 'loupe' | 'ghost_guide'>('ruler');
   const [loupeScreenshot, setLoupeScreenshot] = useState<string>('');
+  const [ghostGuideTarget, setGhostGuideTarget] = useState<any>(null);
 
   useEffect(() => {
     if (view !== 'ruler') return;
@@ -38,12 +40,25 @@ function App() {
       }
     });
 
+    const unlistenGhostGuide = listen<string | null>('dopenotch://activate-ghost-guide', (event) => {
+      setOverlayTool('ghost_guide');
+      if (event.payload) {
+        try {
+          const parsed = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
+          setGhostGuideTarget(parsed);
+        } catch {
+          setGhostGuideTarget(null);
+        }
+      }
+    });
+
     const unlistenRuler = listen('dopenotch://ruler-activated', () => {
       setOverlayTool('ruler');
     });
 
     return () => {
       unlistenLoupe.then((f) => f());
+      unlistenGhostGuide.then((f) => f());
       unlistenRuler.then((f) => f());
     };
   }, [view]);
@@ -84,6 +99,17 @@ function App() {
         <ScreenLoupeOverlay
           screenshotUrl={loupeScreenshot}
           onClose={() => invoke('close_loupe')}
+        />
+      );
+    }
+    if (overlayTool === 'ghost_guide') {
+      return (
+        <GhostGuideOverlay
+          target={ghostGuideTarget}
+          onClose={() => {
+            invoke('close_ghost_guide');
+            setOverlayTool('ruler');
+          }}
         />
       );
     }

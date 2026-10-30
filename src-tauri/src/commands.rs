@@ -1418,6 +1418,20 @@ pub async fn close_loupe(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn open_ghost_guide(app: AppHandle, target: Option<String>) -> Result<(), String> {
+    overlay::show_ruler_overlay(&app);
+    let _ = app.emit("dopenotch://activate-ghost-guide", target);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_ghost_guide(app: AppHandle) -> Result<(), String> {
+    overlay::hide_ruler_overlay(&app);
+    let _ = app.emit("dopenotch://deactivate-ghost-guide", ());
+    Ok(())
+}
+
 // ============================================================
 // System Vitals & Media Control Commands
 // ============================================================

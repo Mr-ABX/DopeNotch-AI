@@ -190,6 +190,8 @@ pub fn run() {
             commands::toggle_ruler,
             commands::open_loupe,
             commands::close_loupe,
+            commands::open_ghost_guide,
+            commands::close_ghost_guide,
             commands::check_system_permissions,
             commands::request_system_permissions,
             commands::get_system_vitals,
